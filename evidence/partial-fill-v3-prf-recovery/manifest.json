@@ -1,0 +1,83 @@
+{
+  "schema": "prf.partial-fill-v3-prf-recovery-qualification.v1",
+  "sourceRevision": "db638dd243d10059b07744cb814f9315100313ea",
+  "sourceRevisions": {
+    "test/resolver_sim/benchmark/packs/partial_fill/evidence_test.clj": "db638dd243d10059b07744cb814f9315100313ea",
+    "src/resolver_sim/benchmark/packs/partial_fill/evidence.clj": "e28fe9b625d4482f9ee3b46752f1da8780ce1fdb",
+    "test/resolver_sim/yield/strategic_partial_fill_test.clj": "76a10c0232a13c74146976322309146f8bfb4255",
+    "src/resolver_sim/yield/strategic_partial_fill.clj": "76a10c0232a13c74146976322309146f8bfb4255"
+  },
+  "commands": [
+    "clojure -Srepro -M:test -e \"(require 'clojure.test 'resolver-sim.benchmark.packs.partial-fill.evidence-test 'resolver-sim.yield.strategic-partial-fill-test) (let [r (clojure.test/run-tests 'resolver-sim.benchmark.packs.partial-fill.evidence-test 'resolver-sim.yield.strategic-partial-fill-test)] (System/exit (+ (:fail r) (:error r))))\"",
+    "clojure -Srepro -A:test -Spath"
+  ],
+  "runtime": {
+    "clojureCli": "{:version \"1.12.5.1654\"",
+    "javaVersion": "openjdk version \"21.0.12.1\" 2026-08-18"
+  },
+  "dependencyPins": {
+    "org.clojure/clojure": "1.12.0",
+    "prf/canonical": {
+      "url": "https://github.com/protocol-robustness/prf-canonical.git",
+      "revision": "5e2b520feca812b049ba397b7b3681963c66a48c",
+      "deps/root": "clj"
+    },
+    "prf/pro-rata-allocation": {
+      "url": "https://github.com/protocol-robustness/prf-pro-rata-allocation.git",
+      "revision": "48e0b362748cd39d09994a8aa1496c668199aa74",
+      "deps/root": "clj"
+    },
+    "prf/accounting-reductions": {
+      "local/root": "packages/accounting-reductions/clj"
+    }
+  },
+  "results": {
+    "namespaces": [
+      "resolver-sim.benchmark.packs.partial-fill.evidence-test",
+      "resolver-sim.yield.strategic-partial-fill-test"
+    ],
+    "tests": 76,
+    "assertions": 464,
+    "failures": 0,
+    "errors": 0,
+    "qualification": "PRF model/test evidence; source authentication not performed; no equilibrium claim"
+  },
+  "files": [
+    {
+      "path": "qualification.log",
+      "sha256": "4bc9b530e05d7ff4157f133ab0cf74210da3f4c61819616a51522ae0e84084e1"
+    },
+    {
+      "path": "classpath.txt",
+      "sha256": "530e5991bc92baa1393c2e2f7e0934c7a62693994c680ca83ba2bfa8efacb901"
+    },
+    {
+      "path": "../../test/resolver_sim/benchmark/packs/partial_fill/evidence_test.clj",
+      "sha256": "965a3d827f4c7dbf1587e2e144a24e1655caaf653adc62de3256477aad660332"
+    },
+    {
+      "path": "../../src/resolver_sim/benchmark/packs/partial_fill/evidence.clj",
+      "sha256": "3a81e0278599ad49bd052f26606d51555e76cbbae3e227f4f10b022c685622f4"
+    },
+    {
+      "path": "../../test/resolver_sim/yield/strategic_partial_fill_test.clj",
+      "sha256": "f72950b996a08ff0dcdbb8536ded2bee9fc0881946aab1a45c9baefb58201a6a"
+    },
+    {
+      "path": "../../src/resolver_sim/yield/strategic_partial_fill.clj",
+      "sha256": "548c24e944ba93399c6031f7eeacf379fa05df0566c6112b6e369c107b4bf127"
+    },
+    {
+      "path": "../../docs/yield/SHORTFALL_RECOVERY_EVIDENCE.md",
+      "sha256": "b6ca7ba3d13831c7e8f083e45dd6d2f97243ac1c7aeefa7570a01fa11c0862ed"
+    },
+    {
+      "path": "../../docs/yield/PARTIAL_FILL_RECOVERY_REMEDIATION_PLAN.md",
+      "sha256": "83d98acefb4942eda4483bbb8803be354e671ef3704014927acf4ab9d50bba06"
+    },
+    {
+      "path": "../../deps.edn",
+      "sha256": "534e830a51947dc38d5d006980cc18e2bd46fcaf7883d0c9d09f4f8517b555f7"
+    }
+  ]
+}

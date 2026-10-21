@@ -9,6 +9,7 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.semantic-admission :as semantic-admission]
             [resolver-sim.yield.partial-fill :as partial-fill]
+            [resolver-sim.yield.invariants :as yield-invariants]
             [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ── State write-back evidence ─────────────────────────────────────────────
@@ -826,6 +827,606 @@
          (= (:artifact/hash report)
             (hash-ref/sha256-ref
              (hc/hash-with-intent {:hash/intent :evidence-record} body))))))
+
+;; ── Shortfall and recovery episode evidence ───────────────────────────────
+
+(def ^:const shortfall-recovery-schema-version
+  "Version of the multi-round shortfall/recovery evidence artifact."
+  "shortfall-recovery-episode.v2")
+
+(defn- shared-decision-rounds [world]
+  (->> (vals (get-in world [:yield/partial-fill-decisions] {}))
+       (filter #(= :yield-withdraw-shared (:decision/source %)))
+       (sort-by (fn [d] [(get-in d [:allocation/invocation-context :step] Long/MAX_VALUE)
+                         (get-in d [:allocation/invocation-context :event/id] Long/MAX_VALUE)
+                         (:decision/id d)]))))
+
+(defn- shortfall-round-projection [index decision]
+  (let [rows (->> (get-in decision [:evidence :allocation-rows] [])
+                  (sort-by (juxt :key :source-position-id))
+                  (mapv #(select-keys % [:key :obligation-id :source-position-id
+                                         :owed :requested :filled :deferred :cap
+                                         :priority :priority-source])))
+        provenance (select-keys decision [:liquidity/schema-version :token :module/id
+                                          :liquidity/source-custody
+                                          :liquidity/available
+                                          :liquidity/evaluation-context
+                                          :liquidity/source-state-root
+                                          :liquidity/market-state-root])]
+    {:round/index index
+     :decision/id (:decision/id decision)
+     :decision/hash (:decision/hash decision)
+     :decision-integrity/holds? (partial-fill/decision-hash-valid? decision)
+     :invocation (select-keys (:allocation/invocation-context decision)
+                              [:run/id :execution/id :scenario/id :step :event/id :event-time])
+     :token (:token decision)
+     :module/id (:module/id decision)
+     :allocation/scope (:allocation/scope decision)
+     :budget-observation (cond-> provenance
+                           (contains? decision :liquidity/available-ratio)
+                           (assoc :liquidity/available-ratio
+                                  (str (:liquidity/available-ratio decision))))
+     :budget-provenance/holds? (:holds? (partial-fill/liquidity-budget-provenance-valid? decision))
+     :incoming-claims rows
+     :totals {:owed (reduce + 0 (map #(long (:owed % 0)) rows))
+              :filled (reduce + 0 (map #(long (:filled % 0)) rows))
+              :deferred (reduce + 0 (map #(long (:deferred % 0)) rows))
+              :shortage (long (get-in decision [:evidence :shortage] 0))}}))
+
+(defn- shortfall-observation-projection [observation]
+  (let [owed (:obligation/amount observation)
+        available (:liquidity/available observation)
+        shortfall (max 0 (- owed available))]
+    {:observation/id (:observation/id observation)
+     :observed-at (:observed-at observation)
+     :time-unit (:time-unit observation)
+     :order (:order observation)
+     :operation/id (:operation/id observation)
+     :decision/id (:decision/id observation)
+     :module/id (:module/id observation)
+     :observation/phase (:observation/phase observation)
+     :token (:token observation)
+     :obligation/amount owed
+     :claim-set (->> (:claim-set observation)
+                     (sort-by (juxt :entitlement/id :beneficiary))
+                     (mapv #(select-keys % [:entitlement/id :beneficiary :amount])))
+     :liquidity/available available
+     :shortfall/amount shortfall
+     :source (:source observation)
+     :source-ref (:source-ref observation)
+     :source-state-root (:source-state-root observation)
+     :events-since-prior (:events-since-prior observation)}))
+
+(def ^:private shortfall-event-kinds
+  #{:capital-recovery :beneficiary-payment :new-entitlement
+    :liability-reduction :availability-reclassification :other-liquidity-outflow})
+
+(defn- event-deltas [event]
+  (let [amount (:amount event)]
+    (case (:kind event)
+      :capital-recovery [amount 0]
+      :beneficiary-payment [(- amount) (- amount)]
+      :new-entitlement [0 amount]
+      :liability-reduction [0 (- amount)]
+      :availability-reclassification
+      [(if (= :increase (:direction event)) amount (- amount)) 0]
+      :other-liquidity-outflow [(- amount) 0]
+      [nil nil])))
+
+(defn- valid-shortfall-observations? [observations]
+  (and (vector? observations)
+       (seq observations)
+       (every? (fn [o]
+                 (and (some? (:observation/id o))
+                      (integer? (:observed-at o))
+                      (keyword? (:time-unit o))
+                      (map? (:order o))
+                      (every? #(and (integer? (get-in o [:order %]))
+                                    (not (neg? (get-in o [:order %]))))
+                              [:block-number :transaction-index :log-index])
+                      (some? (:operation/id o))
+                      (some? (:token o))
+                      (contains? #{:pre-settlement :post-settlement}
+                                 (:observation/phase o))
+                      (integer? (:obligation/amount o))
+                      (not (neg? (:obligation/amount o)))
+                      (vector? (:claim-set o))
+                      (or (seq (:claim-set o))
+                          (zero? (:obligation/amount o)))
+                      (every? #(and (some? (:entitlement/id %))
+                                    (some? (:beneficiary %))
+                                    (integer? (:amount %))
+                                    (not (neg? (:amount %))))
+                              (:claim-set o))
+                      (= (:obligation/amount o)
+                         (reduce + 0 (map :amount (:claim-set o))))
+                      (= (count (:claim-set o))
+                         (count (set (map :entitlement/id (:claim-set o)))))
+                      (integer? (:liquidity/available o))
+                      (not (neg? (:liquidity/available o)))
+                      (some? (:source o))
+                      (string? (:source-ref o))
+                      (not-empty (:source-ref o))
+                      (string? (:source-state-root o))
+                      (not-empty (:source-state-root o))
+                      (vector? (:events-since-prior o))
+                      (every? #(and (some? (:event/id %))
+                                    (shortfall-event-kinds (:kind %))
+                                    (integer? (:amount %))
+                                    (pos? (:amount %))
+                                    (string? (:source-ref %))
+                                    (not-empty (:source-ref %))
+                                    (string? (:source-state-root %))
+                                    (not-empty (:source-state-root %))
+                                    (or (not (#{:beneficiary-payment :new-entitlement
+                                               :liability-reduction} (:kind %)))
+                                        (and (some? (:entitlement/id %))
+                                             (some? (:beneficiary %))))
+                                    (or (not= :availability-reclassification (:kind %))
+                                        (contains? #{:increase :decrease} (:direction %))))
+                              (:events-since-prior o))))
+               observations)
+       (= (count observations) (count (set (map :observation/id observations))))
+       (let [events (mapcat :events-since-prior observations)]
+         (= (count events) (count (set (map :event/id events)))))
+       (every? (fn [[a b]] (<= (:observed-at a) (:observed-at b)))
+               (partition 2 1 observations))
+       (every? (fn [[a b]]
+                 (neg? (compare [(:block-number (:order a))
+                                 (:transaction-index (:order a))
+                                 (:log-index (:order a))]
+                                [(:block-number (:order b))
+                                 (:transaction-index (:order b))
+                                 (:log-index (:order b))])))
+               (partition 2 1 observations))
+       (= 1 (count (set (map :time-unit observations))))
+       (= 1 (count (set (map :operation/id observations))))
+       (= 1 (count (set (map :token observations))))
+       (every? (fn [[_ pairs]] (= 1 (count (set (map second pairs)))))
+               (group-by first
+                         (for [o observations
+                               claim (:claim-set o)]
+                           [(:entitlement/id claim) (:beneficiary claim)])))))
+
+(defn- rights-at-decision [decision phase]
+  (into {}
+        (for [row (get-in decision [:evidence :allocation-rows])
+              :let [amount (long (get row (if (= :pre-settlement phase) :owed :deferred) 0))]
+              :when (pos? amount)]
+          [(:key row) {:entitlement/id (:key row)
+                       :beneficiary (:key row)
+                       :amount amount}])))
+
+(defn- apply-shortfall-rights-events [rights decision events new-decision?]
+  (reduce (fn [current event]
+            (when current
+              (let [entitlement (:entitlement/id event)
+                    beneficiary (:beneficiary event)
+                    existing (get current entitlement)
+                    row (some #(when (= entitlement (:key %)) %)
+                              (get-in decision [:evidence :allocation-rows]))]
+                (case (:kind event)
+                  (:beneficiary-payment :liability-reduction)
+                  (when (and existing
+                             (= beneficiary (:beneficiary existing))
+                             (<= (:amount event) (:amount existing)))
+                    (let [remaining (- (:amount existing) (:amount event))]
+                      (if (zero? remaining)
+                        (dissoc current entitlement)
+                        (assoc-in current [entitlement :amount] remaining))))
+
+                  :new-entitlement
+                  (when (and new-decision?
+                             (nil? existing)
+                             row
+                             (= beneficiary (:key row))
+                             (<= (:amount event) (:owed row)))
+                    (assoc current entitlement
+                           {:entitlement/id entitlement
+                            :beneficiary beneficiary
+                            :amount (:amount event) }))
+
+                  current))))
+          rights
+          events))
+
+(defn- shortfall-observations-context-valid? [world decisions observations]
+  (let [decisions-by-id (into {} (map (juxt :decision/id identity) decisions))
+        ;; Decision rounds in a simulated world may share the same invocation
+        ;; step and event id. Use the source-observation sequence to establish
+        ;; the order in which this evidence traverses the decisions.
+        decision-index-by-id (into {} (map-indexed (fn [index decision-id]
+                                                     [decision-id index])
+                                                   (distinct (map :decision/id observations))))
+        execution-id (or (:execution/id world) (:run/id world))]
+    (and (valid-shortfall-observations? observations)
+         (every? (fn [decision]
+                   (partial-fill/decision-hash-valid? decision)) decisions)
+         (every? (fn [observation]
+                   (let [decision (get decisions-by-id (:decision/id observation))
+                         expected-execution (get-in decision
+                                                    [:allocation/invocation-context :execution/id])]
+                     (and decision
+                          (= execution-id (:operation/id observation))
+                          (= expected-execution execution-id)
+                          (= (:token decision) (:token observation))
+                          (= (:module/id decision) (:module/id observation)))))
+                 observations)
+         (let [ledger
+               (reduce (fn [{:keys [decision-id decision-index rights valid?]} observation]
+                         (let [decision (get decisions-by-id (:decision/id observation))
+                               observed-decision-index (get decision-index-by-id
+                                                            (:decision/id observation))
+                               first-observation? (nil? decision-index)
+                               new-decision? (and (not first-observation?)
+                                                  (> observed-decision-index decision-index))
+                               decision-order-valid? (or first-observation?
+                                                        (and (some? observed-decision-index)
+                                                             (>= observed-decision-index decision-index)))
+                               next-rights (if first-observation?
+                                             (when (empty? (:events-since-prior observation))
+                                               (rights-at-decision decision
+                                                                   (:observation/phase observation)))
+                                             (when decision-order-valid?
+                                               (apply-shortfall-rights-events
+                                                rights decision
+                                                (:events-since-prior observation)
+                                                new-decision?)))
+                               expected (when next-rights
+                                          (into {}
+                                                (map (fn [[id right]]
+                                                       [id (select-keys right
+                                                                        [:entitlement/id
+                                                                         :beneficiary :amount])])
+                                                     next-rights)))
+                               observed (into {}
+                                              (map (fn [claim]
+                                                     [(:entitlement/id claim)
+                                                      (select-keys claim
+                                                                   [:entitlement/id
+                                                                    :beneficiary :amount])])
+                                                   (:claim-set observation)))]
+                           {:decision-id (:decision/id observation)
+                            :decision-index observed-decision-index
+                            :rights next-rights
+                            :valid? (and valid?
+                                         decision-order-valid?
+                                         (= expected observed)
+                                         (= (:obligation/amount observation)
+                                            (reduce + 0 (map :amount
+                                                             (:claim-set observation)))))}))
+                       {:decision-id nil :decision-index nil :rights {} :valid? true}
+                       observations)]
+           (:valid? ledger))
+         (every? (fn [[prior current]]
+                   (let [prior-available (:liquidity/available prior)
+                         current-available (:liquidity/available current)
+                         prior-obligation (:obligation/amount prior)
+                         current-obligation (:obligation/amount current)
+                         deltas (map event-deltas (:events-since-prior current))
+                         liquidity-delta (reduce + 0 (map first deltas))
+                         obligation-delta (reduce + 0 (map second deltas))]
+                     (and (= (- current-available prior-available) liquidity-delta)
+                          (= (- current-obligation prior-obligation) obligation-delta))))
+                 (partition 2 1 observations)))))
+
+(defn- shortfall-observation-timeline [observations short-lived-threshold]
+  (let [projected (mapv shortfall-observation-projection observations)]
+    (:timeline
+     (reduce (fn [{:keys [prior-shortfall opened-at open-left-bound last-zero-at
+                          prior-observation timeline]}
+                  observation]
+               (let [shortfall (:shortfall/amount observation)
+                     prior-shortfall (or prior-shortfall 0)
+                     opened? (and (zero? prior-shortfall) (pos? shortfall))
+                     first-observation? (empty? timeline)
+                     left-censored? (and first-observation? (pos? shortfall))
+                     closed? (and (pos? prior-shortfall) (zero? shortfall))
+                     opening-bound (when opened? last-zero-at)
+                     duration-upper-bound (when (and closed? open-left-bound)
+                                            (- (:observed-at observation) open-left-bound))
+                     active-opened-at (cond
+                                        opened? (:observed-at observation)
+                                        (pos? shortfall) (or opened-at
+                                                             (:observed-at observation))
+                                        :else nil)
+                     active-left-bound (cond
+                                         opened? opening-bound
+                                         (pos? shortfall) open-left-bound
+                                         :else nil)
+                     event-effects (map event-deltas (:events-since-prior observation))
+                     event-liquidity-delta (reduce + 0 (map first event-effects))
+                     event-obligation-delta (reduce + 0 (map second event-effects))
+                     transition (when prior-observation
+                                  {:observed-liquidity-delta
+                                   (- (:liquidity/available observation)
+                                      (:liquidity/available prior-observation))
+                                   :event-liquidity-delta event-liquidity-delta
+                                   :observed-obligation-delta
+                                   (- (:obligation/amount observation)
+                                      (:obligation/amount prior-observation))
+                                   :event-obligation-delta event-obligation-delta
+                                   :reconciles? (and
+                                                 (= (- (:liquidity/available observation)
+                                                       (:liquidity/available prior-observation))
+                                                    event-liquidity-delta)
+                                                 (= (- (:obligation/amount observation)
+                                                       (:obligation/amount prior-observation))
+                                                    event-obligation-delta))})
+                     item (assoc observation
+                                 :episode/event (cond
+                                                  left-censored? :shortfall-present-at-first-observation
+                                                  opened? :shortfall-opened
+                                                  closed? :shortfall-fully-restored
+                                                  (and (pos? prior-shortfall)
+                                                       (< shortfall prior-shortfall))
+                                                  :shortfall-reduced
+                                                  (and (pos? prior-shortfall)
+                                                       (> shortfall prior-shortfall))
+                                                  :shortfall-increased
+                                                  :else :shortfall-unchanged)
+                                 :shortfall/reduced-since-prior
+                                 (when (seq timeline) (max 0 (- prior-shortfall shortfall)))
+                                 :declared-capital-recovery-event-amount
+                                 (when (seq timeline)
+                                   (reduce + 0 (for [event (:events-since-prior observation)
+                                                    :when (= :capital-recovery (:kind event))]
+                                                (:amount event))))
+                                 :shortfall/residual-after-observation shortfall
+                                 :episode/first-positive-observed-at active-opened-at
+                                 :episode/onset-left-censored? left-censored?
+                                 :episode/duration-upper-bound duration-upper-bound
+                                 :episode/duration-upper-bound-unit (:time-unit observation)
+                                 :episode/short-lived? (when (and closed?
+                                                                  short-lived-threshold
+                                                                  duration-upper-bound
+                                                                  (<= duration-upper-bound
+                                                                      short-lived-threshold))
+                                                         true)
+                                 :episode/short-lived-classification
+                                 (cond
+                                   (not closed?) :not-closed
+                                   (nil? short-lived-threshold) :threshold-not-specified
+                                   (nil? duration-upper-bound) :onset-bound-unavailable
+                                   (<= duration-upper-bound short-lived-threshold)
+                                   :qualified-by-duration-upper-bound
+                                   :else :not-established-by-duration-upper-bound)
+                                 :episode/closed-at (when closed? (:observed-at observation))
+                                 :episode/detected-to-closed-duration
+                                 (when (and closed? opened-at)
+                                   (- (:observed-at observation) opened-at))
+                                 :transition/reconciliation transition)]
+                 {:prior-shortfall shortfall
+                  :opened-at active-opened-at
+                  :open-left-bound active-left-bound
+                  :last-zero-at (when (zero? shortfall) (:observed-at observation))
+                  :prior-observation observation
+                  :timeline (conj timeline item)}))
+             {:prior-shortfall nil :opened-at nil :open-left-bound nil
+              :last-zero-at nil :timeline []}
+             projected))))
+
+(defn build-shortfall-recovery-evidence
+  "Build content-addressed evidence for shared-withdrawal shortfalls across
+   recovery rounds, with optional time-indexed source-referenced observations.
+   Each observation binds the current aggregate obligation to its entitlement,
+   beneficiary and amount rows and a liquidity state root. Budget changes are
+   observations, not proof of gross recovered flows; that attribution requires
+   explicit source-flow events. Source references are recorded but not
+   authenticated here. Cross-round participant conservation is checked."
+  [world & {:keys [episode/id case-scope shortfall-observations
+                   short-lived-threshold]}]
+  (let [decisions (shared-decision-rounds world)
+        lineage (yield-invariants/check-withdrawal-lineage-conservation world)
+        raw-rounds (mapv shortfall-round-projection (range) decisions)
+        duration-policy-valid? (or (nil? short-lived-threshold)
+                                   (and (integer? short-lived-threshold)
+                                        (not (neg? short-lived-threshold))))
+        observations-valid? (and (seq decisions)
+                                 (shortfall-observations-context-valid?
+                                  world decisions shortfall-observations))
+        observation-timeline (when observations-valid?
+                               (shortfall-observation-timeline
+                                shortfall-observations short-lived-threshold))
+        rounds (mapv (fn [index round]
+                       (let [prior (last (filter #(and (< (:round/index %) index)
+                                                       (= [(:token %) (:module/id %)
+                                                           (:allocation/scope %)]
+                                                          [(:token round) (:module/id round)
+                                                           (:allocation/scope round)]))
+                                                 raw-rounds))]
+                         (assoc round :budget-change-from-prior-round
+                                (when prior
+                                  (- (get-in round [:budget-observation :liquidity/available])
+                                     (get-in prior [:budget-observation :liquidity/available]))))))
+                     (range) raw-rounds)
+        body {:schema-version shortfall-recovery-schema-version
+              :artifact/kind :shortfall-recovery-episode
+              :episode/id (or id (get-in world [:execution/id])
+                              (get-in world [:run/id]) "unidentified-shortfall-episode")
+              :case-scope case-scope
+              :classification (if (seq rounds) :evaluated :not-evaluated)
+              :round-count (count rounds)
+              :rounds rounds
+              :budget-provenance/holds? (and (seq rounds)
+                                              (every? :budget-provenance/holds? rounds))
+              :decision-integrity/holds? (and (seq rounds)
+                                               (every? :decision-integrity/holds? rounds))
+              :recovery-observation {:method :per-round-liquidity-budget-provenance
+                                     :shortfall-timeline-source (if observations-valid?
+                                                                  :explicit-source-referenced-observations
+                                                                  :not-provided)
+                                     :restoration-measure :reduction-in-observed-shortfall
+                                     :capital-recovery-measure :sum-of-declared-capital-recovery-events
+                                     :gross-recovery-attribution :source-event-authentication-required}
+              :shortfall-observations {:classification (cond
+                                                         (nil? shortfall-observations) :not-provided
+                                                         observations-valid? :provided-with-source-references
+                                                         :else :invalid)
+                                       :timeline observation-timeline
+                                       :source-inputs shortfall-observations}
+              :shortfall-observations/source-authentication :not-performed
+              :episode-duration-policy {:threshold short-lived-threshold
+                                        :unit (some-> shortfall-observations first :time-unit)
+                                        :source-authentication :not-performed}
+              :episode-duration-policy/holds? duration-policy-valid?
+              :shortfall-observations/holds? (or (nil? shortfall-observations)
+                                                  observations-valid?)
+              :lineage-conservation lineage
+              :lineage-conservation/holds? (and (seq rounds) (:holds? lineage))
+              :decision-set/root (when (seq decisions)
+                                   (hc/hash-with-intent {:hash/intent :evidence-record}
+                                                        (mapv :decision/hash decisions)))}]
+    (finalize-artifact body)))
+
+(declare valid-shortfall-recovery-evidence?)
+
+(defn- authenticate-shortfall-source-inputs [observations authenticator]
+  (if-not (fn? authenticator)
+    {:classification :not-performed
+     :required? false
+     :holds? nil
+     :record-count 0}
+    (let [records (vec (mapcat (fn [observation]
+                                 (let [source-context
+                                       {:operation/id (:operation/id observation)
+                                        :decision/id (:decision/id observation)
+                                        :module/id (:module/id observation)
+                                        :token (:token observation)
+                                        :time-unit (:time-unit observation)
+                                        :observation/order (:order observation)
+                                        :observation/phase (:observation/phase observation)}
+                                       source-context (merge source-context
+                                                            (select-keys observation
+                                                                         [:chain/id :deployment/id]))
+                                       expected-observation
+                                       (select-keys observation
+                                                    [:observed-at :obligation/amount
+                                                     :claim-set :liquidity/available])]
+                                   (cons {:record/kind :observation
+                                          :record/id (:observation/id observation)
+                                          :source-ref (:source-ref observation)
+                                          :source-state-root (:source-state-root observation)
+                                          :source/context source-context
+                                          :source/expected expected-observation}
+                                         (map-indexed
+                                          (fn [event-index event]
+                                            {:record/kind :event
+                                             :record/id (:event/id event)
+                                             :source-ref (:source-ref event)
+                                             :source-state-root (:source-state-root event)
+                                             :source/context (assoc source-context
+                                                                    :parent-observation/id
+                                                                    (:observation/id observation)
+                                                                    :parent-observation/order
+                                                                    (:order observation)
+                                                                    :event/index event-index)
+                                             :source/expected
+                                             (select-keys event
+                                                          [:event/id :kind :amount
+                                                           :entitlement/id :beneficiary
+                                                           :direction])})
+                                          (:events-since-prior observation)))))
+                               observations))]
+      (try
+        (let [attestations (mapv authenticator records)
+              verifier-identities (set (map (juxt :verifier/id :verifier/revision)
+                                            attestations))
+              valid? (and (= (count records) (count attestations))
+                          (= 1 (count verifier-identities))
+                          (= (count attestations)
+                             (count (set (map :attestation/ref attestations))))
+                          (= (count attestations)
+                             (count (set (map :attestation/root attestations))))
+                          (every? (fn [[record attestation]]
+                                    (and (map? attestation)
+                                         (= :verified (:status attestation))
+                                         (= (:source-ref record) (:source-ref attestation))
+                                         (= (:source-state-root record)
+                                            (:source-state-root attestation))
+                                         (string? (:verifier/id attestation))
+                                         (not-empty (:verifier/id attestation))
+                                         (string? (:verifier/revision attestation))
+                                         (not-empty (:verifier/revision attestation))
+                                         (string? (:attestation/ref attestation))
+                                         (not-empty (:attestation/ref attestation))
+                                         (string? (:attestation/root attestation))
+                                         (not-empty (:attestation/root attestation))))
+                                  (map vector records attestations)))]
+          {:classification (if valid? :verified :failed)
+           :required? true
+           :holds? valid?
+           :verifier (when valid?
+                       (let [[id revision] (first verifier-identities)]
+                         {:id id :revision revision}))
+           :record-count (count records)
+           :records (mapv (fn [record attestation]
+                            (merge record
+                                   (select-keys attestation
+                                                [:attestation/ref :attestation/root])))
+                          records attestations)})
+        (catch Exception e
+          {:classification :failed
+           :required? true
+           :holds? false
+           :record-count (count records)
+           :failure :source-authenticator-error
+           :failure-message (.getMessage e)})))))
+
+(defn verify-shortfall-recovery-evidence
+  "Rebuild and compare a shortfall-recovery artifact against the source world.
+   Missing rounds, invalid decision hashes, lineage failures, or altered
+   projections fail closed. A supplied source authenticator must independently
+   attest every observation and event reference/root pair; absent authentication
+   remains explicitly reported as not performed."
+  [world artifact & {:keys [source-authenticator]}]
+  (let [expected (build-shortfall-recovery-evidence
+                  world :episode/id (:episode/id artifact)
+                  :case-scope (:case-scope artifact)
+                  :short-lived-threshold (get-in artifact [:episode-duration-policy :threshold])
+                  :shortfall-observations (get-in artifact [:shortfall-observations :source-inputs]))
+        evaluated? (pos? (:round-count expected 0))
+        integrity? (and (valid-shortfall-recovery-evidence? artifact)
+                        (= (:artifact/hash expected) (:artifact/hash artifact))
+                        (= (:artifact/preimage expected) (:artifact/preimage artifact)))
+        lineage? (true? (:lineage-conservation/holds? expected))
+        budget? (true? (:budget-provenance/holds? expected))
+        decisions? (true? (:decision-integrity/holds? expected))
+        source-authentication (authenticate-shortfall-source-inputs
+                              (get-in artifact [:shortfall-observations :source-inputs])
+                              source-authenticator)
+        source-authentication? (or (not (:required? source-authentication))
+                                   (true? (:holds? source-authentication)))]
+    {:classification (cond (not evaluated?) :not-evaluated
+                           (and integrity? lineage? budget? decisions?
+                                source-authentication?) :evaluated-pass
+                           :else :evaluated-fail)
+     :evaluated? evaluated?
+     :artifact-integrity? integrity?
+     :lineage-conservation? lineage?
+     :budget-provenance? budget?
+     :decision-integrity? decisions?
+     :source-authentication source-authentication
+     :source-authentication? (when (:required? source-authentication)
+                               (:holds? source-authentication))
+     :expected-hash (:artifact/hash expected)
+     :observed-hash (:artifact/hash artifact)}))
+
+(defn valid-shortfall-recovery-evidence? [artifact]
+  (and (map? artifact)
+       (= shortfall-recovery-schema-version (:schema-version artifact))
+       (= :shortfall-recovery-episode (:artifact/kind artifact))
+       (pos-int? (:round-count artifact))
+       (= (:round-count artifact) (count (:rounds artifact)))
+       (:episode-duration-policy/holds? artifact)
+       (:decision-integrity/holds? artifact)
+       (:shortfall-observations/holds? artifact)
+       (string? (:artifact/hash artifact))
+       (string? (:artifact/preimage artifact))
+       (= (:artifact/hash artifact)
+          (hash-ref/sha256-ref
+           (hc/hash-with-intent {:hash/intent :evidence-record}
+                                (dissoc artifact :artifact/hash :artifact/preimage))))))
 
 ;; ── Continuity evidence ───────────────────────────────────────────────────
 
