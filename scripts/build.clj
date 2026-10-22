@@ -162,6 +162,12 @@ core-deps-str (pr-str
                         :paths ["src" "resources"]})
         sew-deps-str (pr-str
                       '{:deps {org.clojure/clojure {:mvn/version "1.12.0"}
+                               prf/canonical {:git/url "https://github.com/protocol-robustness/prf-canonical.git"
+                                              :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
+                                              :deps/root "clj"}
+                               prf/pro-rata-allocation {:git/url "https://github.com/protocol-robustness/prf-pro-rata-allocation.git"
+                                                        :git/sha "48e0b362748cd39d09994a8aa1496c668199aa74"
+                                                        :deps/root "clj"}
                                org.clojure/tools.logging {:mvn/version "1.2.4"}
                                org.slf4j/slf4j-api {:mvn/version "1.7.36"}
                                org.slf4j/slf4j-simple {:mvn/version "1.7.36"}
