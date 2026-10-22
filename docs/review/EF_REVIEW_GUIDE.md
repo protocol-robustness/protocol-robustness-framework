@@ -18,8 +18,10 @@ Before inspecting examples, verify the packet from its own root:
 bin/verify-review-packet.sh .
 ```
 
-This verifies the distributed JAR, selected inputs, review documents, packet
-manifest, and every generated evidence bundle using only the packet contents.
+This checks packet file digests, manifest-to-file and manifest-to-outcome
+bindings, distribution provenance, and every generated evidence bundle using
+only the packet contents. It establishes internal consistency, not authenticity:
+obtain a trusted digest independently before relying on the packet's contents.
 
 The supported review commands are:
 

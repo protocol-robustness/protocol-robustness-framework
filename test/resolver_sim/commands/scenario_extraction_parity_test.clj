@@ -146,6 +146,24 @@
     (is (= {:total-fees {"USDC" 1}} (:world normalized)))
     (is (= {:escrow-unrealized 0} (:metrics normalized)))))
 
+(deftest normalize-replay-uses-execution-raw-when-replay-result-is-absent
+  (let [decisions {:decision-1 {:decision/id "decision-1"
+                                :decision/hash "hash-1"
+                                :requested {"Alice" 10}
+                                :filled {"Alice" 6}}}
+        bundle {:bundle/schema-version "bundle-root.v2"
+                :overview {:results [{:scenario-id "execution-raw"
+                                      :outcome "pass"}]}
+                :run/scenario-results
+                [{:scenario-id "execution-raw"
+                  :execution/raw {:scenario-id "execution-raw"
+                                  :trace []
+                                  :metrics {}
+                                  :world {:yield/partial-fill-decisions decisions}}}]}
+        normalized (extraction/normalize-replay bundle)]
+    (is (= decisions (get-in normalized [:world :yield/partial-fill-decisions])))
+    (is (= 1 (get (extraction/partial-fill-decisions normalized {}) "decision_count")))))
+
 (deftest normalize-replay-reads-scenario-id-from-overview-for-persisted-v2
   (let [bundle {:bundle/schema-version "bundle-root.v2"
                 :overview {:results [{:scenario-id "persisted-v2"

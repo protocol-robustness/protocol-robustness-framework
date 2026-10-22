@@ -16,6 +16,8 @@ SCENARIO_ROOT="$WORK/scenario"
 BENCHMARK_ROOT="$WORK/benchmark"
 MISSING_ROOT="$WORK/missing-evidence"
 UNDECLARED_ROOT="$WORK/undeclared-evidence"
+PACKET_ROOT="$CWD/review-packet"
+TAMPERED_PACKET_ROOT="$WORK/tampered-packet"
 
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
@@ -45,8 +47,9 @@ verify_scenario() {
   java -jar "$JAR" -m resolver-sim.cli.main verify-scenario --run-root "$1"
 }
 
+(cd "$PROJECT_DIR" && bb build:sew)
 if [ ! -f "$JAR" ]; then
-  echo "Missing Sew JAR: $JAR. Run bb build:sew first." >&2
+  echo "Sew build did not produce the required JAR: $JAR" >&2
   exit 2
 fi
 
@@ -58,8 +61,22 @@ echo "=== EF canonical review acceptance ==="
 run_scenario "$SCENARIO_ROOT"
 verify_scenario "$SCENARIO_ROOT"
 
-a=$(python3 -c 'import json, os; root="'"$SCENARIO_ROOT"'"; x=json.load(open(root+"/manifest/diagnostic-summary.json")); assert x["scenario_id"]; refs=x["evidence"]; assert all(os.path.isfile(os.path.join(root, refs[k])) for k in ["trace_ref", "metrics_ref", "run_finalization_ref"]); print("scenario diagnostic references resolve")')
-echo "$a"
+python3 - "$SCENARIO_ROOT" <<'PY'
+import json, os, sys
+root = sys.argv[1]
+with open(os.path.join(root, "manifest/diagnostic-summary.json"), encoding="utf-8") as f:
+    summary = json.load(f)
+if not summary.get("scenario_id"):
+    raise SystemExit("scenario diagnostic summary has no scenario_id")
+missing = [
+    os.path.join(root, summary.get("evidence", {}).get(key, ""))
+    for key in ("trace_ref", "metrics_ref", "run_finalization_ref")
+    if not os.path.isfile(os.path.join(root, summary.get("evidence", {}).get(key, "")))
+]
+if missing:
+    raise SystemExit("scenario diagnostic references do not resolve: " + ", ".join(missing))
+print("scenario diagnostic references resolve")
+PY
 
 java -jar "$JAR" -m resolver-sim.cli.main run-benchmark prf-core/force-authorisation-custody-v1 --run-root "$BENCHMARK_ROOT"
 java -jar "$JAR" -m resolver-sim.cli.main verify-benchmark --run-root "$BENCHMARK_ROOT"
@@ -91,5 +108,31 @@ if [ -n "$(find "$CWD" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
   exit 1
 fi
 
+echo "=== EF packet build and independent verification ==="
+bash "$PROJECT_DIR/scripts/build-ef-review-packet.sh" review-packet
+bash "$PACKET_ROOT/bin/verify-review-packet.sh" "$PACKET_ROOT"
+test -s "$PACKET_ROOT/README.md"
+
+# Recompute the ordinary checksum inventory after tampering, then require the
+# manifest-to-completion check to detect the inconsistent declared outcome.
+cp -a "$PACKET_ROOT" "$TAMPERED_PACKET_ROOT"
+python3 - "$TAMPERED_PACKET_ROOT/REVIEW_PACKET_MANIFEST.json" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    manifest = json.load(f)
+manifest["examples"][0]["semantic_outcome"] = "tampered"
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    json.dump(manifest, f, indent=2)
+    f.write("\n")
+PY
+(
+  cd "$TAMPERED_PACKET_ROOT"
+  mapfile -t packet_files < <(find . -type f ! -name SHA256SUMS -printf '%P\n' | LC_ALL=C sort)
+  java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main ref-file \
+    "${packet_files[@]}" > SHA256SUMS
+)
+expect_fail bash "$TAMPERED_PACKET_ROOT/bin/verify-review-packet.sh" "$TAMPERED_PACKET_ROOT"
+
 echo "PASS: external EF review path runs and verifies scenario and benchmark bundles"
+echo "PASS: relative packet build, full packet checksums, and manifest outcome binding"
 echo "PASS: completed-root reuse, missing evidence, and undeclared evidence are rejected"

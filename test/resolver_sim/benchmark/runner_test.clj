@@ -28,6 +28,22 @@
 (defn- deterministic-input-root [digit]
   (str "sha256:" (apply str (repeat 64 digit))))
 
+(deftest normalize-runtime-values-preserves-noncanonical-map-keys-canonically
+  (let [normalized (runner/normalize-runtime-values
+                    {:states (sorted-map 0 {:balance 3} 2 {:balance 4}) :vector-key {[:state :left] :value}})]
+    (is (= {:prf/map-encoding "entries.v1"
+            :prf/map-entries [[0 {:balance 3}]
+                              [2 {:balance 4}]]}
+           (:states normalized)))
+    (is (= {:prf/map-encoding "entries.v1"
+            :prf/map-entries [[[:state :left] :value]]}
+           (:vector-key normalized)))
+    (is (nil? (hc/validate-canonical-value! normalized))))
+  (testing "unrepresentable key values fail closed"
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (runner/normalize-runtime-values
+                  {(Object.) :value})))))
+
 (deftest scenario-output-packages-are-isolated-per-execution
   (let [root (doto (java.io.File/createTempFile "benchmark-artifacts-" "")
                (.delete)

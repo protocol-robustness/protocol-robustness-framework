@@ -10,6 +10,10 @@
 
 ## Unreleased
 
+- EF review packet generation now builds the Sew runner from the identified source tree, emits its README and complete input references, and verifies manifest outcomes and distribution provenance against packaged artifacts. Scenario diagnostic summaries bind the scenario ID from execution identity.
+
+- Benchmark CLI runs now bind preflight to the packaged runner JAR. Benchmark evidence preserves integer-keyed replay state maps using the canonical `prf/map-entries.v1` representation.
+
 - V2 partial-fill application profiles now fail integrity validation when verification findings have invalid boolean, violation-list, or continuity-field shapes, even when the profile hash is recomputed.
 
 - The PRO-28 Groth16 reference-check CLI now emits identity-bound `unsupported` or `not_verified` results when a check cannot run or establish proof validity, while preserving a nonzero exit status.

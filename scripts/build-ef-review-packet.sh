@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Create a reproducible external technical-review packet from the built Sew JAR.
-# Usage: bash scripts/build-ef-review-packet.sh /absolute/or-relative/output-dir
+# Create a reproducible external technical-review packet from the Sew source tree.
+# Usage: bash scripts/build-ef-review-packet.sh /absolute/or/relative/output-dir
 
 set -euo pipefail
 
@@ -11,20 +11,36 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-OUTPUT_DIR="$1"
+OUTPUT_DIR="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$1")"
 JAR="$PROJECT_DIR/target/prf-runner-sew-0.1.0-uber.jar"
+JAR_PROVENANCE="$JAR.provenance.json"
 
-if [ ! -f "$JAR" ]; then
-  echo "Missing Sew JAR: $JAR. Run bb build:sew first." >&2
-  exit 2
-fi
+mkdir -p "$(dirname "$OUTPUT_DIR")"
 if [ -e "$OUTPUT_DIR" ] && [ -n "$(find "$OUTPUT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
   echo "Review packet output must be absent or empty: $OUTPUT_DIR" >&2
   exit 2
 fi
 
+# Build the reviewed binary from the source tree used to create this packet.
+SOURCE_REVISION="$(jj --repository "$PROJECT_DIR" log -r @ --no-graph -T commit_id 2>/dev/null | tr -d '\n')"
+if [ -z "$SOURCE_REVISION" ]; then
+  echo "Unable to identify the source revision; refusing to build an unbound packet." >&2
+  exit 2
+fi
+(cd "$PROJECT_DIR" && bb build:sew)
+SOURCE_REVISION_AFTER_BUILD="$(jj --repository "$PROJECT_DIR" log -r @ --no-graph -T commit_id 2>/dev/null | tr -d '\n')"
+if [ "$SOURCE_REVISION" != "$SOURCE_REVISION_AFTER_BUILD" ]; then
+  echo "Source tree changed during the packet build; refusing mixed-source evidence." >&2
+  exit 2
+fi
+if [ ! -f "$JAR" ] || [ ! -f "$JAR_PROVENANCE" ]; then
+  echo "Sew build did not produce the JAR and provenance: $JAR" >&2
+  exit 2
+fi
+
 mkdir -p "$OUTPUT_DIR"/{bin,docs/specs,inputs/scenarios,inputs/benchmarks,inputs/test-vectors/pro-rata,evidence,diagnostics}
 cp "$JAR" "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar"
+cp "$JAR_PROVENANCE" "$OUTPUT_DIR/DISTRIBUTION_PROVENANCE.json"
 cp "$PROJECT_DIR/scripts/verify-ef-review-packet.sh" "$OUTPUT_DIR/bin/verify-review-packet.sh"
 chmod +x "$OUTPUT_DIR/bin/verify-review-packet.sh"
 cp "$PROJECT_DIR/docs/review/EF_REVIEW_GUIDE.md" "$OUTPUT_DIR/docs/REVIEW_GUIDE.md"
@@ -61,9 +77,12 @@ MANIFEST_REFS="$(mktemp)"
 trap 'rm -f "$MANIFEST_REFS"' EXIT
 packet_refs \
   bin/prf-runner-sew-0.1.0-uber.jar \
+  DISTRIBUTION_PROVENANCE.json \
   inputs/scenarios/S-DR-084-evidence-after-settlement-rejected.edn \
   inputs/scenarios/Y06_multi-party-pro-rata-shortfall.edn \
   inputs/scenarios/S-NC-001-freeze-active-dispute-negative-control.edn \
+  inputs/scenarios/S-DR-001-basic-release-ruling.edn \
+  inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn \
   docs/specs/SEW_CUSTODY_EXPOSURE_V1.md \
   inputs/benchmarks/force-authorisation-custody-v1.edn \
   inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json \
@@ -84,15 +103,9 @@ fi
   echo "packet_schema_version=prf-ef-review-packet.v1"
   echo "built_jar=bin/prf-runner-sew-0.1.0-uber.jar"
   echo "build_timestamp_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  JJ_COMMIT="$(jj --repository "$PROJECT_DIR" log -r @ --no-graph -T commit_id 2>/dev/null | tr -d '\n')"
-  if [ -n "$JJ_COMMIT" ]; then
-    echo "repository_vcs=jujutsu"
-    echo "repository_commit=$JJ_COMMIT"
-  else
-    echo "repository_vcs=unavailable"
-    echo "repository_commit=unavailable"
-    echo "provenance_status=incomplete"
-  fi
+  echo "repository_vcs=jujutsu"
+  echo "repository_commit=$SOURCE_REVISION"
+  echo "distribution_provenance=DISTRIBUTION_PROVENANCE.json"
   echo "jar_sha256=$JAR_REF"
 } > "$OUTPUT_DIR/PROVENANCE.txt"
 
@@ -118,6 +131,13 @@ fi
   fi
   java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
     verify-scenario --run-root scenario-semantic-failure
+  python3 - "$OUTPUT_DIR/evidence/scenario-semantic-failure/completion.json" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    completion = json.load(f)
+if completion.get("lifecycle_status") != "completed" or completion.get("semantic_status") != "fail":
+    raise SystemExit("S-NC-001 did not complete with the expected semantic failure")
+PY
   java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
     run-benchmark prf-core/force-authorisation-custody-v1 \
     --run-root benchmark-force-authorisation
@@ -127,11 +147,14 @@ fi
 
 # Derived reviewer aid. It is deliberately outside the immutable scenario
 # bundle, so its generation cannot alter registry or finalization commitments.
-clojure -M "$PROJECT_DIR/scripts/render_scenario_diagnostic.clj" \
-  "$OUTPUT_DIR/evidence/scenario-semantic-failure" \
-  --focus first-failure \
-  --output-dir "$OUTPUT_DIR/diagnostics/scenario-semantic-failure" \
-  > /dev/null
+(
+  cd "$PROJECT_DIR"
+  clojure -M "$PROJECT_DIR/scripts/render_scenario_diagnostic.clj" \
+    "$OUTPUT_DIR/evidence/scenario-semantic-failure" \
+    --focus first-failure \
+    --output-dir "$OUTPUT_DIR/diagnostics/scenario-semantic-failure" \
+    > /dev/null
+)
 
 REJECTED_INPUT_REF="$(ref_for inputs/scenarios/S-DR-084-evidence-after-settlement-rejected.edn)"
 PRO_RATA_INPUT_REF="$(ref_for inputs/scenarios/Y06_multi-party-pro-rata-shortfall.edn)"
@@ -140,6 +163,13 @@ CUSTODY_EXPOSURE_SPEC_REF="$(ref_for docs/specs/SEW_CUSTODY_EXPOSURE_V1.md)"
 BENCHMARK_INPUT_REF="$(ref_for inputs/benchmarks/force-authorisation-custody-v1.edn)"
 PRO_RATA_INSUFFICIENT_VECTOR_REF="$(ref_for inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json)"
 PRO_RATA_DUST_VECTOR_REF="$(ref_for inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-equal-buckets-dust.json)"
+SCENARIO_BASIC_INPUT_REF="$(ref_for inputs/scenarios/S-DR-001-basic-release-ruling.edn)"
+SCENARIO_REVERSAL_INPUT_REF="$(ref_for inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn)"
+DIST_PROVENANCE_REF="$(ref_for DISTRIBUTION_PROVENANCE.json)"
+SCENARIO_REJECTED_OUTCOME="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["semantic_status"])' "$OUTPUT_DIR/evidence/scenario-rejected/completion.json")"
+SCENARIO_PRO_RATA_OUTCOME="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["semantic_status"])' "$OUTPUT_DIR/evidence/scenario-pro-rata/completion.json")"
+SCENARIO_FAILURE_OUTCOME="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["semantic_status"])' "$OUTPUT_DIR/evidence/scenario-semantic-failure/completion.json")"
+BENCHMARK_OUTCOME="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["semantic_status"])' "$OUTPUT_DIR/evidence/benchmark-force-authorisation/completion.json")"
 
 # Canonical ref for the value-at-risk projection derived for the Y06 shortfall
 # example (written by the run above). The enriched projection lives in
@@ -160,6 +190,15 @@ cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
     "sha256": "$JAR_REF"
   },
   "provenance_ref": "PROVENANCE.txt",
+  "distribution_provenance": {
+    "path": "DISTRIBUTION_PROVENANCE.json",
+    "sha256": "$DIST_PROVENANCE_REF",
+    "source_revision": "$SOURCE_REVISION"
+  },
+  "additional_inputs": [
+    {"path": "inputs/scenarios/S-DR-001-basic-release-ruling.edn", "sha256": "$SCENARIO_BASIC_INPUT_REF", "role": "included reference scenario; not replayed in this packet"},
+    {"path": "inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn", "sha256": "$SCENARIO_REVERSAL_INPUT_REF", "role": "included reference scenario; not replayed in this packet"}
+  ],
   "evidence_profiles": [
     {
       "id": "sew-custody-exposure.v1",
@@ -187,7 +226,7 @@ cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
       "input": "inputs/scenarios/S-DR-084-evidence-after-settlement-rejected.edn",
       "input_sha256": "$REJECTED_INPUT_REF",
       "bundle_root": "evidence/scenario-rejected",
-      "semantic_outcome": "pass",
+      "semantic_outcome": "$SCENARIO_REJECTED_OUTCOME",
       "verify": ["verify-scenario", "--run-root", "evidence/scenario-rejected"]
     },
     {
@@ -195,7 +234,7 @@ cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
       "input": "inputs/scenarios/Y06_multi-party-pro-rata-shortfall.edn",
       "input_sha256": "$PRO_RATA_INPUT_REF",
       "bundle_root": "evidence/scenario-pro-rata",
-      "semantic_outcome": "pass",
+      "semantic_outcome": "$SCENARIO_PRO_RATA_OUTCOME",
       "verify": ["verify-scenario", "--run-root", "evidence/scenario-pro-rata"],
       "value_at_risk": {
         "path": "$PRO_RATA_VAR_JSON",
@@ -211,7 +250,7 @@ cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
       "input": "inputs/scenarios/S-NC-001-freeze-active-dispute-negative-control.edn",
       "input_sha256": "$FAILURE_INPUT_REF",
       "bundle_root": "evidence/scenario-semantic-failure",
-      "semantic_outcome": "fail",
+      "semantic_outcome": "$SCENARIO_FAILURE_OUTCOME",
       "verify": ["verify-scenario", "--run-root", "evidence/scenario-semantic-failure"],
       "derived_diagnostic": {
         "mermaid": "diagnostics/scenario-semantic-failure/diagnostic.mmd",
@@ -224,106 +263,73 @@ cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
       "input": "inputs/benchmarks/force-authorisation-custody-v1.edn",
       "input_sha256": "$BENCHMARK_INPUT_REF",
       "bundle_root": "evidence/benchmark-force-authorisation",
+      "semantic_outcome": "$BENCHMARK_OUTCOME",
       "verify": ["verify-benchmark", "--run-root", "evidence/benchmark-force-authorisation"]
     }
   ]
 }
 EOF
 
-(
-  cd "$OUTPUT_DIR"
-  java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main ref-file \
-    bin/prf-runner-sew-0.1.0-uber.jar \
-    bin/verify-review-packet.sh \
-    inputs/scenarios/S-DR-084-evidence-after-settlement-rejected.edn \
-    inputs/scenarios/Y06_multi-party-pro-rata-shortfall.edn \
-    inputs/scenarios/S-NC-001-freeze-active-dispute-negative-control.edn \
-    inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn \
-    inputs/scenarios/S-DR-001-basic-release-ruling.edn \
-    inputs/benchmarks/force-authorisation-custody-v1.edn \
-    docs/specs/SEW_CUSTODY_EXPOSURE_V1.md \
-    inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json \
-    inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-equal-buckets-dust.json \
-    docs/REVIEW_GUIDE.md \
-    docs/SCENARIO_REVIEW_HIGHLIGHTS.md \
-    docs/PACKET_LAYOUT.md \
-    docs/BENCHMARK_ASSURANCE_SPEC_V1.md \
-    PROVENANCE.txt \
-    REVIEW_PACKET_MANIFEST.json \
-    diagnostics/scenario-semantic-failure/diagnostic.mmd \
-    diagnostics/scenario-semantic-failure/diagnostic.md \
-    evidence/scenario-pro-rata/manifest/summary.json \
-    > SHA256SUMS
-)
+cat > "$OUTPUT_DIR/README.md" <<'PACKET_README'
+# EF technical review packet
 
-# EF Review Packet
+This packet contains a freshly built PRF Sew runner, selected review inputs,
+generated evidence bundles, and a self-contained verifier. It supports
+technical review; it is not a production security certification or an EF
+endorsement.
 
-## Packet Overview
-This directory contains a generated EF technical-review packet for the PRF (Protocol Robustness Framework) project.
+The source revision and reviewed binary identity are recorded in
+`PROVENANCE.txt` and `DISTRIBUTION_PROVENANCE.json`.
 
-**Packet path**: %OUTPUT_DIR%
-
-**Generated**: %BUILD_TIMESTAMP%
+Verify the packet from its root with `bin/verify-review-packet.sh .`. The
+checksums detect changes relative to the packet's checksum inventory, but that
+inventory is included in the packet; obtain a trusted digest independently
+before treating it as an authenticity anchor.
 
 ## Included Scenarios
-The packet includes the following scenarios:
+The packet replays these scenarios:
 
-- S-DR-001-basic-release-ruling.edn
 - S-DR-084-evidence-after-settlement-rejected.edn
 - S-NC-001-freeze-active-dispute-negative-control.edn
 - Y06_multi-party-pro-rata-shortfall.edn
-- DR-N-002-reversal-slash-appeal-rejected.edn
+
+It also includes `S-DR-001-basic-release-ruling.edn` and
+`DR-N-002-reversal-slash-appeal-rejected.edn` as reference inputs; these are
+not replayed in this packet.
 
 ## Key Artifacts
-- `manifest/canonical-integrity.json` - Unsigned canonical integrity assurance
-- `manifest/forensic-claims-status.json` - Forensic claims status (deferred when no signing configured)
-- `manifest/verdict-policy.json` - Verdict policy for outcome determination
-- `manifest/artifacts.json` - Artifact registry
+- `evidence/scenario-pro-rata/manifest/canonical-integrity.json` - Unsigned canonical integrity assurance
+- `evidence/scenario-pro-rata/manifest/forensic-claims-status.json` - Forensic claims status
+- `evidence/scenario-pro-rata/manifest/verdict-policy.json` - Verdict policy for outcome determination
+- `evidence/scenario-pro-rata/manifest/artifacts.json` - Artifact registry
 - `evidence/scenario-pro-rata/manifest/summary.json` - Summary with value-at-risk
 - `diagnostics/scenario-semantic-failure/` - Semantic failure diagnostic
 
 ## Verification Commands
 ```bash
 # Verify scenario bundles
-java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-scenario --run-root scenario-pro-rata
-java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-scenario --run-root scenario-rejected
-java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-scenario --run-root scenario-semantic-failure
+java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-scenario --run-root evidence/scenario-pro-rata
+java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-scenario --run-root evidence/scenario-rejected
+java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-scenario --run-root evidence/scenario-semantic-failure
 
 # Verify benchmark
-java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-benchmark --run-root benchmark-force-authorisation
-
-# Build attestation
-bb build:attest
-
-# Review packet analysis
-bash scripts/verify-ef-review-packet.sh evidence/scenario-pro-rata
+java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-benchmark --run-root evidence/benchmark-force-authorisation
 ```
 
-## Current Status
-- **Scenario outcomes**: Y06 multi-party pro-rata shortfall passes semantically (1/1)
-- **Verification status**: See individual scenario results above
-- **Forensic claims status**: Deferred (unsigned; signing required for eligibility)
-- **Canonical integrity**: 14/14 checks pass
-
 ## Documentation References
-- [`docs/PACKET_LAYOUT.md`](PACKET_LAYOUT.md) - Packet structure and conventions
-- [`docs/REVIEW_GUIDE.md`](REVIEW_GUIDE.md) - Review commands and procedures
-- [`docs/SCENARIO_REVIEW_HIGHLIGHTS.md`](SCENARIO_REVIEW_HIGHLIGHTS.md) - Scenario review priorities
-- [`docs/BENCHMARK_ASSURANCE_SPEC_V1.md`](BENCHMARK_ASSURANCE_SPEC_V1.md) - Assurance spec reference
+- [`docs/PACKET_LAYOUT.md`](docs/PACKET_LAYOUT.md) - Packet structure and conventions
+- [`docs/REVIEW_GUIDE.md`](docs/REVIEW_GUIDE.md) - Review commands and procedures
+- [`docs/SCENARIO_REVIEW_HIGHLIGHTS.md`](docs/SCENARIO_REVIEW_HIGHLIGHTS.md) - Scenario review priorities
+- [`docs/BENCHMARK_ASSURANCE_SPEC_V1.md`](docs/BENCHMARK_ASSURANCE_SPEC_V1.md) - Assurance spec reference
 
 ## Quick Start
 ```bash
-# Generate packet
-bash scripts/build-ef-review-packet.sh /path/to/output-dir
-
-# Verify scenarios
-java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-scenario --run-root scenario-pro-rata
-
-# Or run the review packet verification script
-bash scripts/verify-ef-review-packet.sh evidence/scenario-pro-rata
+# Verify this packet from its root
+bin/verify-review-packet.sh .
 ```
 
 ## Directory Layout
+```text
 output-dir/
 ├── bin/                          # JAR and verification scripts
 ├── docs/                         # Documentation copies
@@ -344,6 +350,21 @@ output-dir/
 ├── REVIEW_PACKET_MANIFEST.json   # Manifest of all packet contents
 ├── SHA256SUMS                      # SHA256 checksums for verification
 ├── PROVENANCE.txt                # Provenance metadata
+├── DISTRIBUTION_PROVENANCE.json  # Build-produced JAR metadata
 └── README.md                     # This file
+```
+
+PACKET_README
+
+(
+  cd "$OUTPUT_DIR"
+  mapfile -t PACKET_FILES < <(find . -type f ! -name SHA256SUMS -printf '%P\n' | LC_ALL=C sort)
+  if [ "${#PACKET_FILES[@]}" -eq 0 ]; then
+    echo "Packet contains no files to checksum" >&2
+    exit 2
+  fi
+  java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main ref-file \
+    "${PACKET_FILES[@]}" > SHA256SUMS
+)
 
 echo "Review packet created: $OUTPUT_DIR"

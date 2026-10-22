@@ -29,8 +29,11 @@
         failing-step (or (first (filter #(contains? #{"error" "fail" "violated" "invariant-violated"} (result-label %)) steps))
                          (first (filter #(= "rejected" (result-label %)) steps)))
         outcome (if (zero? (:exit-code execution)) "pass" "fail")
+        scenario-id (or (:scenario/id execution)
+                        (:scenario-id execution)
+                        (get trace "scenario_id"))
         value {"schema_version" "scenario-diagnostic-summary.v1"
-               "scenario_id" (get trace "scenario_id")
+               "scenario_id" scenario-id
                ;; This phase runs only after the scenario bundle has been
                ;; successfully materialized. Semantic failure is recorded
                ;; independently so it cannot be mistaken for lifecycle failure.

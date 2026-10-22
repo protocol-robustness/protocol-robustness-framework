@@ -51,6 +51,16 @@
       (is (= "scenarios/example/summaries/metrics.json"
              (get-in diagnostic ["evidence" "metrics_ref"]))))))
 
+(deftest scenario-id-prefers-execution-identity
+  (let [root (temp-dir)
+        manifest-dir (io/file root "manifest")]
+    (.mkdirs manifest-dir)
+    (write-trace! root [])
+    (let [diagnostic (diagnostics/write! {:scenario/root (.getPath root)
+                                          :manifest/dir (.getPath manifest-dir)}
+                                         {:exit-code 0 :scenario/id "execution-bound-scenario"})]
+      (is (= "execution-bound-scenario" (get diagnostic "scenario_id"))))))
+
 (deftest rejection-remains-the-diagnostic-fallback
   (let [diagnostic (diagnostic-for
                     [{"seq" 2 "time" 1100 "actor" "attacker"

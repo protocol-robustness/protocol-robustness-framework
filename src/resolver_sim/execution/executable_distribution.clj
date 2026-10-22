@@ -4,9 +4,13 @@
    The historical schema and domain tag remain benchmark-named for byte/root
    compatibility. Ownership is execution-level: consumers delegate here rather
    than maintaining local distribution verifiers."
-  (:require [resolver-sim.execution.context :as execution]
+  (:require [clojure.java.io :as io]
+            [resolver-sim.execution.context :as execution]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.hash.reference :as hash-ref]))
+            [resolver-sim.hash.reference :as hash-ref])
+  (:import [java.math BigInteger]
+           [java.net JarURLConnection]
+           [java.security MessageDigest]))
 
 (def ^:const schema "benchmark-executable-distribution.v2")
 (def ^:private domain-tag "PRF_BENCHMARK_EXECUTABLE_DISTRIBUTION_V2")
@@ -70,6 +74,43 @@
 (defn distribution-root [distribution]
   (hash-ref/sha256-ref (hc/domain-hash domain-tag (distribution-body distribution))))
 
+(declare build-distribution)
+
+(defn file-artifact-root
+  "Return the canonical SHA-256 identity of a regular artifact file."
+  [file]
+  (let [file (io/file file)]
+    (when (.isFile file)
+      (with-open [input (io/input-stream file)]
+        (let [digest (MessageDigest/getInstance "SHA-256")
+              buffer (byte-array 65536)]
+          (loop []
+            (let [read-count (.read input buffer)]
+              (when (pos? read-count)
+                (.update digest buffer 0 read-count)
+                (recur))))
+          (hash-ref/sha256-ref
+           (format "%064x" (BigInteger. 1 (.digest digest)))))))))
+
+(defn current-runtime-artifact-root
+  "Hash the packaged JAR that supplies the PRF runner metadata resource.
+   Returns nil when running from loose source or class files."
+  []
+  (when-let [metadata-url (io/resource hash-ref/prf-runner-edn-path)]
+    (try
+      (let [connection (.openConnection metadata-url)]
+        (when (instance? JarURLConnection connection)
+          (file-artifact-root
+           (io/file (.toURI (.getJarFileURL connection))))))
+      (catch Exception _ nil))))
+
+(defn observe-current-runtime-distribution
+  "Re-read the packaged runner JAR and build its distribution identity for
+   benchmark execution preflight."
+  [_runtime-context]
+  (when-let [artifact-root (current-runtime-artifact-root)]
+    (build-distribution {:executable-artifact/root artifact-root})))
+
 (defn build-distribution [distribution]
   (assoc (distribution-body distribution)
          :executable-distribution/root (distribution-root distribution)))
@@ -82,14 +123,16 @@
 (defn expected-shape
   "Project the expected executable-distribution binding carried to a worker."
   [distribution]
-  (select-keys distribution [:executable-artifact/root
+  (select-keys distribution [:executable-distribution/schema
+                             :executable-artifact/root
                              :semantic-claimant-options
                              :executable-distribution/root]))
 
 (defn observed-shape
   "Project worker-observed distribution material into its preflight shape."
   [distribution]
-  (select-keys distribution [:executable-artifact/root
+  (select-keys distribution [:executable-distribution/schema
+                             :executable-artifact/root
                              :semantic-claimant-options
                              :executable-distribution/root]))
 

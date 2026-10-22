@@ -93,3 +93,21 @@
               (assoc distribution :executable-distribution/schema "benchmark-executable-distribution.v1"))))
     (is (thrown? clojure.lang.ExceptionInfo
                  (shared/build-distribution {:semantic-claimant-options base-options})))))
+
+(deftest file-artifact-root-binds-exact-file-bytes
+  (let [artifact (java.io.File/createTempFile "prf-executable" ".jar")]
+    (try
+      (spit artifact "abc")
+      (is (= "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+             (shared/file-artifact-root artifact)))
+      (finally
+        (.delete artifact)))))
+
+(deftest preflight-projection-remains-verifiable-by-chunk-consumers
+  (let [preflight (sut/distribution-preflight {:expected (sut/expected-shape distribution) :observed distribution})]
+    (is (= :verified (:distribution-preflight/status preflight)))
+    (is (= shared/schema (:executable-distribution/schema (:observed preflight))))
+    (is (= :verified
+           (:distribution-preflight/status
+            (sut/distribution-preflight {:expected (:expected preflight)
+                                         :observed (:observed preflight)}))))))

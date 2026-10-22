@@ -15,8 +15,9 @@ All root-relative references below are relative to the packet directory.
 | Path | Meaning |
 |---|---|
 | `REVIEW_PACKET_MANIFEST.json` | Machine-readable manifest. Begin here. Lists the reviewed jar, its sha256, provenance reference, each evidence profile, reference vectors, and every example (input → evidence bundle → semantic outcome → verify command). |
-| `PROVENANCE.txt` | Packet provenance: schema version, built jar path, build timestamp (UTC), repository VCS + commit, and the jar's sha256. |
-| `SHA256SUMS` | Canonical `sha256:<hex>` reference list for every packaged file, emitted by the packaged jar itself (`ref-file`). |
+| `PROVENANCE.txt` | Packet provenance: schema version, source revision, build timestamp (UTC), distribution-provenance path, and the jar's sha256. |
+| `DISTRIBUTION_PROVENANCE.json` | Build-produced Sew distribution metadata, including variant, version, and JAR digest. |
+| `SHA256SUMS` | Canonical `sha256:<hex>` references for packet payload files, emitted by the packaged jar itself (`ref-file`). Obtain an independent trusted digest for this file or the packet archive; the sidecar alone is not an authentication anchor. |
 
 ## Top-level directories
 
@@ -33,7 +34,7 @@ All root-relative references below are relative to the packet directory.
 | Path | Meaning |
 |---|---|
 | `bin/prf-runner-sew-0.1.0-uber.jar` | The reviewed binary (source-only uberjar, `clojure.main` as `Main-Class`). Run it with `-m resolver-sim.cli.main` for the CLI. |
-| `bin/verify-review-packet.sh` | Self-contained packet verifier. From inside the packet: `bash bin/verify-review-packet.sh .` Revalidates canonical refs and every evidence bundle. |
+| `bin/verify-review-packet.sh` | Self-contained packet verifier. From inside the packet: `bash bin/verify-review-packet.sh .` Revalidates canonical refs, manifest paths/digests/outcomes, distribution provenance, and every evidence bundle. |
 
 ## `docs/`
 
@@ -48,7 +49,8 @@ All root-relative references below are relative to the packet directory.
 ## `inputs/`
 
 Immutable review inputs. Their sha256 references are committed in
-`REVIEW_PACKET_MANIFEST.json` and `SHA256SUMS`.
+`REVIEW_PACKET_MANIFEST.json` and `SHA256SUMS`. The two additional scenario
+inputs are explicitly marked as included references rather than replayed runs.
 
 | Path | Meaning |
 |---|---|

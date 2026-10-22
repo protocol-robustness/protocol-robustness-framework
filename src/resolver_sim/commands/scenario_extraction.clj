@@ -17,7 +17,7 @@
               (throw (ex-info "Structured scenario extraction requires exactly one raw scenario result" {:count (count raw-results)})))
           overview (first results)
           raw (first raw-results)
-          replay (or (:replay-result raw) raw)]
+          replay (or (:replay-result raw) (:execution/raw raw) raw)]
       (let [scenario-id (or (:scenario-id overview)
                             (:scenario-id raw)
                             (:scenario-id replay)
@@ -26,11 +26,11 @@
                :events-processed (or (:events-processed replay) (count (:trace replay)))
                :source {:scenario-id scenario-id}
                :trace (:trace replay) :metrics (:metrics replay)
-                              ;; Keep raw replay state unchanged, but ensure the structured
-                              ;; extraction projection cannot carry runtime-only leaves into
-                              ;; canonical hashing.
-               :world (json-safe-value (:world replay))))
-      bundle)))
+               ;; Normalized runner results retain the raw replay at
+               ;; :execution/raw; preserve it as the extraction source when the
+               ;; convenience :replay-result field is absent.
+               :world (json-safe-value (:world replay)))))
+    bundle))
 
 (defn- action [event] (or (:action event) (:event-type event) "?"))
 (defn- action-name [event] (let [value (action event)] (if (keyword? value) (name value) (str value))))
