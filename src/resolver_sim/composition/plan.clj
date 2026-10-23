@@ -10,10 +10,10 @@
    contract, and compiler identity/version."
   (:require [resolver-sim.hash.canonical :as hc]))
 
-(def ^:const plan-schema-version 1)
+(def ^:const plan-schema-version 2)
 
 (def ^:const plan-domain-tag
-  "COMPOSITION_PLAN_V1")
+  "COMPOSITION_PLAN_V2")
 
 (defn plan-projection
   "Committed fields of a compiled plan (excludes the self-referential
@@ -31,7 +31,8 @@
                 :plan/input-contract
                 :plan/output-contract
                 :plan/effect-merge-strategy
-                :plan/verification]))
+                :plan/verification
+                :plan/compiler-inputs]))
 
 (defn plan-root
   "Content-addressed root of a compiled plan.
@@ -47,7 +48,7 @@
   "Assemble a compiled plan from its committed fields and attach :plan/root."
   [{:keys [combination-root compiler-id compiler-version
            nodes edges addresses input-contract output-contract
-           effect-merge-strategy verification]}]
+           effect-merge-strategy verification compiler-inputs]}]
   (let [base {:plan/schema-version plan-schema-version
               :plan/combination-root combination-root
               :plan/compiler-id compiler-id
@@ -58,5 +59,6 @@
               :plan/input-contract input-contract
               :plan/output-contract output-contract
               :plan/effect-merge-strategy effect-merge-strategy
-              :plan/verification verification}]
+              :plan/verification verification
+              :plan/compiler-inputs compiler-inputs}]
     (assoc base :plan/root (plan-root base))))

@@ -274,7 +274,7 @@
                    (assoc-in plan [:plan/nodes 0 :failure-mode] :continue)
                    (assoc plan :plan/compiler-id :attacker/compiler)
                    (assoc plan :plan/compiler-version 1)
-                   (assoc plan :plan/schema-version 2)
+                   (assoc plan :plan/schema-version 1)
                    (assoc plan :plan/root "malformed")
                    (dissoc plan :plan/root)
                    (assoc plan :plan/uncommitted-field :ignored)
@@ -289,6 +289,23 @@
           (is (empty? (:execution/effects result)))))
       (is (zero? @invocations)))))
 
+(deftest caller-rehashed-plan-must-match-compiler-replay
+  (let [emap (fx/ext-map-with (fx/cap :fixture/a))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/a] :spec {:rate 500})
+               (fx/node :n2 [:economics/award-amount :fixture/a] :spec {:rate 500}))
+        compiled (:plan (comp/compile-combination {:extensions emap} combo))
+        forged (let [candidate (assoc-in compiled [:plan/nodes 0 :spec :rate] 10000)]
+                 (assoc candidate :plan/root (plan/plan-root candidate)))
+        invocations (atom 0)]
+    (with-redefs [ext-exec/resolve-entrypoint
+                  (fn [_] (fn [_] (swap! invocations inc) {:amount 1 :effects []}))]
+      (let [result (exec/execute-compiled-plan forged emap {} 1000)]
+        (is (= :rejected (:execution/status result)))
+        (is (some #(= :violation/compiler-replay-mismatch (:violation/id %))
+                  (:execution/violations result)))
+        (is (zero? @invocations))))))
+
 (deftest previous-compiler-version-plan-is-rejected-before-invocation
   (let [emap (fx/ext-map-with (fx/cap :fixture/a))
         combo (fx/seq-combination
@@ -300,7 +317,7 @@
                         (assoc :plan/root (plan/plan-root
                                            (assoc compiled-plan :plan/compiler-version 1))))
         invocations (atom 0)]
-    (is (= 2 (:plan/compiler-version compiled-plan)))
+    (is (= 3 (:plan/compiler-version compiled-plan)))
     (with-redefs [ext-exec/invoke-capability
                   (fn [_ _] (swap! invocations inc) {:amount 1 :effects []})]
       (let [result (exec/execute-compiled-plan legacy-plan emap {} 1000)]
