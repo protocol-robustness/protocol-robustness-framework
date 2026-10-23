@@ -26,7 +26,8 @@
 (defn source-ref? [value]
   (and (vector? value)
        (#{2 3} (count value))
-       (#{:prf :prf-evm :prf-canonical :prf-pro-rata-allocation} (first value))))
+       (#{:prf :prf-evm :prf-canonical :prf-pro-rata-allocation :prf-coprocessor}
+        (first value))))
 
 (defn source-refs [data]
   (->> (tree-seq coll? seq data)
@@ -38,13 +39,14 @@
        (or (#{:canonical :pro-rata-allocation :capital-lifecycle :Shortfall} owner)
            (= "other" (namespace owner)))))
 
-(defn validate! [manifest prf-root evm-root canonical-root pro-rata-root]
+(defn validate! [manifest prf-root evm-root canonical-root pro-rata-root coprocessor-root]
   (let [issues (atom [])
         entries (:registry/entries manifest)
         by-id (into {} (map (juxt :artifact/id identity) entries))
         roots {:prf prf-root :prf-evm evm-root
                :prf-canonical canonical-root
-               :prf-pro-rata-allocation pro-rata-root}
+                :prf-pro-rata-allocation pro-rata-root
+                :prf-coprocessor coprocessor-root}
         identity-tuples
         (->> entries
              (sort-by (comp str :artifact/id))
@@ -246,13 +248,14 @@
                          (count entries) (count (source-refs manifest)) identity-digest))))))
 
 (defn -main [& args]
-  (when-not (= 5 (count args))
+  (when-not (= 6 (count args))
     (binding [*out* *err*]
-      (println "Usage: bb scripts/validate/canonical_artifacts.clj <manifest.edn> <prf-root> <prf-evm-root> <prf-canonical-root> <prf-pro-rata-allocation-root>"))
+      (println "Usage: bb scripts/validate/canonical_artifacts.clj <manifest.edn> <prf-root> <prf-evm-root> <prf-canonical-root> <prf-pro-rata-allocation-root> <prf-coprocessor-root>"))
     (System/exit 2))
-  (let [[manifest-path prf-root evm-root canonical-root pro-rata-root] args]
+  (let [[manifest-path prf-root evm-root canonical-root pro-rata-root coprocessor-root] args]
     (validate! (edn/read-string (slurp manifest-path))
                (io/file prf-root) (io/file evm-root)
-               (io/file canonical-root) (io/file pro-rata-root))))
+               (io/file canonical-root) (io/file pro-rata-root)
+               (io/file coprocessor-root))))
 
 (apply -main *command-line-args*)

@@ -281,7 +281,7 @@ check:ownership
                    "-M" "-m" "resolver-sim.validation.scenario-registry")}
 
   canonical-artifacts:validate
-   {:doc "Validate the proposed canonical artifact baseline. Usage: bb canonical-artifacts:validate <manifest.edn> <prf-root> <prf-evm-root> <pinned-prf-canonical-root> <pinned-prf-pro-rata-allocation-root>"
+   {:doc "Validate the proposed canonical artifact baseline. Usage: bb canonical-artifacts:validate <manifest.edn> <prf-root> <prf-evm-root> <pinned-prf-canonical-root> <pinned-prf-pro-rata-allocation-root> <pinned-prf-coprocessor-root>"
     :task (apply shell "bb" "scripts/validate/canonical_artifacts.clj" *command-line-args*)}
 
   assurance:verify-checkpoint

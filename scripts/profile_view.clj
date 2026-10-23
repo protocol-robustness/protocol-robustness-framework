@@ -134,6 +134,36 @@
     (when (fs/exists? target) (fs/delete target))
     (java.nio.file.Files/createSymbolicLink target source (make-array java.nio.file.attribute.FileAttribute 0))))
 
+(defn external-material-source [{:keys [repository path]}]
+  (when-not (= repository :prf-coprocessor)
+    (throw (ex-info "Unsupported external profile repository" {:repository repository})))
+  (when (or (str/blank? path)
+            (.isAbsolute (java.nio.file.Paths/get path (make-array String 0)))
+            (some #{"." ".."} (str/split path #"/")))
+    (throw (ex-info "External profile material path must be a normalized relative path"
+                    {:path path})))
+  (let [{:keys [exit out err]} (process/shell {:dir (str repo-root)
+                                               :continue true
+                                               :out :string
+                                               :err :string}
+                                              "bash" "scripts/resolve-prf-coprocessor.sh")]
+    (when-not (zero? exit)
+      (throw (ex-info "Pinned external profile repository is unavailable"
+                      {:repository repository :diagnostic err})))
+    (let [source (fs/path (str/trim out) path)]
+      (when-not (fs/exists? source)
+        (throw (ex-info "Declared external profile material is missing"
+                        {:repository repository :path path :source (str source)})))
+      source)))
+
+(defn symlink-external-material! [view-root {:keys [repository path] :as material}]
+  (let [source (external-material-source material)
+        target (fs/path view-root "external" (name repository) path)]
+    (fs/create-dirs (fs/parent target))
+    (when (fs/exists? target) (fs/delete target))
+    (java.nio.file.Files/createSymbolicLink target source
+                                            (make-array java.nio.file.attribute.FileAttribute 0))))
+
 (defn runtime-profile [profile]
   (when-let [runtime (:profile/runtime profile)]
     (let [request-path (fs/path repo-root ".profile-view" "runtime-request.edn")
@@ -247,13 +277,15 @@
         runtime-profile (runtime-profile profile)]
     (clear-directory! view-root)
     (doseq [source source-files] (symlink! view-root source))
-    (doseq [{:keys [path kind] :as material} materials]
+    (doseq [{:keys [path kind repository] :as material} materials]
       (when-not (keyword? kind)
         (throw (ex-info "Profile material requires a kind" {:material material})))
-      (let [source (fs/path repo-root path)]
-        (when-not (fs/exists? source)
-          (throw (ex-info "Declared profile material is missing" {:path path})))
-        (symlink! view-root source)))
+      (if repository
+        (symlink-external-material! view-root material)
+        (let [source (fs/path repo-root path)]
+          (when-not (fs/exists? source)
+            (throw (ex-info "Declared profile material is missing" {:path path})))
+          (symlink! view-root source))))
     (generated-deps view-root)
     (when runtime-profile
       (spit (str (fs/path view-root "runtime-options.edn")) (pr-str runtime-profile)))

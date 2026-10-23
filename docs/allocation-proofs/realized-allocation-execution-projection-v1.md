@@ -205,9 +205,9 @@ leaf(B)          = 23472ad42041455ea0d2ae5aaf7b6cb8f440622e2b53ad010bd0bdf8c566d
 leaf(C)          = f08fd8ef2d0ea21606cc29d5ccfb387800f0fa09d79858ee4432e903ed98e612
 ```
 
-`coprocessor/core/tests/realized_execution_test.rs` asserts the complete
+`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/tests/realized_execution_test.rs` asserts the complete
 384-byte public-value hex vector, not only its component fields. The shared canonical fixture is
-`coprocessor/core/tests/fixtures/realized-execution-all-active.json`. To execute
+`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/tests/fixtures/realized-execution-all-active.json`. To execute
 the SP1 guest without proving, use:
 
 ```bash

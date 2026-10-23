@@ -15,6 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prepare pinned extracted coprocessor
+        run: |
+          ./scripts/setup-prf-coprocessor.sh
+          echo "PRF_COPROCESSOR_ROOT=$(./scripts/resolve-prf-coprocessor.sh)" >> "$GITHUB_ENV"
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:

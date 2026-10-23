@@ -845,7 +845,7 @@ input, never a controller-supplied value after proof admission.
 
 The frozen 192-byte profile violates this rule only for
 `allocationBindingRoot` and `realizedStatementRoot`: its host receives and the
-guest echoes those words (`coprocessor/core/src/source_bound_v2.rs`,
+guest echoes those words (`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/src/source_bound_v2.rs`,
 `derive_fixture`). `preparedOperationRoot` is rederived from raw prepared
 fields; `reserveStateCommitment` is rederived from raw economic state; and
 `operationId` is parsed into the prepared operation then re-emitted. A successor
@@ -1091,7 +1091,7 @@ derivation input.
 ## Stage B3 successor guest
 
 The successor guest is implemented at
-`coprocessor/source-bound-entitlement-sp1-program/src/main.rs`. It is a thin
+`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/source-bound-entitlement-sp1-program/src/main.rs`. It is a thin
 SP1 entrypoint: it reads one JSON byte vector, invokes the reviewed Rust core
 derivation, and commits exactly the nine-word
 `prf/source-bound-entitlement-public-values.v1` projection (288 bytes). The
@@ -1145,7 +1145,9 @@ Generated proof fixtures record the bundle content hash, vector ID, and exact
 materialized witness hash; filesystem paths remain excluded. Example:
 
 ```bash
-cargo run --manifest-path coprocessor/sp1-script/Cargo.toml \
+make setup-coprocessor
+COPROCESSOR_ROOT="$(./scripts/resolve-prf-coprocessor.sh)"
+cargo run --locked --manifest-path "$COPROCESSOR_ROOT/sp1-script/Cargo.toml" \
   --bin source-bound-entitlement-prove -- --prove \
   --vectors etc/conformance/vectors/source-bound-entitlement-v1.json \
   --vector A-minimum-realistic \

@@ -2,9 +2,11 @@
 
 ## Scope
 
-The next phase adds real SP1 proof generation and local on-chain proof
-verification. It must still exclude host-integration work and the complete
-allocation coordinator lifecycle.
+The next phase qualifies SP1 proof generation and local on-chain proof
+verification. The pinned `prf-coprocessor` source already contains the Rust
+kernel, SP1 guests, hosts and proof scripts; this plan covers reproducible
+qualification of those implementations. It still excludes host-integration
+work and the complete allocation coordinator lifecycle.
 
 In scope:
 
@@ -48,9 +50,8 @@ SP1 proof verifies through the generated Solidity verifier
 
 ## Migration path
 
-The SP1 guest/host skeletons in `coprocessor/sp1-program` and
-`coprocessor/sp1-host` are plain-Rust today and depend on the shared
-`allocation-kernel` core. The next phase:
+The guest and host implementations in the pinned `prf-coprocessor` repository
+depend on its shared `allocation-kernel` core. The next phase:
 
 1. Adds the SP1 guest dependency to `allocation-sp1-program`, wraps the shared
    kernel entry point with `sp1_main!`, and commits the same public values.

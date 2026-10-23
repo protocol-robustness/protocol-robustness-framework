@@ -26,6 +26,11 @@ For protocol finality, forensic workflows and protected pro-rata checks, see
 [the command guide](docs/cli/protocol-commands.md). Run `bin/prf help` to list
 the registered commands.
 
+Extracted repository ownership and immutable source pins are recorded in
+[`docs/research/EXTRACTED_REPOSITORIES.md`](docs/research/EXTRACTED_REPOSITORIES.md).
+`make setup-coprocessor` explicitly prepares the pinned coprocessor checkout in
+the managed user cache; notebook and ordinary Clojure evaluation never clone it.
+
 Its strongest recent work focuses on **high-assurance execution boundaries**: exact-state authority, fenced finalization, deterministic reconstruction, cross-implementation conformance, portable evidence, and proof-backed protocol decisions.
 
 Sew is the primary mature protocol integration. **Provably Fair Pro-Rata** is the flagship application for exercising the framework's allocation, portability, proof, authority, and final-state assurance architecture.

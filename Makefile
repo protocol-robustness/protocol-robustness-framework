@@ -331,27 +331,31 @@ ci:
 	./bin/ci
 
 # ── Allocation coprocessor ──
-# The independent Rust kernel + SP1 guest/prover + Solidity verifier + PRF
-# conformance gate now live in this repo. The gate remains
+# The independent Rust kernel + SP1 guest/prover live in the pinned
+# prf-coprocessor repository. Solidity verification and PRF conformance remain
+# in their owning repositories. The gate remains
 #   PRF reference result == native Rust result,
 # with SP1 proof generation and on-chain verification as the next phase.
 # See docs/allocation-proofs/.
 
-.PHONY: allocation-rust-test
+.PHONY: setup-coprocessor allocation-rust-test
+setup-coprocessor:
+	./scripts/setup-prf-coprocessor.sh
+
 allocation-rust-test:
-	cd coprocessor && cargo fmt --check && cargo test
+	PRF_COPROCESSOR_ROOT="$$(./scripts/resolve-prf-coprocessor.sh)" && cd "$$PRF_COPROCESSOR_ROOT" && cargo fmt --check && cargo test --locked
 
 .PHONY: allocation-rust-clippy
 allocation-rust-clippy:
-	cd coprocessor && cargo clippy --all-targets --all-features -- -D warnings
+	PRF_COPROCESSOR_ROOT="$$(./scripts/resolve-prf-coprocessor.sh)" && cd "$$PRF_COPROCESSOR_ROOT" && cargo clippy --locked --all-targets --all-features -- -D warnings
 
 .PHONY: allocation-guest
 allocation-guest:
-	cd coprocessor && cargo build --release -p allocation-sp1-program
+	PRF_COPROCESSOR_ROOT="$$(./scripts/resolve-prf-coprocessor.sh)" && cd "$$PRF_COPROCESSOR_ROOT" && cargo build --locked --release -p allocation-sp1-program
 
 .PHONY: allocation-realized-guest
 allocation-realized-guest:
-	cd coprocessor && cargo build --release -p realized-statement-sp1-program
+	PRF_COPROCESSOR_ROOT="$$(./scripts/resolve-prf-coprocessor.sh)" && cd "$$PRF_COPROCESSOR_ROOT" && cargo build --locked --release -p realized-statement-sp1-program
 
 .PHONY: allocation-contracts
 allocation-contracts:
@@ -363,7 +367,7 @@ allocation-conformance:
 
 .PHONY: allocation-realized-conformance
 allocation-realized-conformance:
-	cd coprocessor && cargo build --release -p allocation-kernel --bin realized-statement-kernel
+	PRF_COPROCESSOR_ROOT="$$(./scripts/resolve-prf-coprocessor.sh)" && cd "$$PRF_COPROCESSOR_ROOT" && cargo build --locked --release -p allocation-kernel --bin realized-statement-kernel
 	./scripts/conformance/realized-statement-conformance.sh
 
 .PHONY: allocation-realized-proof
@@ -376,7 +380,7 @@ allocation-realized-proof-artifact-verify:
 
 .PHONY: allocation-realized-proof-sdk-verify
 allocation-realized-proof-sdk-verify:
-	cd coprocessor && SP1_PROVER=cpu cargo run --locked --release -p allocation-sp1-script --bin realized-statement-verify -- --artifact ../results/allocation/a-vs-b-plus-c/realized-statement/sp1-proof-artifact.json
+	PRF_COPROCESSOR_ROOT="$$(./scripts/resolve-prf-coprocessor.sh)" && cd "$$PRF_COPROCESSOR_ROOT" && SP1_PROVER=cpu cargo run --locked --release -p allocation-sp1-script --bin realized-statement-verify -- --artifact "$(CURDIR)/results/allocation/a-vs-b-plus-c/realized-statement/sp1-proof-artifact.json"
 
 .PHONY: allocation-test
 allocation-test: allocation-rust-test allocation-rust-clippy allocation-guest allocation-realized-guest allocation-contracts allocation-conformance allocation-realized-conformance
