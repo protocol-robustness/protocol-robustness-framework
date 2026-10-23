@@ -81,7 +81,7 @@
   #{:plan/schema-version :plan/combination-root :plan/compiler-id
     :plan/compiler-version :plan/nodes :plan/edges :plan/addresses
     :plan/input-contract :plan/output-contract :plan/effect-merge-strategy
-    :plan/verification :plan/root})
+    :plan/verification :plan/compiler-inputs :plan/root})
 
 (def ^:private node-keys
   #{:node/id :capability-key :capability-version :capability-root :entrypoint-safety
@@ -115,6 +115,11 @@
          (map? (:plan/output-contract candidate))
          (keyword? (:plan/effect-merge-strategy candidate))
          (map? (:plan/verification candidate))
+         (let [inputs (:plan/compiler-inputs candidate)]
+           (and (closed-map? inputs #{:combination :evidence-contracts :obligations})
+                (map? (:combination inputs))
+                (map? (:evidence-contracts inputs))
+                (map? (:obligations inputs))))
          (string? (:plan/root candidate))
          (= (:plan/root candidate) (plan/plan-root candidate)))
     (catch Throwable _ false)))
@@ -177,7 +182,16 @@
     (if-not (authenticated-plan? plan)
       (reject :violation/unauthenticated-plan
               {:reason "plan envelope, compiler identity, schema, or commitment is invalid"})
-      (let [nodes (:plan/nodes plan [])
+      (let [compiler-inputs (:plan/compiler-inputs plan)
+            replay (try
+                     (compiler/compile-combination
+                      {:extensions extension-map
+                       :evidence-contracts (:evidence-contracts compiler-inputs)
+                       :obligations (:obligations compiler-inputs)}
+                      (:combination compiler-inputs))
+                     (catch Throwable _ nil))
+            replayed-plan (:plan replay)
+            nodes (:plan/nodes plan [])
             unsafe (filter #(not= :pure-calculation (:entrypoint-safety %)) nodes)
             unsupported-modes (filter #(not= :abort (:failure-mode %)) nodes)
           mismatches (keep (fn [n]
@@ -224,6 +238,9 @@
                 {:nodes (mapv :node/id unsupported-modes) :supported #{:abort}})
       (if (seq mismatches)
         (reject :violation/descriptor-root-mismatch {:mismatches mismatches})
+      (if (not= replayed-plan plan)
+        (reject :violation/compiler-replay-mismatch
+                {:reason (if (= :valid (:status replay)) :compiled-plan-differs :source-did-not-compile)})
         (if-not (number? input-value)
           (failed plan (first nodes) [] :execution-failure/invalid-input
                   {:reason :pipeline-input-not-numeric
@@ -321,7 +338,7 @@
              :execution/compiler-version (:plan/compiler-version plan)
              :execution/value (:value outcome)
              :execution/effects (vec (:effects outcome))
-             :execution/nodes (vec (:nodes outcome))}))))))))))
+             :execution/nodes (vec (:nodes outcome))})))))))))))
 
 (defn execute-combination
   "Compile a combination against a compilation context, then execute the
