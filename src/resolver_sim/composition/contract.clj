@@ -30,8 +30,22 @@
   #{:accumulate :replace :partition})
 
 (def supported-failure-modes
-  "Failure propagation semantics. v1 supports :abort (fail-closed)."
+  "Failure modes accepted by the contract schema. The v1 compiler rejects
+   :continue until typed failure propagation and successor policies exist."
   #{:abort :continue})
+
+(def supported-execution-safeties
+  "Execution effects v1 can safely accept. Irreversible external consumers are
+   rejected because execution has no rollback or atomic commit facility."
+  #{:pure-calculation :external-irreversible})
+
+(defn execution-safety
+  "Return only the safety declaration committed in the composition contract.
+   Missing declarations have no implicit classification. The contract is
+   already part of the capability descriptor root, so the declaration remains
+   authenticated without changing the extension manifest schema."
+  [capability _registry-entry]
+  (get-in capability [:composition-contract :composition/execution-safety]))
 
 (def supported-cardinalities
   #{:one :many})
@@ -49,7 +63,8 @@
    :composition/control
    :composition/determinism
    :composition/adapters
-   :composition/verification])
+   :composition/verification
+   :composition/execution-safety])
 
 (defn contract-projection
   "Committed fields of a composition contract (canonical, closed)."
@@ -216,6 +231,18 @@
               (seq unknown)
               (conj {:violation/id :violation/unknown-composition-contract-key
                      :details {:unknown (vec (sort unknown))}}))
+          v (cond
+              (not (contains? contract :composition/execution-safety))
+              (conj v {:violation/id :violation/missing-execution-safety
+                       :details {:field :composition/execution-safety}})
+
+              (not (contains? supported-execution-safeties
+                              (:composition/execution-safety contract)))
+              (conj v {:violation/id :violation/invalid-execution-safety
+                       :details {:value (:composition/execution-safety contract)
+                                 :supported supported-execution-safeties}})
+
+              :else v)
           v (into v (check-value-contract [] :composition/input (:composition/input contract)))
           v (into v (check-value-contract [] :composition/output (:composition/output contract)))
           roles (:composition/roles contract)

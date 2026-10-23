@@ -131,7 +131,10 @@
               {:violations [{:violation/id :violation/invalid-composition-contract
                              :details {:node/id (:node/id node)
                                        :contract-violations violations}}]}
-              (let [c (contract/normalize-contract raw-contract)
+              (let [normalized-contract (contract/normalize-contract raw-contract)
+                    execution-safety (contract/execution-safety cap entry)
+                    c (cond-> normalized-contract
+                        execution-safety (assoc :composition/execution-safety execution-safety))
                     in-semantic (get-in c [:composition/input :semantic-type])
                     out-semantic (get-in c [:composition/output :semantic-type])
                     modes (:composition/modes c)
@@ -150,11 +153,19 @@
                   {:violations [{:violation/id :violation/nondeterministic-capability-forbidden
                                  :details {:node/id (:node/id node)}}]}
 
+                  (not= :pure-calculation execution-safety)
+                  {:violations [{:violation/id :violation/unsafe-entrypoint
+                                 :details {:node/id (:node/id node)
+                                           :entrypoint (:entrypoint cap)
+                                           :safety execution-safety
+                                           :required :pure-calculation}}]}
+
                   :else
                   {:node {:node/id (:node/id node)
                           :capability-key ref
                           :capability-version cap-version
                           :capability-root (:descriptor-root entry)
+                          :entrypoint-safety execution-safety
                           :contract-root (contract/composition-contract-root c)
                           :input-semantic in-semantic
                           :output-semantic out-semantic
@@ -287,9 +298,10 @@
                 effect-conflicts (into []
                                         (keep (fn [[effect owners]]
                                                 (let [owners (vec (sort-by pr-str owners))
+                                                      owner-set (set owners)
                                                       producers (->> plan-nodes
                                                                      (filter #(and (contains? (:emits %) effect)
-                                                                                   (not (contains? (set owners)
+                                                                                   (not (contains? owner-set
                                                                                                    (:node/id %)))))
                                                                      (map :node/id)
                                                                      (sort-by pr-str)
@@ -315,6 +327,16 @@
                                                                      :failure-modes
                                                                      [(:failure-mode a) (:failure-mode b)]}}]))
                                                      (partition 2 1 plan-nodes)))
+                ;; Runtime v1 is abort-only. Until a typed continuation policy
+                ;; defines which successors may run, reject :continue plans.
+                unsupported-failure-modes (into []
+                                               (keep (fn [node]
+                                                       (when (= :continue (:failure-mode node))
+                                                         {:violation/id :violation/unsupported-failure-mode
+                                                          :details {:node/id (:node/id node)
+                                                                    :failure-mode :continue
+                                                                    :supported #{:abort}}})))
+                                               plan-nodes)
                 ;; custody-affecting effect conflicts (exclusive accounts and
                 ;; opposite directions on shared custody accounts)
                 custody-conflicts (custody-conflict-violations plan-nodes)
@@ -393,6 +415,7 @@
                                              effect-conflicts
                                              custody-conflicts
                                              failure-mode-conflicts
+                                             unsupported-failure-modes
                                              merge-conflicts
                                              adapter-violations
                                              verification-conflicts
