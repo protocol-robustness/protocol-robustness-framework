@@ -118,18 +118,37 @@ earlier assumption that the v0.4.2 source commit was unavailable: the source
 commit exists, but exact artifact-bundle equivalence remains unproven. The
 historical v0.4.1 root is still unreproduced.
 
-A follow-up clean-input check used `forge build --force` for the full 178-file
-tree before building the two SP1 artifacts and exporting. It produced root
+A follow-up clean-input check used Foundry 1.7.1 with `forge build --force` for
+the full 178-file tree, then built the two SP1 artifacts and exported. It
+produced root
 `fb2cff8270976b1926a7b9c5cee5200b68bdbc95f06d6334529a47d4b261efce`; 13 of 31
-artifact file hashes still differed from the retained v0.4.2 package. Those
+artifact file hashes differed from the retained v0.4.2 package. Those
 differences were only the numeric keys in `immutableReferences`. Every ABI,
 creation/runtime bytecode hash, remaining manifest field, and immutable
-offset/length layout matched. This supports executable-artifact equivalence
-under the observed build, but does not reproduce the canonical package root.
+offset/length layout matched. This establishes executable-artifact equivalence
+for that observed Foundry 1.7.1 build, but does not reproduce the canonical
+package root.
+
+A further isolated rebuild used the exact v0.4.2 source commit
+`0dad4c2790a60ecca9a41c5d518f99522eab94ce`, its three pinned submodule commits,
+and the Foundry 1.5.1 binary recorded in that commit's README. The retained
+manifest records EVM `osaka`, while the source `foundry.toml` leaves EVM
+selection implicit; Foundry 1.5.1 defaults to `prague`. The default build
+produced root `73bb636614927b4b8cb63f05afc4f667ec259843baf90e0984505499f479b673`.
+Setting `FOUNDRY_EVM_VERSION=osaka` matched the retained manifest's declared
+build settings but produced root
+`207333e4ff8f4fc87fb55abcd23b2fc3b1225730df65b5be15bb4ecfd938956c`. All 31
+ABI and manifest identity fields matched, but all 31 creation and runtime
+bytecode hashes differed from the retained package. The build was performed
+from an archive under `/tmp`; no source files, release fixtures or the
+pre-existing PRF-EVM worktree fixture additions were changed. The published
+source does not currently provide enough toolchain provenance to reproduce
+the retained v0.4.2 bundle root. Do not substitute a different artifact root
+or alter the pinned release package without a reviewed release decision.
 
 | Work | Current evidence | Status |
 | --- | --- | --- |
-| W0 release baseline | Candidate v8 pins the 934-file source snapshot and v0.4.2 deployables used for the retained C0 run. The v0.4.2 source commit and submodules compile. A full forced build matches all bytecode, ABI and immutable layouts, but 13 serialized artifact-file hashes still differ because immutable-reference numeric keys vary, so the regenerated root `fb2cff…` differs from pinned root `1c040b…`. The narrow main-based PRF-EVM change (`57f7bc77`) passes 44 focused tests but exports an incomplete 30-artifact v0.4.0 package. Protocol-deployments typecheck passes and its current 41-file suite passes 314 tests. The historical v0.4.1 package root remains unreproduced. | Release package is pinned and executable artifacts match; exact canonical root reproduction and maintainer integration remain open. |
+| W0 release baseline | Candidate v8 pins the 934-file source snapshot and v0.4.2 deployables used for the retained C0 run. Foundry 1.7.1 reproduces all ABI and bytecode hashes but 13 artifact-file hashes differ only in immutable-reference IDs (`fb2cff…` vs pinned `1c040b…`). The release README instead names Foundry 1.5.1; its exact source/submodule rebuild, even with EVM Osaka explicitly selected, differs in all 31 bytecode hashes (`207333…`). The source does not pin EVM version, and available provenance does not identify the exact artifact-producing toolchain. The narrow main-based PRF-EVM change (`57f7bc77`) passes 44 focused tests but exports an incomplete 30-artifact v0.4.0 package. Protocol-deployments typecheck passes and its current 41-file suite passes 314 tests. The historical v0.4.1 package root remains unreproduced. | Release package and source are pinned, but its canonical root is not independently reproducible; resolve toolchain provenance and maintainer integration before claiming W0 complete. |
 | W1 authority enforcement | Authority transition enforcement and focused tests are retained. The v8 execution has not applied the policy-v3 authority-state mutation. | Code verified; execution remains gated by the validator-bound transition artifact. |
 | W2 canonical input approval | v8 initial-input approval and the distinct successor-review approval both verify against their exact manifests and trusted contexts. | Content and transition review approvals are present; EIP-191 authority-transition attestation remains missing. |
 | W3 verifier identity | The retained v8 report verifies runtime closure for its local deployment and replays four PRF assertions. | Historical evidence only; current RPC readback is unavailable. |
