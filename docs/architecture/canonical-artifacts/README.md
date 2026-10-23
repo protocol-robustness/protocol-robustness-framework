@@ -512,6 +512,52 @@ not alter the pin. New successor definitions must retain a distinct name and
 hash domain. This pin protects definition identity; it is not a new canonical
 artifact root or a runtime registry commitment.
 
+## Proposed command boundaries (not implemented)
+
+The catalog does not yet provide a runtime artifact API. Any future commands
+should keep four different actions distinct: inspect a definition, derive a
+semantic commitment, edit a candidate input, and compose inputs under a named
+composition profile. “Commit” should not be used as a command name: it could
+mean computing a canonical hash, freezing an artifact, or creating a JJ
+revision. Admission remains with the existing authority that owns it.
+
+Candidate interface:
+
+```text
+canonical-artifacts show <artifact-id>
+canonical-artifacts derive <artifact-id> --input <path>
+canonical-artifacts draft create <artifact-id> --from <path> --output <path>
+canonical-artifacts draft edit <artifact-id> --from <path> --set <field=value> --output <path>
+canonical-artifacts compose <composition-profile> --component <artifact-id=path>...
+```
+
+These are design examples, not available CLI commands. `show` would report the
+definition owner, status, schema/version, derivation implementation and source
+references. `derive` would be read-only by default and available only when that
+artifact has an authoritative, versioned derivation adapter; its output should
+identify the schema, domain separator, normalized preimage and derived root.
+The caller must not be able to supply a root as if it had been derived.
+
+Draft operations would write a separate candidate file. They must preserve the
+source artifact and its identity, reject fields or values outside the
+artifact's declared authoring rules, and never mutate an admitted or frozen
+snapshot in place. Editing an artifact is not authorization or admission.
+
+`compose` would require a named, versioned profile that defines component
+types, order, duplicate handling, encoding, domain separation and the resulting
+identity. Without such a profile, composition must fail closed; concatenating
+arbitrary artifact roots or inventing a generic combined root is not valid.
+Domain-specific composition functions remain authoritative for their own
+semantics.
+
+Current commands have narrower meanings: `root-hash` reports roots for an
+existing run package, `ref-file` computes or checks file references, and
+`bb canonical-artifacts:validate` validates this proposed catalog against its
+declared source references. None is a generic semantic artifact derivation,
+editing, composition or admission command. Implementing the candidate
+interface requires adopted artifact definitions and owners for each supported
+derivation/profile; this proposal adds no runtime consumer or new root.
+
 ## Original validation performed for this proposal
 
 - Babashka parsed the actual EDN file as data. An isolated temporary checker
