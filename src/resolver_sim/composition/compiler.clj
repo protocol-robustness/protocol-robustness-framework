@@ -18,7 +18,7 @@
   :resolver-sim.composition.compiler/sequential-v1)
 
 (def compiler-version
-  2)
+  3)
 
 ;; ── graph helpers ─────────────────────────────────────────────────────────
 
@@ -449,5 +449,14 @@
                                     :input-contract (:combination/input combination)
                                     :output-contract (:combination/expected-output combination)
                                     :effect-merge-strategy effect-merge-strategy
-                                    :verification plan-verification})]
+                                    :verification plan-verification
+                                    :compiler-inputs
+                                    {:combination (combo/combination-projection combination)
+                                     :evidence-contracts
+                                     (if evidence-ref
+                                       (select-keys evidence-contracts [evidence-ref])
+                                       {})
+                                     :obligations
+                                     (select-keys obligations-registry
+                                                  (set (map :obligation/ref source-obligations)))}})]
                 {:status :valid :plan compiled-plan}))))))))
