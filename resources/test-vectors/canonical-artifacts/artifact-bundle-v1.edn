@@ -1,0 +1,15 @@
+{:vector/schema "canonical-artifact-cli-vectors.v1"
+ :bundle {:schema-version "artifact-bundle.v1"
+          :input "examples/canonical-artifacts/bundle.example.edn"
+          :domain "PRF_ARTIFACT_BUNDLE_V1"
+          :expected/root "bbabd3a44c65ac7272bae44815a04ae8c5f9799df3682a49f21fc3d5aec7b1a2"}
+ :realized-allocation-statement
+ {:input "examples/canonical-artifacts/statement-components.example.edn"
+  :domain "REALIZED_ALLOCATION_STATEMENT_V1"
+  :expected/root "47cbc3289c5183c341e0041dc68eeb8f67fb9cb98e269da52ab5007c89b75158"}
+ :negative-cases [{:id :duplicate-role-and-identity :expected-reason :duplicate-bundle-member}
+                  {:id :supplied-root-on-recompute :expected-reason :supplied-root-on-recompute}
+                  {:id :unsupported-recomputed-artifact :expected-reason :unsupported-derivation}
+                  {:id :wrong-member-domain :expected-reason :artifact-domain-mismatch}
+                  {:id :malformed-opaque-root :expected-reason :invalid-commitment-root}
+                  {:id :missing-statement-component :expected-reason :invalid-input-fields}]}

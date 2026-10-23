@@ -86,6 +86,7 @@
    :projection-definition "PROJECTION_DEFINITION_V1"
    :projection-definition-registry "PROJECTION_DEFINITION_REGISTRY_V1"
    :projection-artifact "PROJECTION_ARTIFACT_V1"
+   :artifact-bundle-v1 "PRF_ARTIFACT_BUNDLE_V1"
    :claim-definition "CLAIM_DEFINITION"
    :claim-definition-conceptual "CONCEPT_CLAIM_DEFINITION_V1"
    :attestor "ATTESTOR"

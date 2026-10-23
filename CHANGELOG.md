@@ -10,6 +10,10 @@
 
 ## Unreleased
 
+- Sew transition-assurance state projection now encodes rational values with the canonical exact numerator/denominator representation, allowing yield scenarios with ratios to produce deterministic commitments without float conversion.
+
+- Added `bb canonical-artifacts` commands for explicit artifact derivation, structural `artifact-bundle.v1` commitments, realized-allocation-statement composition, and narrow commitment verification. Verification reports recomputed matches, mismatches, invalid inputs, or opaque unrecomputed commitments; it does not establish source authenticity, statement truth, proof validity, or authority admission.
+
 - EF review packet generation now builds the Sew runner from the identified source tree, emits its README and complete input references, and verifies manifest outcomes and distribution provenance against packaged artifacts. Scenario diagnostic summaries bind the scenario ID from execution identity.
 
 - Benchmark CLI runs now bind preflight to the packaged runner JAR. Benchmark evidence preserves integer-keyed replay state maps using the canonical `prf/map-entries.v1` representation.
