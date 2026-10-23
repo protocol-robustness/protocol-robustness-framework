@@ -17,15 +17,15 @@
 (defn- guest-projection [input]
   (let [coprocessor-root (coprocessor/root)]
     (let [process (.start (doto (ProcessBuilder.
-                               ^java.util.List ["cargo" "run" "--locked" "--quiet" "--manifest-path"
-                                                (str coprocessor-root "/observed-run-sp1-program/Cargo.toml")
-                                                "--bin" "observed-run-witness-check"])
-                          (.directory (java.io.File. coprocessor-root))))]
-    (with-open [writer (java.io.OutputStreamWriter. (.getOutputStream process))]
-      (.write writer (json/write-str input)))
-    (let [stdout (slurp (.getInputStream process))
-          stderr (slurp (.getErrorStream process))
-          status (.waitFor process)]
+                                 ^java.util.List ["cargo" "run" "--locked" "--quiet" "--manifest-path"
+                                                  (str coprocessor-root "/observed-run-sp1-program/Cargo.toml")
+                                                  "--bin" "observed-run-witness-check"])
+                            (.directory (java.io.File. coprocessor-root))))]
+      (with-open [writer (java.io.OutputStreamWriter. (.getOutputStream process))]
+        (.write writer (json/write-str input)))
+      (let [stdout (slurp (.getInputStream process))
+            stderr (slurp (.getErrorStream process))
+            status (.waitFor process)]
         {:status status :stdout (str/trim stdout) :stderr stderr}))))
 
 (defn root [n] (str "sha256:" (format "%064x" n)))
