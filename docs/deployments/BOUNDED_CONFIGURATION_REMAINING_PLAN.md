@@ -100,8 +100,12 @@ The change is local and unpushed. Its full compile succeeded, but an export from
 that main-based change still uses bundle version 0.4.0 and contains only 30
 artifacts, omitting `PrfEcdsaAuthorityTransitionValidator`; it is not a release
 bundle. The five pre-existing Gate E fixture files were restored to their
-original working-copy state and were not included in the review change. This
-candidate does not alter the v8 source lock or inherit its approval.
+original working-copy state and were not included in the review change. The
+single-commit branch was published for maintainer review as
+`protocol-robustness/prf-evm:bounded-configuration-authority-hardening`
+(`57f7bc77`), based on the current remote main `9f702a10`. It has not been
+merged or accepted as a release. This candidate does not alter the v8 source
+lock or inherit its approval.
 
 An exact v0.4.2 source rebuild was also attempted from PRF-EVM commit
 `0dad4c2790a60ecca9a41c5d518f99522eab94ce`, the source commit named by the
@@ -148,7 +152,7 @@ or alter the pinned release package without a reviewed release decision.
 
 | Work | Current evidence | Status |
 | --- | --- | --- |
-| W0 release baseline | Candidate v8 pins the 934-file source snapshot and v0.4.2 deployables used for the retained C0 run. Foundry 1.7.1 reproduces all ABI and bytecode hashes but 13 artifact-file hashes differ only in immutable-reference IDs (`fb2cff…` vs pinned `1c040b…`). The release README instead names Foundry 1.5.1; its exact source/submodule rebuild, even with EVM Osaka explicitly selected, differs in all 31 bytecode hashes (`207333…`). The source does not pin EVM version, and available provenance does not identify the exact artifact-producing toolchain. The narrow main-based PRF-EVM change (`57f7bc77`) passes 44 focused tests but exports an incomplete 30-artifact v0.4.0 package. Protocol-deployments typecheck passes and its current 41-file suite passes 314 tests. The historical v0.4.1 package root remains unreproduced. | Release package and source are pinned, but its canonical root is not independently reproducible; resolve toolchain provenance and maintainer integration before claiming W0 complete. |
+| W0 release baseline | Candidate v8 pins the 934-file source snapshot and v0.4.2 deployables used for the retained C0 run. Foundry 1.7.1 reproduces all ABI and bytecode hashes but 13 artifact-file hashes differ only in immutable-reference IDs (`fb2cff…` vs pinned `1c040b…`). The release README instead names Foundry 1.5.1; its exact source/submodule rebuild, even with EVM Osaka explicitly selected, differs in all 31 bytecode hashes (`207333…`). The source does not pin EVM version, and available provenance does not identify the exact artifact-producing toolchain. The narrow PRF-EVM hardening change (`57f7bc77`) is now published on a review branch and passes 44 focused tests, but exports an incomplete 30-artifact v0.4.0 package from main. Protocol-deployments typecheck passes and its current 41-file suite passes 314 tests. The historical v0.4.1 package root remains unreproduced. | Release package and source are pinned, but its canonical root is not independently reproducible; resolve toolchain provenance and maintainer integration before claiming W0 complete. |
 | W1 authority enforcement | Authority transition enforcement and focused tests are retained. The v8 execution has not applied the policy-v3 authority-state mutation. | Code verified; execution remains gated by the validator-bound transition artifact. |
 | W2 canonical input approval | v8 initial-input approval and the distinct successor-review approval both verify against their exact manifests and trusted contexts. | Content and transition review approvals are present; EIP-191 authority-transition attestation remains missing. |
 | W3 verifier identity | The retained v8 report verifies runtime closure for its local deployment and replays four PRF assertions. | Historical evidence only; current RPC readback is unavailable. |
