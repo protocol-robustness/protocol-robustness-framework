@@ -106,9 +106,9 @@
    :artifact/inputs {:artifacts [] :related [[:G "claimants, economic owners, outcomes, selection policy, rates and authoritative randomness"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/allocation/context.clj" "build-context"] [:prf "src/resolver_sim/allocation/context.clj" "context-hash"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/kernel.rs" "parse_context"] [:prf "coprocessor/core/src/kernel.rs" "context_preimage"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/kernel.rs" "parse_context"] [:prf-coprocessor "core/src/kernel.rs" "context_preimage"]]}
     :solidity {:status :not-required :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "coprocessor/core/tests/realized_statement_conformance.rs"] [:prf "coprocessor/core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
+   :artifact/conformance {:status :partial :sources [[:prf-coprocessor "core/tests/realized_statement_conformance.rs"] [:prf-coprocessor "core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
    :artifact/normative [[:prf "docs/allocation-proofs/realized-partial-fill-projections-v1.md"] [:prf "portable-pro-rata-contract/SPEC.md"]]}
 
   {:artifact/id :realized-request-set
@@ -121,9 +121,9 @@
    :artifact/inputs {:artifacts [] :related [[:G "raw normalized realized-statement inputs; preimage and defaults in derivation source"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/allocation/realized_statement.clj" "request-set-root"] [:prf "src/resolver_sim/allocation/persisted_statement_admission.clj" "reconstruct-input"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/realized_statement.rs" "request_set_root"] [:prf "coprocessor/core/src/realized_fill.rs"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/realized_statement.rs" "request_set_root"] [:prf-coprocessor "core/src/realized_fill.rs"]]}
     :solidity {:status :not-required :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "coprocessor/core/tests/realized_statement_conformance.rs"] [:prf "coprocessor/core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
+   :artifact/conformance {:status :partial :sources [[:prf-coprocessor "core/tests/realized_statement_conformance.rs"] [:prf-coprocessor "core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
    :artifact/normative [[:prf "docs/allocation-proofs/realized-partial-fill-projections-v1.md"] [:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :realized-fill-policy
@@ -136,9 +136,9 @@
    :artifact/inputs {:artifacts [] :related [[:G "raw normalized realized-statement inputs; preimage and defaults in derivation source"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/allocation/realized_statement.clj" "allocation-policy-root"] [:prf "src/resolver_sim/allocation/persisted_statement_admission.clj" "reconstruct-input"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/realized_statement.rs" "allocation_policy_root"] [:prf "coprocessor/core/src/realized_fill.rs"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/realized_statement.rs" "allocation_policy_root"] [:prf-coprocessor "core/src/realized_fill.rs"]]}
     :solidity {:status :not-required :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "coprocessor/core/tests/realized_statement_conformance.rs"] [:prf "coprocessor/core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
+   :artifact/conformance {:status :partial :sources [[:prf-coprocessor "core/tests/realized_statement_conformance.rs"] [:prf-coprocessor "core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
    :artifact/normative [[:prf "docs/allocation-proofs/realized-partial-fill-projections-v1.md"] [:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :realized-results
@@ -151,9 +151,9 @@
    :artifact/inputs {:artifacts [] :related [[:G "raw normalized realized-statement inputs; preimage and defaults in derivation source"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/allocation/realized_statement.clj" "realized-results-root"] [:prf "src/resolver_sim/allocation/persisted_statement_admission.clj" "reconstruct-input"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/realized_statement.rs" "realized_results_root"] [:prf "coprocessor/core/src/realized_fill.rs"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/realized_statement.rs" "realized_results_root"] [:prf-coprocessor "core/src/realized_fill.rs"]]}
     :solidity {:status :not-required :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "coprocessor/core/tests/realized_statement_conformance.rs"] [:prf "coprocessor/core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
+   :artifact/conformance {:status :partial :sources [[:prf-coprocessor "core/tests/realized_statement_conformance.rs"] [:prf-coprocessor "core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
    :artifact/normative [[:prf "docs/allocation-proofs/realized-partial-fill-projections-v1.md"] [:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :fail-action-policy
@@ -166,9 +166,9 @@
    :artifact/inputs {:artifacts [] :related [[:G "raw normalized realized-statement inputs; preimage and defaults in derivation source"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/allocation/realized_statement.clj" "fail-action-policy-root"] [:prf "src/resolver_sim/allocation/persisted_statement_admission.clj" "reconstruct-input"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/realized_statement.rs" "fail_action_policy_root"] [:prf "coprocessor/core/src/realized_fill.rs"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/realized_statement.rs" "fail_action_policy_root"] [:prf-coprocessor "core/src/realized_fill.rs"]]}
     :solidity {:status :not-required :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "coprocessor/core/tests/realized_statement_conformance.rs"] [:prf "coprocessor/core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
+   :artifact/conformance {:status :partial :sources [[:prf-coprocessor "core/tests/realized_statement_conformance.rs"] [:prf-coprocessor "core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
    :artifact/normative [[:prf "docs/allocation-proofs/realized-partial-fill-projections-v1.md"] [:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :round-lifecycle
@@ -181,9 +181,9 @@
    :artifact/inputs {:artifacts [] :related [[:A "certified round-state and cancellation-window.v1; not Protected Capital custody lifecycle"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/allocation/realized_statement.clj" "round-lifecycle-root"] [:prf "src/resolver_sim/allocation/round_state.clj" "round-lifecycle"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/realized_statement.rs" "round_lifecycle_root"] [:prf "coprocessor/core/src/lifecycle.rs"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/realized_statement.rs" "round_lifecycle_root"] [:prf-coprocessor "core/src/lifecycle.rs"]]}
     :solidity {:status :not-required :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "coprocessor/core/tests/realized_statement_conformance.rs"] [:prf "coprocessor/core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
+   :artifact/conformance {:status :partial :sources [[:prf-coprocessor "core/tests/realized_statement_conformance.rs"] [:prf-coprocessor "core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
    :artifact/normative [[:prf "docs/allocation-proofs/realized-partial-fill-projections-v1.md"] [:prf "docs/allocation-proofs/next-phase-lifecycle-boundary.md"]]}
 
   {:artifact/id :realized-statement
@@ -196,9 +196,9 @@
    :artifact/inputs {:artifacts [:allocation-context :realized-request-set :realized-fill-policy :realized-results :fail-action-policy :round-lifecycle] :related []}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf-pro-rata-allocation "clj/src/prf/pro_rata/realized_statement.clj" "build-statement-from-roots"] [:prf "src/resolver_sim/allocation/realized_statement.clj" "build-statement"] [:prf "src/resolver_sim/allocation/realized_statement.clj" "allocation-context-root"] [:prf "src/resolver_sim/allocation/persisted_statement_admission.clj" "reconstruct-input"]]}
-    :rust {:status :implemented :sources [[:prf-pro-rata-allocation "rust/src/realized_fill.rs" "partial_fill"] [:prf-pro-rata-allocation "rust/src/realized_statement.rs" "statement_root"] [:prf "coprocessor/core/src/realized_statement.rs" "build_statement"] [:prf "coprocessor/core/src/realized_statement_io.rs"] [:prf "coprocessor/realized-statement-sp1-program/src/main.rs"]]}
+    :rust {:status :implemented :sources [[:prf-pro-rata-allocation "rust/src/realized_fill.rs" "partial_fill"] [:prf-pro-rata-allocation "rust/src/realized_statement.rs" "statement_root"] [:prf-coprocessor "core/src/realized_statement.rs" "build_statement"] [:prf-coprocessor "core/src/realized_statement_io.rs"] [:prf-coprocessor "realized-statement-sp1-program/src/main.rs"]]}
     :solidity {:status :opaque-consumer :sources [[:prf-evm "src/verification/adapters/PrfRealizedAllocationVerifierAdapter.sol"]]}}
-   :artifact/conformance {:status :present :sources [[:prf-pro-rata-allocation "clj/test/prf/pro_rata/conformance_runner.clj" "realized-statement-matches-frozen-v1-roots"] [:prf-pro-rata-allocation "rust/src/realized_statement.rs" "request_policy_default_fail_action_and_statement_roots_match_frozen_v1"] [:prf "coprocessor/core/tests/realized_statement_conformance.rs"] [:prf "coprocessor/core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
+   :artifact/conformance {:status :present :sources [[:prf-pro-rata-allocation "clj/test/prf/pro_rata/conformance_runner.clj" "realized-statement-matches-frozen-v1-roots"] [:prf-pro-rata-allocation "rust/src/realized_statement.rs" "request_policy_default_fail_action_and_statement_roots_match_frozen_v1"] [:prf-coprocessor "core/tests/realized_statement_conformance.rs"] [:prf-coprocessor "core/tests/realized_statement_io_test.rs"] [:prf "test/resolver_sim/allocation/realized_statement_test.clj"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public"] [:prf "etc/conformance/cleanroom/realized-partial-fill-v1/public-expected"]]}
    :artifact/normative [[:prf "docs/allocation-proofs/realized-partial-fill-projections-v1.md"] [:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :allocation-binding-record
@@ -226,9 +226,9 @@
    :artifact/inputs {:artifacts [] :related [[:G "chain ID, token address and ERC-20 base-unit identity"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/shortfall/evm_asset.clj" "build-asset"] [:prf "src/resolver_sim/shortfall/evm_asset.clj" "validate-asset"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/shortfall_provenance.rs" "evm_asset_root"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/shortfall_provenance.rs" "evm_asset_root"]]}
     :solidity {:status :not-required :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "coprocessor/core/tests/fixtures/onchain-shortfall-end-to-end-v1.json"] [:prf "test/resolver_sim/shortfall/provenance_conformance_test.clj"] [:prf "coprocessor/core/src/shortfall_provenance.rs" "tests"]]}
+   :artifact/conformance {:status :partial :sources [[:prf-coprocessor "core/tests/fixtures/onchain-shortfall-end-to-end-v1.json"] [:prf "test/resolver_sim/shortfall/provenance_conformance_test.clj"] [:prf-coprocessor "core/src/shortfall_provenance.rs" "tests"]]}
    :artifact/normative [[:prf "docs/architecture/ONCHAIN_SHORTFALL_RESERVE_PROVENANCE_V1.md"]]}
 
   {:artifact/id :shortfall-context-v1
@@ -256,9 +256,9 @@
    :artifact/inputs {:artifacts [:allocation-context :evm-asset :reserve-observation-v1 :reserve-observation-v2] :related [[:G "candidates, eligibility, available amount, temporal basis and allocation policy fields"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/shortfall/context_v2.clj" "build-context"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/shortfall_provenance.rs" "context_root"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/shortfall_provenance.rs" "context_root"]]}
     :solidity {:status :not-required :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "coprocessor/core/tests/fixtures/onchain-shortfall-end-to-end-v1.json"] [:prf "test/resolver_sim/shortfall/provenance_conformance_test.clj"] [:prf "coprocessor/core/src/shortfall_provenance.rs" "tests"]]}
+   :artifact/conformance {:status :partial :sources [[:prf-coprocessor "core/tests/fixtures/onchain-shortfall-end-to-end-v1.json"] [:prf "test/resolver_sim/shortfall/provenance_conformance_test.clj"] [:prf-coprocessor "core/src/shortfall_provenance.rs" "tests"]]}
    :artifact/normative [[:prf "docs/architecture/ONCHAIN_SHORTFALL_RESERVE_PROVENANCE_V1.md"] [:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]
    :artifact/successor-of :shortfall-context-v1}
 
@@ -272,9 +272,9 @@
    :artifact/inputs {:artifacts [:evm-asset] :related [[:B "prf.onchain-shortfall-reserve.snapshot.v1"] [:F "snapshot ID and created-at-block are already frozen identity inputs"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/shortfall/reserve_observation.clj" "build-observation"] [:prf "src/resolver_sim/shortfall/reserve_observation.clj" "solidity-snapshot-hash"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/shortfall_provenance.rs" "observation_root"] [:prf "coprocessor/core/src/shortfall_provenance.rs" "solidity_snapshot_hash"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/shortfall_provenance.rs" "observation_root"] [:prf-coprocessor "core/src/shortfall_provenance.rs" "solidity_snapshot_hash"]]}
     :solidity {:status :projection-only :sources [[:prf-evm "src/applications/shortfall/OnchainShortfallReserveV1.sol"]]}}
-   :artifact/conformance {:status :partial :sources [[:prf "coprocessor/core/tests/fixtures/onchain-shortfall-end-to-end-v1.json"] [:prf "test/resolver_sim/shortfall/provenance_conformance_test.clj"] [:prf "coprocessor/core/src/shortfall_provenance.rs" "tests"]]}
+   :artifact/conformance {:status :partial :sources [[:prf-coprocessor "core/tests/fixtures/onchain-shortfall-end-to-end-v1.json"] [:prf "test/resolver_sim/shortfall/provenance_conformance_test.clj"] [:prf-coprocessor "core/src/shortfall_provenance.rs" "tests"]]}
    :artifact/normative [[:prf "docs/architecture/ONCHAIN_SHORTFALL_RESERVE_PROVENANCE_V1.md"] [:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :reserve-observation-v2
@@ -319,9 +319,9 @@
    :artifact/inputs {:artifacts [:reserve-observation-v1 :shortfall-context-v2] :related [[:B "operation ID"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/shortfall/reserve_binding.clj" "build-binding"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/shortfall_provenance.rs" "binding_root"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/shortfall_provenance.rs" "binding_root"]]}
     :solidity {:status :not-required :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "coprocessor/core/tests/fixtures/onchain-shortfall-end-to-end-v1.json"] [:prf "test/resolver_sim/shortfall/provenance_conformance_test.clj"] [:prf "coprocessor/core/src/shortfall_provenance.rs" "tests"]]}
+   :artifact/conformance {:status :partial :sources [[:prf-coprocessor "core/tests/fixtures/onchain-shortfall-end-to-end-v1.json"] [:prf "test/resolver_sim/shortfall/provenance_conformance_test.clj"] [:prf-coprocessor "core/src/shortfall_provenance.rs" "tests"]]}
    :artifact/normative [[:prf "docs/architecture/ONCHAIN_SHORTFALL_RESERVE_PROVENANCE_V1.md"] [:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :shortfall-allocation-binding-v1
@@ -334,9 +334,9 @@
    :artifact/inputs {:artifacts [:reserve-binding-v1 :reserve-binding-v2 :realized-statement] :related [[:B "operation ID"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/shortfall/allocation_binding.clj" "build-binding"] [:prf "src/resolver_sim/allocation/source_bound_entitlement.clj" "allocation-binding-root"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/source_bound.rs" "derive"] [:prf "coprocessor/core/src/source_bound_entitlement.rs" "allocation_binding_root"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/source_bound.rs" "derive"] [:prf-coprocessor "core/src/source_bound_entitlement.rs" "allocation_binding_root"]]}
     :solidity {:status :opaque-consumer :sources [[:prf-evm "src/applications/shortfall/SourceBoundProRataAssuranceV2.sol"] [:prf-evm "src/applications/pro-rata/ProductionProRataAllocatorV2.sol"]]}}
-   :artifact/conformance {:status :partial :sources [[:prf "coprocessor/core/tests/fixtures/onchain-shortfall-end-to-end-v1.json"] [:prf "test/resolver_sim/shortfall/provenance_conformance_test.clj"] [:prf "coprocessor/core/src/shortfall_provenance.rs" "tests"] [:prf "test/resolver_sim/shortfall/allocation_binding_test.clj"] [:prf "etc/conformance/vectors/source-bound-entitlement-v1.json"] [:prf "test/resolver_sim/allocation/source_bound_entitlement_test.clj"] [:prf "coprocessor/core/tests/source_bound_entitlement_test.rs"]]}
+   :artifact/conformance {:status :partial :sources [[:prf-coprocessor "core/tests/fixtures/onchain-shortfall-end-to-end-v1.json"] [:prf "test/resolver_sim/shortfall/provenance_conformance_test.clj"] [:prf-coprocessor "core/src/shortfall_provenance.rs" "tests"] [:prf "test/resolver_sim/shortfall/allocation_binding_test.clj"] [:prf "etc/conformance/vectors/source-bound-entitlement-v1.json"] [:prf "test/resolver_sim/allocation/source_bound_entitlement_test.clj"] [:prf-coprocessor "core/tests/source_bound_entitlement_test.rs"]]}
    :artifact/normative [[:prf "docs/architecture/ONCHAIN_SHORTFALL_RESERVE_PROVENANCE_V1.md"] [:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :beneficiary-entitlement
@@ -349,9 +349,9 @@
    :artifact/inputs {:artifacts [:shortfall-allocation-binding-v1 :realized-statement] :related [[:G "beneficiary profile and normalized positive rows; or fixed logical descriptor schemes"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/allocation/source_bound_entitlement.clj" "derive"] [:prf "src/resolver_sim/allocation/source_bound_entitlement.clj" "canonical-member-preimage"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/source_bound_entitlement.rs" "derive"] [:prf "coprocessor/core/src/source_bound_entitlement.rs" "member_value"] [:prf "coprocessor/source-bound-entitlement-sp1-program/src/main.rs"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/source_bound_entitlement.rs" "derive"] [:prf-coprocessor "core/src/source_bound_entitlement.rs" "member_value"] [:prf-coprocessor "source-bound-entitlement-sp1-program/src/main.rs"]]}
     :solidity {:status :missing :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "etc/conformance/vectors/source-bound-entitlement-v1.json"] [:prf "test/resolver_sim/allocation/source_bound_entitlement_test.clj"] [:prf "coprocessor/core/tests/source_bound_entitlement_test.rs"]]}
+   :artifact/conformance {:status :partial :sources [[:prf "etc/conformance/vectors/source-bound-entitlement-v1.json"] [:prf "test/resolver_sim/allocation/source_bound_entitlement_test.clj"] [:prf-coprocessor "core/tests/source_bound_entitlement_test.rs"]]}
    :artifact/normative [[:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :beneficiary-entitlement-set
@@ -364,9 +364,9 @@
    :artifact/inputs {:artifacts [:beneficiary-entitlement] :related [[:G "beneficiary profile and normalized positive rows; or fixed logical descriptor schemes"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/allocation/source_bound_entitlement.clj" "derive"] [:prf "src/resolver_sim/allocation/source_bound_entitlement.clj" "canonical-set-preimage"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/source_bound_entitlement.rs" "derive"] [:prf "coprocessor/core/src/source_bound_entitlement.rs" "entitlement_set_root"] [:prf "coprocessor/source-bound-entitlement-sp1-program/src/main.rs"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/source_bound_entitlement.rs" "derive"] [:prf-coprocessor "core/src/source_bound_entitlement.rs" "entitlement_set_root"] [:prf-coprocessor "source-bound-entitlement-sp1-program/src/main.rs"]]}
     :solidity {:status :missing :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "etc/conformance/vectors/source-bound-entitlement-v1.json"] [:prf "test/resolver_sim/allocation/source_bound_entitlement_test.clj"] [:prf "coprocessor/core/tests/source_bound_entitlement_test.rs"]]}
+   :artifact/conformance {:status :partial :sources [[:prf "etc/conformance/vectors/source-bound-entitlement-v1.json"] [:prf "test/resolver_sim/allocation/source_bound_entitlement_test.clj"] [:prf-coprocessor "core/tests/source_bound_entitlement_test.rs"]]}
    :artifact/normative [[:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :entitlement-representation-descriptor
@@ -379,9 +379,9 @@
    :artifact/inputs {:artifacts [] :related [[:G "beneficiary profile and normalized positive rows; or fixed logical descriptor schemes"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/allocation/source_bound_entitlement.clj" "derive"] [:prf "src/resolver_sim/allocation/source_bound_entitlement.clj" "representation-descriptor"]]}
-    :rust {:status :implemented :sources [[:prf "coprocessor/core/src/source_bound_entitlement.rs" "derive"] [:prf "coprocessor/core/src/source_bound_entitlement.rs" "descriptor_value"] [:prf "coprocessor/source-bound-entitlement-sp1-program/src/main.rs"]]}
+    :rust {:status :implemented :sources [[:prf-coprocessor "core/src/source_bound_entitlement.rs" "derive"] [:prf-coprocessor "core/src/source_bound_entitlement.rs" "descriptor_value"] [:prf-coprocessor "source-bound-entitlement-sp1-program/src/main.rs"]]}
     :solidity {:status :missing :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "etc/conformance/vectors/source-bound-entitlement-v1.json"] [:prf "test/resolver_sim/allocation/source_bound_entitlement_test.clj"] [:prf "coprocessor/core/tests/source_bound_entitlement_test.rs"]]}
+   :artifact/conformance {:status :partial :sources [[:prf "etc/conformance/vectors/source-bound-entitlement-v1.json"] [:prf "test/resolver_sim/allocation/source_bound_entitlement_test.clj"] [:prf-coprocessor "core/tests/source_bound_entitlement_test.rs"]]}
    :artifact/normative [[:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :allocation-entitlement-policy

@@ -10,6 +10,7 @@
             [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.coprocessor.source :as coprocessor]
             [resolver-sim.research.execution-control :as control]
             [resolver-sim.research.observed-run-proof-statement :as statement]
             [resolver-sim.research.proof-generation :as proof]
@@ -20,9 +21,11 @@
            [java.security MessageDigest]
            [java.util HexFormat]))
 
-(def ^:private host-manifest "coprocessor/sp1-script/Cargo.toml")
+(defn- host-manifest []
+  (str (coprocessor/root) "/sp1-script/Cargo.toml"))
 (def ^:private host-bin "observed-run-sp1-prove")
-(def ^:private host-binary-path "coprocessor/target/release/observed-run-sp1-prove")
+(defn- host-binary-path []
+  (str (coprocessor/root) "/target/release/observed-run-sp1-prove"))
 (defonce ^:private compiled-host-binary (atom nil))
 
 (defn- bytes-hex [^bytes bytes]
@@ -48,13 +51,13 @@
         (or @compiled-host-binary
             (let [override (System/getenv "PRF_OBSERVED_RUN_SP1_HOST_BIN")
                   executable (if (str/blank? override)
-                               (io/file host-binary-path)
+                               (io/file (host-binary-path))
                                (io/file override))]
               (when (str/blank? override)
-                (let [command ["cargo" "build" "--release" "--manifest-path" host-manifest
+                (let [command ["cargo" "build" "--locked" "--release" "--manifest-path" (host-manifest)
                                "--bin" host-bin]
                       builder (doto (ProcessBuilder. ^java.util.List command)
-                                (.directory (io/file "."))
+                                (.directory (io/file (coprocessor/root)))
                                 (.redirectErrorStream true))
                       env (.environment builder)
                       prior-go-flags (.get env "GOFLAGS")

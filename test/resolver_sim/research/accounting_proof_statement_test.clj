@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.java.shell :as shell]
             [clojure.data.json :as json]
+            [resolver-sim.coprocessor.source :as coprocessor]
             [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.accounting-proof-statement :as statement]
             [resolver-sim.research.semantic-accounting-test :as fixture]))
@@ -15,8 +16,10 @@
                                             (:run-a fixture/roots))]
     (assoc f :partial partial)))
 
+(def coprocessor-root (coprocessor/root))
 (def rust-build
-  (delay (shell/sh "cargo" "build" "--offline" "--manifest-path" "coprocessor/Cargo.toml"
+  (delay (shell/sh "cargo" "build" "--locked" "--manifest-path"
+                   (str coprocessor-root "/Cargo.toml")
                    "-p" "allocation-kernel" "--bin" "accounting_arithmetic_statement")))
 
 (defn guest
@@ -24,7 +27,7 @@
   ([input args]
    (when-not (zero? (:exit @rust-build))
      (throw (ex-info "Arithmetic validator build failed" @rust-build)))
-   (apply shell/sh "coprocessor/target/debug/accounting_arithmetic_statement"
+   (apply shell/sh (str coprocessor-root "/target/debug/accounting_arithmetic_statement")
           (concat args [:in (json/write-str input)]))))
 
 (deftest cross-language-arithmetic-and-identity-conformance

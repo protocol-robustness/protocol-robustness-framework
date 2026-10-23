@@ -1,6 +1,7 @@
 (ns resolver-sim.shortfall.allocation-binding-test
   (:require [clojure.data.json :as json]
             [clojure.test :refer [deftest is]]
+            [resolver-sim.coprocessor.source :as coprocessor]
             [resolver-sim.shortfall.allocation-binding :as lineage]
             [resolver-sim.shortfall.context :as shortfall]
             [resolver-sim.shortfall.context-v2 :as context-v2]
@@ -17,7 +18,7 @@
 (def operation-id "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 
 (def reserve-observation
-  (let [f (json/read-str (slurp "coprocessor/core/tests/fixtures/onchain-shortfall-reserve-provenance.json") :key-fn keyword)
+  (let [f (json/read-str (slurp (str (coprocessor/root) "/core/tests/fixtures/onchain-shortfall-reserve-provenance.json")) :key-fn keyword)
         numeric #{:chain-id :snapshot-id :created-at-block :gross-amount
                   :reserved-amount-before :protected-amount :available-amount}
         raw (select-keys f [:chain-id :reserve :token-address :snapshot-id :operation-id

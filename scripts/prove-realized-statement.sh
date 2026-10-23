@@ -25,7 +25,8 @@ repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 project_cache_dir="$repo_dir/.sp1-proof-cache"
 artifact=${1:-"$repo_dir/results/allocation/a-vs-b-plus-c/realized-statement/sp1-proof-artifact.json"}
 input_path="$repo_dir/scenarios/allocation/a-vs-b-plus-c/realized-statement-input.json"
-manifest_path="$repo_dir/coprocessor/Cargo.toml"
+coprocessor_root=$("$repo_dir/scripts/resolve-prf-coprocessor.sh")
+manifest_path="$coprocessor_root/Cargo.toml"
 
 # Length of the worst-case gnark-crypto addchain component used for the probe.
 # Deriving a filename at least this long (rather than trusting getconf, because

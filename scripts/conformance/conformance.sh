@@ -15,13 +15,14 @@
 set -euo pipefail
 
 DEMO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+COPROCESSOR_ROOT="$("$DEMO_ROOT/scripts/resolve-prf-coprocessor.sh")"
 PRF_RUNNER="$DEMO_ROOT/prf-runner/run-prf.sh"
 LOCK="$DEMO_ROOT/prf-runner/artifact-lock.json"
 PRF_JAR="${PRF_JAR:-$DEMO_ROOT/target/prf-runner-sew-0.1.0-uber.jar}"
-KERNEL_BIN="${KERNEL_BIN:-$DEMO_ROOT/coprocessor/target/release/allocation-kernel}"
+KERNEL_BIN="${KERNEL_BIN:-$COPROCESSOR_ROOT/target/release/allocation-kernel}"
 
 if [[ ! -x "$KERNEL_BIN" ]]; then
-  echo "conformance: native kernel binary not found at $KERNEL_BIN (build with: cargo build --release in coprocessor/core)" >&2
+  echo "conformance: native kernel binary not found at $KERNEL_BIN (build with: cargo build --locked --release --manifest-path $COPROCESSOR_ROOT/Cargo.toml -p allocation-kernel)" >&2
   exit 4
 fi
 

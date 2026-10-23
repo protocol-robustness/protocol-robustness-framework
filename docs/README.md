@@ -27,6 +27,7 @@ Primary project framing and status live in the root `../README.md`.
 | Local services and persistence | `operations/LOCAL_SERVICES.md` |
 | Entry-point execution and assurance capabilities | `operations/ENTRY_POINT_CAPABILITY_MATRIX.md` |
 | Generated-document workflow | `reference/GENERATED_DOCUMENTS.md` |
+| Extracted repository ownership and source pins | `research/EXTRACTED_REPOSITORIES.md` |
 | Registry ownership, validation, and change rules | `reference/REGISTRIES.md` |
 | Runnable and visual examples | `../examples/README.md` |
 

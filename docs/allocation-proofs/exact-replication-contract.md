@@ -29,7 +29,7 @@ Both implementations use `CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI`:
 varuint is LEB128 little-endian base-128, minimal representation. Maps sort
 keys by their encoded bytes. No Rust-specific encoding is used.
 
-The Rust port lives in `coprocessor/core/src/canonical.rs`, with golden
+The Rust port lives in `prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/src/canonical.rs`, with golden
 byte-preimage tests in `tests/canonical_golden.rs` generated from the PRF JAR.
 
 ## Domain tags

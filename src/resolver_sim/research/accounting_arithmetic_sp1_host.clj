@@ -9,6 +9,7 @@
             [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.coprocessor.source :as coprocessor]
             [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.accounting-proof-statement :as statement]
             [resolver-sim.research.execution-control :as control]
@@ -22,9 +23,11 @@
            [java.util HexFormat]
            [java.util.concurrent TimeUnit]))
 
-(def ^:private host-manifest "coprocessor/accounting-arithmetic-sp1-host/Cargo.toml")
+(defn- host-manifest []
+  (str (coprocessor/root) "/accounting-arithmetic-sp1-host/Cargo.toml"))
 (def ^:private host-bin "accounting-arithmetic-sp1-host")
-(def ^:private host-binary-path "coprocessor/target/release/accounting-arithmetic-sp1-host")
+(defn- host-binary-path []
+  (str (coprocessor/root) "/target/release/accounting-arithmetic-sp1-host"))
 (defonce ^:private compiled-host-binary (atom nil))
 
 (defn- configured-host-command-timeout-ms []
@@ -62,12 +65,12 @@
       (locking compiled-host-binary
         (or @compiled-host-binary
             (let [override (System/getenv "PRF_ACCOUNTING_SP1_HOST_BIN")
-                  executable (if (str/blank? override) (io/file host-binary-path) (io/file override))]
+                  executable (if (str/blank? override) (io/file (host-binary-path)) (io/file override))]
               (when (str/blank? override)
                 (let [builder (doto (ProcessBuilder. ^java.util.List
                                      ["cargo" "build" "--release" "--locked"
-                                      "--manifest-path" host-manifest "--bin" host-bin])
-                                (.directory (io/file "."))
+                                      "--manifest-path" (host-manifest) "--bin" host-bin])
+                                (.directory (io/file (coprocessor/root)))
                                 (.redirectErrorStream true))
                       env (.environment builder)
                       prior (.get env "GOFLAGS")

@@ -312,7 +312,9 @@ cases and the post-run consistency checks gate the AO result. The prover binary
 can be built with:
 
 ```sh
-cargo build --release --manifest-path coprocessor/Cargo.toml \
+make setup-coprocessor
+coprocessor_root="$(./scripts/resolve-prf-coprocessor.sh)"
+cargo build --locked --release --manifest-path "$coprocessor_root/Cargo.toml" \
   -p allocation-sp1-script --bin source-bound-v2-prove
 ```
 

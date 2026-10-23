@@ -40,7 +40,7 @@ possible.
 - **PRF allocation round-state projection**
   (`resolver-sim.allocation.round-state`): token → lifecycle target,
   fail-closed to nil on unknown.
-- **Rust** (`coprocessor/core/src/lifecycle.rs`): `classify_lifecycle_window`
+- **Rust** (`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/src/lifecycle.rs`): `classify_lifecycle_window`
   is a semantic-and-byte-for-byte mirror of the PRF classifier. Verified
   against the same cutpoint, post-cutpoint, open, unknown, and missing cases.
 
@@ -119,7 +119,7 @@ digest. Versioning decision (compatibility boundary):
 - PRF: `round-state-test` (6 tests / 39 assertions), allocation suite,
   `namespace-load-test`, `clj-kondo` (0/0) for the
   `:target-evidence` evidence-replay path.
-- Rust: `lifecycle` unit tests in `coprocessor/core/src/lifecycle.rs`
+- Rust: `lifecycle` unit tests in `prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/src/lifecycle.rs`
   (9 checks), `cargo fmt --check` clean, core `clippy -D warnings` clean.
 - Lifecycle conformance vectors (23 total, 9 lifecycle): every state from the
   mapping table plus unknown, missing, and malformed tokens, verified by the

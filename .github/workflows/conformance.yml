@@ -24,21 +24,22 @@ jobs:
       - name: Install protobuf compiler
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
 
+      - name: Prepare pinned extracted coprocessor
+        run: |
+          ./scripts/setup-prf-coprocessor.sh
+          echo "PRF_COPROCESSOR_ROOT=$(./scripts/resolve-prf-coprocessor.sh)" >> "$GITHUB_ENV"
+
       - name: Rust fmt check
-        working-directory: coprocessor
-        run: cargo fmt --check
+        run: cargo fmt --manifest-path "$PRF_COPROCESSOR_ROOT/Cargo.toml" --all -- --check
 
       - name: Rust clippy
-        working-directory: coprocessor
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --locked --manifest-path "$PRF_COPROCESSOR_ROOT/Cargo.toml" --all-targets --all-features -- -D warnings
 
       - name: Rust unit tests (core kernel only)
-        working-directory: coprocessor
-        run: cargo test -p allocation-kernel
+        run: cargo test --locked --manifest-path "$PRF_COPROCESSOR_ROOT/Cargo.toml" -p allocation-kernel
 
       - name: Rust release build (core kernel only)
-        working-directory: coprocessor
-        run: cargo build --release -p allocation-kernel
+        run: cargo build --locked --manifest-path "$PRF_COPROCESSOR_ROOT/Cargo.toml" --release -p allocation-kernel
 
       - name: Build pinned PRF sewer JAR
         run: clojure -T:build uberjar :variant sew

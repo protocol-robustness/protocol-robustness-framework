@@ -7,9 +7,11 @@ evidence-scoped validation toward cryptographic provability. It supersedes the
 earlier demo-repo determination and incorporates five architectural changes
 before the contract is treated as binding.
 
-The source of truth for the allocation coprocessor now lives in this repo
-(see [Migration decision](#migration-decision)). The former standalone
-coprocessor repository is reduced to an external integration/demo consumer.
+The coprocessor implementation is owned by the separately versioned
+[`prf-coprocessor`](../research/EXTRACTED_REPOSITORIES.md) repository, pinned
+for PRF integration at `e2e4e9b25622c52eb028fc373a66e81b3982e933`. This source
+pin is not release or SP1/Solidity proof qualification. PRF retains the
+semantic contract, Clojure reference, scenarios, and integration evidence.
 
 ---
 
@@ -275,7 +277,7 @@ PRF result == independent Rust result == SP1 execution of the same Rust core
 ```
 
 This avoids three synchronized semantic implementations (Clojure, native Rust,
-SP1-specific). The current kernel (`coprocessor/core`) already covers the
+SP1-specific). The current kernel (`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core`) already covers the
 all-or-nothing outcome-lottery model byte-for-byte; realized partial-fill
 (`calculate-fulfillment*`, rounding policies, residual handling, fail-action
 policy) is the next implementation increment, in Rust core.
@@ -359,18 +361,18 @@ exposed), not the simulator evidence binding.
 The independent Rust realization and statement projection are implemented and
 conformance-green against the Clojure producer:
 
-- **`coprocessor/core/src/realized_fill.rs`** — semantics layer: `partial_fill`
+- **`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/src/realized_fill.rs`** — semantics layer: `partial_fill`
   (largest-remainder pro-rata) → `RealizedAllocation` with explicit per-
   participant dispositions (`disposition_of`); malformed input fails closed.
-- **`coprocessor/core/src/realized_statement.rs`** — projection + canonical-
+- **`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/src/realized_statement.rs`** — projection + canonical-
   encode layer: all six roots recomputed from raw inputs (condition A; the
   context root is derived via `kernel::context_preimage`, not bound), statement
   root committed under `REALIZED_ALLOCATION_STATEMENT_V1`, `reveal` helper for
   the minimal public-input exposure SP1 should prove.
-- **`coprocessor/core/src/realized_statement_io.rs`** — canonical input document
+- **`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/src/realized_statement_io.rs`** — canonical input document
   → statement JSON projection (single shared path for the native CLI and the
   SP1 guest).
-- **`coprocessor/core/tests/realized_statement_conformance.rs`** — golden
+- **`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/tests/realized_statement_conformance.rs`** — golden
   conformance (condition D): six roots + statement root byte-equal to Clojure
   oracle values for the all-active, shortfall, and mutation-locality cases;
   negative vectors (malformed input) fail closed; a participant becoming
@@ -436,7 +438,7 @@ implies proof coverage of the collection.
 The reproducible `make allocation-realized-proof` target uses ignored,
 project-local writable SP1/Cargo/Go caches (or `SP1_CARGO_HOME`) and invokes
 Cargo with `--locked`. Cache paths are not proof identity. The emitted artifact
-records `rustc --version` and the SHA-256 of `coprocessor/Cargo.lock` as build
+records `rustc --version` and the SHA-256 of `prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/Cargo.lock` as build
 provenance, alongside the semantic profile, ELF digest, and VK.
 
 Future profile/program/VK changes require a new profile or a separately
@@ -462,14 +464,14 @@ statement → proof → theorem → activation → effect chain.
 The SP1 guest is now a thin wrapper over the realized-fill core, per acceptance
 condition B:
 
-- **`coprocessor/realized-statement-sp1-program/`** — the SP1 guest: reads the
+- **`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/realized-statement-sp1-program/`** — the SP1 guest: reads the
   canonical realized-statement input, delegates all semantics + encoding to
   `realized_statement_io`, and commits the statement JSON projection as public
   values. The guest does not reimplement realization or encoding.
-- **`coprocessor/sp1-script/src/bin/realized_statement_prove.rs`** — the host
+- **`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/sp1-script/src/bin/realized_statement_prove.rs`** — the host
   script: executes/proves the realized guest and asserts
   `guest public values == native public values` byte-for-byte.
-- **`coprocessor/core/src/bin/realized_statement_kernel.rs`** — native CLI for
+- **`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/src/bin/realized_statement_kernel.rs`** — native CLI for
   the statement; `scripts/conformance/realized-statement-conformance.sh` runs
   it on the canonical fixture and asserts the six roots + statement root match
   the Clojure oracle, plus a malformed-input fail-closed check.
@@ -489,70 +491,26 @@ environment (the gnark/Go `NAME_MAX` workaround is documented in
 
 ---
 
-## 7. Migration decision (done)
+## 7. Repository ownership and migration
 
-The substantive coprocessor implementation has been brought into this repo.
-The Rust kernel/SP1 implementation is now part of the maturity path for a named
-canonical claim, with shared roots, assertion semantics, lifecycle semantics,
-conformance vectors, and eventually proof verification. Keeping the source of
-truth in a separate demo repo creates drift risk with no compensating
-assurance gain.
+`prf-coprocessor` owns native witness execution, Rust kernel code, SP1 guest and
+host implementations, and proof scripts. PRF owns protocol semantics, the
+Clojure reference, conformance orchestration, scenarios, and integration
+evidence. `prf-evm` owns Solidity verifier adapters, contracts, and admission
+tests. Effect compilation and lifecycle transitions remain in their owning PRF
+and capital-lifecycle repositories.
 
-### What moved
+The repository boundary does not weaken implementation independence: Rust must
+remain an independent implementation of the published contract and compare
+against the Clojure reference and frozen vectors. PRF uses an explicit
+immutable Git source pin. `make setup-coprocessor` prepares that source in the
+managed cache; normal evaluation and resolver calls only validate an already
+prepared checkout and do not clone or update it.
 
-```
-agent-c/
-├── coprocessor/                    # Rust core + SP1 guest + host/prover
-│   ├── Cargo.toml
-│   ├── core/                       # independent allocation kernel
-│   ├── sp1-program/                # SP1 guest (thin wrapper)
-│   └── sp1-script/                 # host: execute/prove/verify/EVM fixture
-├── contracts/
-│   └── allocation/                 # Solidity verifier + coordinator skeleton
-│       ├── *.sol
-│       ├── test/
-│       └── foundry.toml
-├── scenarios/
-│   └── allocation/a-vs-b-plus-c/   # fixed conformance scenario + golden values
-├── prf-runner/                     # pinned PRF JAR wrapper + artifact-lock.json
-├── scripts/
-│   └── conformance/                # conformance.sh, generate-expected.sh, vector-set-root.sh
-└── docs/
-    └── allocation-proofs/          # this contract + boundary docs
-        ├── fair-end-to-end-provability-determination.md
-        ├── sp1-proof-boundary.md
-        ├── lifecycle-boundary.md
-        ├── exact-replication-contract.md
-        └── baseline-sew-property-test-failures.md
-```
-
-The pinned PRF JAR already lives in this repo's `target/` and matches the
-`artifact-lock.json` SHA-256, so the wrapper (`prf-runner/run-prf.sh`, override
-via `PRF_JAR`) and conformance gate work unchanged. The conformance gate
-passes from the new location: **23 vectors, PRF result == native Rust result**.
-
-### Ownership rule
-
-The main repo owns the canonical contract, the Clojure reference, the
-independent Rust implementation, the SP1 guest, the conformance corpus, and the
-proof-boundary documentation.
-
-**Independence is architectural, not a repository boundary.** The Rust crate
-must not import or generate-share implementation logic from the Clojure
-reference path. Its input is only the published contract — schemas, canonical
-encoding, test vectors, declared constants/vocabulary. "Independent" means:
-independent implementation, language/toolchain, execution, cross-checked
-outputs. A monorepo makes the independence test stronger: one PR changing a
-canonical rule can be required to update both implementations and the
-conformance vectors before merging.
-
-### What stays in the demo repo
-
-The former demo repo is reduced to a thin external consumer: demo deployment,
-example EVM contract integration, walk-through UI, sample external-client
-wiring, Docker/dev environment, customer-facing example — consuming a released/
-versioned coprocessor artifact from this repo. The repo proves an external
-consumer can integrate; this repo proves the primitive works.
+The source pin is `e2e4e9b25622c52eb028fc373a66e81b3982e933`; the standalone
+repository records the original PRF snapshot and vector provenance in
+`PROVENANCE.md`. The pin does not qualify SP1 proof generation or Solidity
+verification. Those remain explicit release gates.
 
 ### Future independent verifier
 

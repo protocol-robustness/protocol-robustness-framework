@@ -127,8 +127,10 @@ The actual RISC-V ELF and host crate build using the repository's SP1 6.3.1
 toolchain:
 
 ```sh
+make setup-coprocessor
+PRF_COPROCESSOR_ROOT="$(./scripts/resolve-prf-coprocessor.sh)"
 CARGO_HOME=/tmp/chome GOFLAGS=-buildvcs=false \
-  cargo check --locked --manifest-path coprocessor/Cargo.toml \
+  cargo check --locked --manifest-path "$PRF_COPROCESSOR_ROOT/Cargo.toml" \
   -p accounting-arithmetic-sp1-host
 ```
 
@@ -174,9 +176,11 @@ cryptographic verifier; the positive coordinator admission performs real
 cryptographic verification.
 
 ```sh
+make setup-coprocessor
+PRF_COPROCESSOR_ROOT="$(./scripts/resolve-prf-coprocessor.sh)"
 SP1_PROVER=cpu \
 PRF_RUN_REAL_SP1_DELIVERY_E2E=1 \
-PRF_ACCOUNTING_SP1_HOST_BIN="$PWD/coprocessor/target/release/accounting-arithmetic-sp1-host" \
+PRF_ACCOUNTING_SP1_HOST_BIN="$PRF_COPROCESSOR_ROOT/target/release/accounting-arithmetic-sp1-host" \
 clojure -M:test -e '(require (quote clojure.test) (quote resolver-sim.research.accounting-arithmetic-sp1-host-test)) (let [r (clojure.test/run-tests (quote resolver-sim.research.accounting-arithmetic-sp1-host-test))] (System/exit (+ (:fail r) (:error r))))'
 ```
 

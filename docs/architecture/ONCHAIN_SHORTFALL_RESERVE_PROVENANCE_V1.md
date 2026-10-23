@@ -124,7 +124,7 @@ binding operation ID == observation operation ID
 The checked-in raw fixture is:
 
 ```text
-coprocessor/core/tests/fixtures/onchain-shortfall-reserve-provenance.json
+prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/tests/fixtures/onchain-shortfall-reserve-provenance.json
 ```
 
 It is consumed independently by Clojure and Rust. Expected roots are assertion

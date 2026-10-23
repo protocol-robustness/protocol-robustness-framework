@@ -142,7 +142,7 @@ over the allocation result, replacing the former not-evaluated stub.
 - [`prf-pro-rata-allocation` Rust crate](https://github.com/protocol-robustness/prf-pro-rata-allocation/tree/48e0b362748cd39d09994a8aa1496c668199aa74/rust) — 52 tests pass, including independent
   exact reconstruction and independently constructed canonical spec/corpus
   root parity.
-- `coprocessor/exact-verifier-sp1-program` — guest ELF compilation and positive
+- `prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/exact-verifier-sp1-program` — guest ELF compilation and positive
   fixture execution succeeded. Output roots matched:
   fairness spec `e0650cf27f9ba13f2c1799ad0ee09ba79214edd1b80a625b5e63f75a7bc5c7f4`,
   supplemental corpus `a6d723b27f154d6981cc41a7837ef7a9278ed3265eb98e4a480871845c5b97c1`,

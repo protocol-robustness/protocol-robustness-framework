@@ -1305,7 +1305,7 @@ Its fixed public-value order commits twelve SHA-256 roots: assured job,
 observed run, run assurance, dependency set, implementation, declared and
 observed environment, pre-state, executed action, post-state, semantic result,
 and observed fixed validation. The companion
-`coprocessor/observed-run-sp1-program` guest commits the 384 raw root bytes
+`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/observed-run-sp1-program` guest commits the 384 raw root bytes
 only after validating the source witness and deriving those roots itself.
 This proves canonical identity and required lineage consistency; it does not
 independently rerun every fixed-validation check, prove EVM transition

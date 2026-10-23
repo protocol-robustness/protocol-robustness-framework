@@ -14,7 +14,7 @@ source-bound-entitlement-controlled-sp1-program.v1
 ```
 
 The host command accepts a raw witness and does not rewrite it. Run from the
-`coprocessor/` workspace directory:
+`prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/` workspace directory:
 
 ```sh
 cargo run --release --bin controlled-entitlement-source-prove -- \

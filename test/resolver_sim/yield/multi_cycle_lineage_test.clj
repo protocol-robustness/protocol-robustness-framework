@@ -237,7 +237,7 @@
 (deftest D-boundary-rust-rejects-available-exceeds-total-requested
   (testing "the Rust coprocessor rejects available > total_requested with
             available-exceeds-total-requested (documented divergence, audited
-            at coprocessor/core/src/realized_statement_io.rs:129). The
+            at the pinned prf-coprocessor source `core/src/realized_statement_io.rs:129`. The
             Clojure admission boundary must use the same reason constant so
             that a cross-runtime audit sees one rejection reason on both
             sides of the boundary."

@@ -6,7 +6,7 @@ set -Eeuo pipefail
 
 AO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 PRF_EVM_ROOT="${PRF_EVM_ROOT:-$(cd "$AO_ROOT/../../prf-evm" && pwd)}"
-COPROCESSOR_ROOT="${PRF_COPROCESSOR_ROOT:-$AO_ROOT/coprocessor}"
+COPROCESSOR_ROOT="${PRF_COPROCESSOR_ROOT:-$("$AO_ROOT/scripts/resolve-prf-coprocessor.sh")}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$AO_ROOT/examples/assured-operations/pro-rata-conformance/artifacts/real-v2-sp1}"
 IDENTITY_SOURCE="${GATE_E_IDENTITY:-$PRF_EVM_ROOT/fixtures/source-bound-v2-identity.json}"
 IDENTITY_ARTIFACT="$ARTIFACT_DIR/source-bound-v2-identity.json"
@@ -60,7 +60,7 @@ test -s "$IDENTITY_SOURCE" || { echo "Missing pinned V2 identity: $IDENTITY_SOUR
 command -v xxd >/dev/null || { echo "xxd is required for retained-proof consistency checks" >&2; exit 2; }
 test -x "$PROVER" || {
     echo "Missing prover binary. Build it with:" >&2
-    echo "cargo build --release --manifest-path '$AO_ROOT/coprocessor/Cargo.toml' -p allocation-sp1-script --bin source-bound-v2-prove" >&2
+    echo "cargo build --locked --release --manifest-path '$COPROCESSOR_ROOT/Cargo.toml' -p allocation-sp1-script --bin source-bound-v2-prove" >&2
     exit 2
 }
 for artifact in "$IDENTITY_ARTIFACT" "$GATE_E_MANIFEST" "$GATE_E_FIXTURE" "$GATE_E_INPUT" "$GATE_E_AO_ROUTE_MANIFEST" "$GATE_E_CAPTURE_MANIFEST" "$GATE_E_CAPTURE_FIXTURE" "$GATE_E_CAPTURE_ROUTE_MANIFEST" "$SOURCE_STATE" "$RUN_LOG" "$AO_INVENTORY" "$PRF_INVENTORY" "$AO_POST_INVENTORY" "$PRF_POST_INVENTORY" "$EVIDENCE_MANIFEST"; do
