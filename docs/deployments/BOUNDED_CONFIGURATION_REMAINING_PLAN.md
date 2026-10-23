@@ -89,22 +89,47 @@ and historical artifact equivalence remain open; W5 still needs the valid
 policy-pinned signature and a live, matching instance; W6/W7 still need a
 fresh C1 capital-flow execution and independently replayable evidence.
 
-The PRF-EVM checkout has a narrow local review change
-`57f7bc77` (`bounded-configuration-authority-hardening`) was then created on
+The PRF-EVM checkout now has a narrow local review change,
+`57f7bc77` (`bounded-configuration-authority-hardening`), created on
 the exact fetched `main`/`origin/main` parent `9f702a10446f7e045bab6f281f20b53f80f8b32d`.
 It contains only the 13 bounded authority-transition, genesis-continuity,
 admission-binding and related test paths; the unrelated partial-fill work was
 excluded. The focused Forge suites pass 44 tests: authority state 9, ECDSA
 validator 4, genesis 10, statement admission 19 and governor integration 2.
-The change is local and unpushed, so maintainer integration and release-artifact
-export remain outstanding. The five pre-existing Gate E fixture files were
-restored to their original working-copy state and were not included in the
-review change. This candidate does not alter the v8 source lock or inherit its
-approval.
+The change is local and unpushed. Its full compile succeeded, but an export from
+that main-based change still uses bundle version 0.4.0 and contains only 30
+artifacts, omitting `PrfEcdsaAuthorityTransitionValidator`; it is not a release
+bundle. The five pre-existing Gate E fixture files were restored to their
+original working-copy state and were not included in the review change. This
+candidate does not alter the v8 source lock or inherit its approval.
+
+An exact v0.4.2 source rebuild was also attempted from PRF-EVM commit
+`0dad4c2790a60ecca9a41c5d518f99522eab94ce`, the source commit named by the
+retained v0.4.2 manifest. The checked-out submodules matched its tree and
+`npm run compile` succeeded. A fresh export contained all 31 expected
+artifacts and reproduced every manifest field except `fileSha256`, but its
+bundle root was `50f1502659e8e5bb3263946de88253621ed236632a75b2467810cfaa131cd0f5`,
+not the retained root `1c040be8f3364d303dc66cabd0bb676994c836eb4021e9216862dc991a9c3bae`.
+Twenty-eight artifact file hashes differ. A sample artifact has different
+compiler-generated immutable-reference identifiers even though its ABI and
+creation/runtime bytecode hashes match. The exported files are isolated under
+`/tmp`; the retained release fixtures were not modified. This corrects the
+earlier assumption that the v0.4.2 source commit was unavailable: the source
+commit exists, but exact artifact-bundle equivalence remains unproven. The
+historical v0.4.1 root is still unreproduced.
+
+A follow-up clean-input check used `forge build --force` for the full 178-file
+tree before building the two SP1 artifacts and exporting. It produced root
+`fb2cff8270976b1926a7b9c5cee5200b68bdbc95f06d6334529a47d4b261efce`; 13 of 31
+artifact file hashes still differed from the retained v0.4.2 package. Those
+differences were only the numeric keys in `immutableReferences`. Every ABI,
+creation/runtime bytecode hash, remaining manifest field, and immutable
+offset/length layout matched. This supports executable-artifact equivalence
+under the observed build, but does not reproduce the canonical package root.
 
 | Work | Current evidence | Status |
 | --- | --- | --- |
-| W0 release baseline | Candidate v8 pins the 934-file source snapshot and v0.4.2 deployables used for the retained C0 run. A separate narrow PRF-EVM review change (`57f7bc77`, parent `9f702a10`) isolates 13 bounded paths and passes 44 focused tests. Protocol-deployments typecheck passes and its current 41-file suite passes 314 tests. The historical v0.4.1 package root remains unreproduced. | Review change is local and unpushed; release-maintainer integration, deployable export/pinning and historical equivalence remain open. |
+| W0 release baseline | Candidate v8 pins the 934-file source snapshot and v0.4.2 deployables used for the retained C0 run. The v0.4.2 source commit and submodules compile. A full forced build matches all bytecode, ABI and immutable layouts, but 13 serialized artifact-file hashes still differ because immutable-reference numeric keys vary, so the regenerated root `fb2cff…` differs from pinned root `1c040b…`. The narrow main-based PRF-EVM change (`57f7bc77`) passes 44 focused tests but exports an incomplete 30-artifact v0.4.0 package. Protocol-deployments typecheck passes and its current 41-file suite passes 314 tests. The historical v0.4.1 package root remains unreproduced. | Release package is pinned and executable artifacts match; exact canonical root reproduction and maintainer integration remain open. |
 | W1 authority enforcement | Authority transition enforcement and focused tests are retained. The v8 execution has not applied the policy-v3 authority-state mutation. | Code verified; execution remains gated by the validator-bound transition artifact. |
 | W2 canonical input approval | v8 initial-input approval and the distinct successor-review approval both verify against their exact manifests and trusted contexts. | Content and transition review approvals are present; EIP-191 authority-transition attestation remains missing. |
 | W3 verifier identity | The retained v8 report verifies runtime closure for its local deployment and replays four PRF assertions. | Historical evidence only; current RPC readback is unavailable. |
