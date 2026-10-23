@@ -151,10 +151,10 @@
                         :gross-amount 79 :reserved-amount 20 :protected-amount 10
                         :available-amount 49 :availability-revision 1
                         :snapshot-id 1 :created-at-block 42}
-               commitment (observation-v2/economic-state-commitment base)]
-           (assoc base :reserve-state-commitment commitment
-                  :authoritative-observation-root
-                  (observation-v2/solidity-observation-root commitment 1 42)))
+                  commitment (observation-v2/economic-state-commitment base)]
+              (assoc base :reserve-state-commitment commitment
+                     :authoritative-observation-root
+                     (observation-v2/solidity-observation-root commitment 1 42)))
         obs (observation-v2/build-observation raw)
         context-input (assoc (dissoc (fixture/shortfall-input 49) :asset/id :asset/unit)
                              :asset/root asset-root
@@ -162,8 +162,8 @@
                              :availability/root (:observation/root obs))
         context (context-v2/build-context context-input)
         reserve (reserve-binding-v2/build-binding {:reserve-observation raw
-                                                    :shortfall-context context-input
-                                                    :operation-id operation-id})
+                                                   :shortfall-context context-input
+                                                   :operation-id operation-id})
         statement (:realized-allocation-statement (shortfall/realize context fixture/ctx))
         args {:reserve-binding reserve :reserve-observation raw
               :shortfall-context context :allocation-context fixture/ctx

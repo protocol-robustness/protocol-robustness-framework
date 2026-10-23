@@ -41,7 +41,7 @@
     (is (= 933 (:source-file-count source-check)))
     (is (= source-tree-sha256 (:sourceTreeSha256 prf)))
     (is (every? locked-paths ["etc/deployments/baselines/prf-evm-deployable-export-normalization-followup.patch"
-                             "etc/deployments/baselines/protocol-deployments-v0.4.2-replay-fixture.patch"]))
+                              "etc/deployments/baselines/protocol-deployments-v0.4.2-replay-fixture.patch"]))
     (is (every? locked-paths required-runtime-paths))
     (is (= source-tree-sha256 (:manifest/source-tree-sha256 manifest)))
     (is (= "sha256:4a58d73213ff165e9e34fbfcd2694c029e681dbccdc0420bc0c0b3ea0c519f27"

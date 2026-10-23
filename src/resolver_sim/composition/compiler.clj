@@ -296,26 +296,26 @@
                                                    owners (:exclusive-effects n)))
                                          {} plan-nodes)
                 effect-conflicts (into []
-                                        (keep (fn [[effect owners]]
-                                                (let [owners (vec (sort-by pr-str owners))
-                                                      owner-set (set owners)
-                                                      producers (->> plan-nodes
-                                                                     (filter #(and (contains? (:emits %) effect)
-                                                                                   (not (contains? owner-set
-                                                                                                   (:node/id %)))))
-                                                                     (map :node/id)
-                                                                     (sort-by pr-str)
-                                                                     vec)]
-                                                  (when (or (> (count owners) 1)
-                                                            (seq producers))
-                                                    {:violation/id :violation/effect-conflict
-                                                     :details {:effect effect
-                                                               :owners owners
-                                                               :producers producers
-                                                               :reason (if (> (count owners) 1)
-                                                                         :multiple-exclusive-claimants
-                                                                         :cross-node-exclusive-emission)}})))
-                                        (sort-by (comp pr-str key) exclusive-owners)))
+                                       (keep (fn [[effect owners]]
+                                               (let [owners (vec (sort-by pr-str owners))
+                                                     owner-set (set owners)
+                                                     producers (->> plan-nodes
+                                                                    (filter #(and (contains? (:emits %) effect)
+                                                                                  (not (contains? owner-set
+                                                                                                  (:node/id %)))))
+                                                                    (map :node/id)
+                                                                    (sort-by pr-str)
+                                                                    vec)]
+                                                 (when (or (> (count owners) 1)
+                                                           (seq producers))
+                                                   {:violation/id :violation/effect-conflict
+                                                    :details {:effect effect
+                                                              :owners owners
+                                                              :producers producers
+                                                              :reason (if (> (count owners) 1)
+                                                                        :multiple-exclusive-claimants
+                                                                        :cross-node-exclusive-emission)}})))
+                                             (sort-by (comp pr-str key) exclusive-owners)))
                 ;; failure-mode consensus: consecutive nodes must agree on how
                 ;; the pipeline fails; otherwise one node's :abort stops a
                 ;; :continue node before it runs, contradicting its contract
@@ -330,13 +330,13 @@
                 ;; Runtime v1 is abort-only. Until a typed continuation policy
                 ;; defines which successors may run, reject :continue plans.
                 unsupported-failure-modes (into []
-                                               (keep (fn [node]
-                                                       (when (= :continue (:failure-mode node))
-                                                         {:violation/id :violation/unsupported-failure-mode
-                                                          :details {:node/id (:node/id node)
-                                                                    :failure-mode :continue
-                                                                    :supported #{:abort}}})))
-                                               plan-nodes)
+                                                (keep (fn [node]
+                                                        (when (= :continue (:failure-mode node))
+                                                          {:violation/id :violation/unsupported-failure-mode
+                                                           :details {:node/id (:node/id node)
+                                                                     :failure-mode :continue
+                                                                     :supported #{:abort}}})))
+                                                plan-nodes)
                 ;; custody-affecting effect conflicts (exclusive accounts and
                 ;; opposite directions on shared custody accounts)
                 custody-conflicts (custody-conflict-violations plan-nodes)

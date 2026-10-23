@@ -194,151 +194,151 @@
             nodes (:plan/nodes plan [])
             unsafe (filter #(not= :pure-calculation (:entrypoint-safety %)) nodes)
             unsupported-modes (filter #(not= :abort (:failure-mode %)) nodes)
-          mismatches (keep (fn [n]
-                             (let [entry (get extension-map (:capability-key n))]
-                               (when (or (nil? entry)
-                                         (not= (:descriptor-root entry)
-                                               (:capability-root n))
-                                         (not= :pure-calculation
-                                               (composition-contract/execution-safety
-                                                (:capability entry) entry))
-                                         (not= (:entrypoint-safety n)
-                                               (composition-contract/execution-safety
-                                                (:capability entry) entry))
-                                         (try
-                                           (let [cap (:capability entry)
-                                                 raw-contract (:composition-contract cap)
-                                                 validation (composition-contract/validate-composition-contract
-                                                             raw-contract)
-                                                 safety (composition-contract/execution-safety cap entry)
-                                                 committed-contract
-                                                 (cond-> (composition-contract/normalize-contract
-                                                          raw-contract)
-                                                   safety (assoc :composition/execution-safety safety))]
-                                             (or (not (map? cap))
-                                                 (not= (:descriptor-root entry)
-                                                       (manifest/capability-descriptor-root cap))
-                                                 (not (:valid? validation))
-                                                 (not= (:contract-root n)
-                                                       (composition-contract/composition-contract-root
-                                                        committed-contract))))
-                                           (catch Throwable _ true)))
-                                 {:node/id (:node/id n)
-                                  :expected-root (:capability-root n)
-                                  :resolved-root (:descriptor-root entry)})))
-                           nodes)
+            mismatches (keep (fn [n]
+                               (let [entry (get extension-map (:capability-key n))]
+                                 (when (or (nil? entry)
+                                           (not= (:descriptor-root entry)
+                                                 (:capability-root n))
+                                           (not= :pure-calculation
+                                                 (composition-contract/execution-safety
+                                                  (:capability entry) entry))
+                                           (not= (:entrypoint-safety n)
+                                                 (composition-contract/execution-safety
+                                                  (:capability entry) entry))
+                                           (try
+                                             (let [cap (:capability entry)
+                                                   raw-contract (:composition-contract cap)
+                                                   validation (composition-contract/validate-composition-contract
+                                                               raw-contract)
+                                                   safety (composition-contract/execution-safety cap entry)
+                                                   committed-contract
+                                                   (cond-> (composition-contract/normalize-contract
+                                                            raw-contract)
+                                                     safety (assoc :composition/execution-safety safety))]
+                                               (or (not (map? cap))
+                                                   (not= (:descriptor-root entry)
+                                                         (manifest/capability-descriptor-root cap))
+                                                   (not (:valid? validation))
+                                                   (not= (:contract-root n)
+                                                         (composition-contract/composition-contract-root
+                                                          committed-contract))))
+                                             (catch Throwable _ true)))
+                                   {:node/id (:node/id n)
+                                    :expected-root (:capability-root n)
+                                    :resolved-root (:descriptor-root entry)})))
+                             nodes)
             merge-violation (merge-plan-violation plan)]
-      (if (or merge-violation (seq unsafe))
-        (if merge-violation
-          {:execution/status :rejected :execution/violations [merge-violation]}
-          (reject :violation/unsafe-entrypoint
-                  {:nodes (mapv :node/id unsafe) :required :pure-calculation}))
-      (if (seq unsupported-modes)
-        (reject :violation/unsupported-failure-mode
-                {:nodes (mapv :node/id unsupported-modes) :supported #{:abort}})
-      (if (seq mismatches)
-        (reject :violation/descriptor-root-mismatch {:mismatches mismatches})
-      (if (not= replayed-plan plan)
-        (reject :violation/compiler-replay-mismatch
-                {:reason (if (= :valid (:status replay)) :compiled-plan-differs :source-did-not-compile)})
-        (if-not (number? input-value)
-          (failed plan (first nodes) [] :execution-failure/invalid-input
-                  {:reason :pipeline-input-not-numeric
-                   :input-type (some-> input-value class .getName)})
-        (let [initial {:value input-value :effects [] :nodes [] :status :running}
-              outcome
-              (reduce (fn [acc node]
-                        (if (or (:failure acc) (:rejection acc) (:short-circuited? acc))
-                          (reduced acc)
-                          (let [entry (get extension-map (:capability-key node))]
-                            (try
-                              (let [f (try (ext-exec/resolve-entrypoint entry)
-                                           (catch Throwable t t))]
-                                (cond
-                                  (nil? f)
-                                  (assoc acc :failed-node node
-                                         :failure {:failure/type :execution-failure/missing-entrypoint
-                                                   :failure/details {:entrypoint (get-in entry [:capability :entrypoint])}})
+        (if (or merge-violation (seq unsafe))
+          (if merge-violation
+            {:execution/status :rejected :execution/violations [merge-violation]}
+            (reject :violation/unsafe-entrypoint
+                    {:nodes (mapv :node/id unsafe) :required :pure-calculation}))
+          (if (seq unsupported-modes)
+            (reject :violation/unsupported-failure-mode
+                    {:nodes (mapv :node/id unsupported-modes) :supported #{:abort}})
+            (if (seq mismatches)
+              (reject :violation/descriptor-root-mismatch {:mismatches mismatches})
+              (if (not= replayed-plan plan)
+                (reject :violation/compiler-replay-mismatch
+                        {:reason (if (= :valid (:status replay)) :compiled-plan-differs :source-did-not-compile)})
+                (if-not (number? input-value)
+                  (failed plan (first nodes) [] :execution-failure/invalid-input
+                          {:reason :pipeline-input-not-numeric
+                           :input-type (some-> input-value class .getName)})
+                  (let [initial {:value input-value :effects [] :nodes [] :status :running}
+                        outcome
+                        (reduce (fn [acc node]
+                                  (if (or (:failure acc) (:rejection acc) (:short-circuited? acc))
+                                    (reduced acc)
+                                    (let [entry (get extension-map (:capability-key node))]
+                                      (try
+                                        (let [f (try (ext-exec/resolve-entrypoint entry)
+                                                     (catch Throwable t t))]
+                                          (cond
+                                            (nil? f)
+                                            (assoc acc :failed-node node
+                                                   :failure {:failure/type :execution-failure/missing-entrypoint
+                                                             :failure/details {:entrypoint (get-in entry [:capability :entrypoint])}})
 
-                                  (instance? Throwable f)
-                                  (assoc acc :failed-node node
-                                         :failure {:failure/type :execution-failure/invocation-exception
-                                                   :failure/details {:exception-class (.getName (class f))}})
+                                            (instance? Throwable f)
+                                            (assoc acc :failed-node node
+                                                   :failure {:failure/type :execution-failure/invocation-exception
+                                                             :failure/details {:exception-class (.getName (class f))}})
 
-                                  :else
-                                  (let [result (try
-                                                 (f {:value (:value acc)
-                                                     :spec (:spec node)
-                                                     :params params
-                                                     :addresses (:addresses node)
-                                                     :node/id (:node/id node)})
-                                                 (catch Throwable t t))]
-                                    (cond
-                                      (instance? Throwable result)
-                                      (assoc acc :failed-node node
-                                             :failure {:failure/type :execution-failure/invocation-exception
-                                                       :failure/details {:exception-class (.getName (class result))}})
+                                            :else
+                                            (let [result (try
+                                                           (f {:value (:value acc)
+                                                               :spec (:spec node)
+                                                               :params params
+                                                               :addresses (:addresses node)
+                                                               :node/id (:node/id node)})
+                                                           (catch Throwable t t))]
+                                              (cond
+                                                (instance? Throwable result)
+                                                (assoc acc :failed-node node
+                                                       :failure {:failure/type :execution-failure/invocation-exception
+                                                                 :failure/details {:exception-class (.getName (class result))}})
 
-                                      (result-failure node result)
-                                      (assoc acc :failed-node node
-                                             :failure (result-failure node result))
+                                                (result-failure node result)
+                                                (assoc acc :failed-node node
+                                                       :failure (result-failure node result))
 
-                                      :else
-                                      (let [amount (:amount result)
-                                            node-effects (or (:effects result) [])
-                                            merged-effects (merge-node-effects
-                                                            (:plan/effect-merge-strategy plan)
-                                                            (:effects acc) node-effects (:node/id node))
-                                            value-out (if (:terminal? node)
-                                                        (if (contains? result :value) (:value result) amount)
-                                                        (- (:value acc) amount))
-                                            evidence {:node/id (:node/id node)
-                                                      :input (:value acc)
-                                                      :amount amount
-                                                      :output value-out
-                                                      :effects node-effects}
-                                            acc' (-> acc
-                                                     (assoc :effects (:effects merged-effects))
-                                                     (update :nodes conj evidence)
-                                                     (update :observations conj evidence)
-                                                     (assoc :value value-out))]
-                                        (if (:violation/id merged-effects)
+                                                :else
+                                                (let [amount (:amount result)
+                                                      node-effects (or (:effects result) [])
+                                                      merged-effects (merge-node-effects
+                                                                      (:plan/effect-merge-strategy plan)
+                                                                      (:effects acc) node-effects (:node/id node))
+                                                      value-out (if (:terminal? node)
+                                                                  (if (contains? result :value) (:value result) amount)
+                                                                  (- (:value acc) amount))
+                                                      evidence {:node/id (:node/id node)
+                                                                :input (:value acc)
+                                                                :amount amount
+                                                                :output value-out
+                                                                :effects node-effects}
+                                                      acc' (-> acc
+                                                               (assoc :effects (:effects merged-effects))
+                                                               (update :nodes conj evidence)
+                                                               (update :observations conj evidence)
+                                                               (assoc :value value-out))]
+                                                  (if (:violation/id merged-effects)
+                                                    (assoc acc :failed-node node
+                                                           :failure {:failure/type :execution-failure/invalid-effects
+                                                                     :failure/details merged-effects})
+                                                    (if (and (:short-circuit? result)
+                                                             (:may-short-circuit? node))
+                                                      (assoc acc' :short-circuited? true)
+                                                      (if (:short-circuit? result)
+                                                        (assoc acc' :rejection
+                                                               {:violation/id :violation/unauthorized-short-circuit
+                                                                :details {:node/id (:node/id node)}})
+                                                        acc'))))))))
+                                        (catch Throwable t
                                           (assoc acc :failed-node node
-                                                 :failure {:failure/type :execution-failure/invalid-effects
-                                                           :failure/details merged-effects})
-                                        (if (and (:short-circuit? result)
-                                                 (:may-short-circuit? node))
-                                          (assoc acc' :short-circuited? true)
-                                          (if (:short-circuit? result)
-                                            (assoc acc' :rejection
-                                                   {:violation/id :violation/unauthorized-short-circuit
-                                                    :details {:node/id (:node/id node)}})
-                                            acc'))))))))
-                              (catch Throwable t
-                                (assoc acc :failed-node node
-                                       :failure {:failure/type :execution-failure/evaluation-exception
-                                                 :failure/details {:exception-class (.getName (class t))}}))))))
-                      (assoc initial :observations [])
-                      nodes)]
-          (cond
-            (:rejection outcome)
-            (reject (get-in outcome [:rejection :violation/id])
-                    (get-in outcome [:rejection :details]))
+                                                 :failure {:failure/type :execution-failure/evaluation-exception
+                                                           :failure/details {:exception-class (.getName (class t))}}))))))
+                                (assoc initial :observations [])
+                                nodes)]
+                    (cond
+                      (:rejection outcome)
+                      (reject (get-in outcome [:rejection :violation/id])
+                              (get-in outcome [:rejection :details]))
 
-            (:failure outcome)
-            (let [failure (:failure outcome)]
-              (assoc (failed plan (:failed-node outcome) (:observations outcome)
-                             (:failure/type failure) (:failure/details failure))
-                     :execution/failure-node-id (:node/id (:failed-node outcome))))
+                      (:failure outcome)
+                      (let [failure (:failure outcome)]
+                        (assoc (failed plan (:failed-node outcome) (:observations outcome)
+                                       (:failure/type failure) (:failure/details failure))
+                               :execution/failure-node-id (:node/id (:failed-node outcome))))
 
-            :else
-            {:execution/status (if (:short-circuited? outcome) :short-circuited :completed)
-             :execution/plan-root (:plan/root plan)
-             :execution/compiler-id (:plan/compiler-id plan)
-             :execution/compiler-version (:plan/compiler-version plan)
-             :execution/value (:value outcome)
-             :execution/effects (vec (:effects outcome))
-             :execution/nodes (vec (:nodes outcome))})))))))))))
+                      :else
+                      {:execution/status (if (:short-circuited? outcome) :short-circuited :completed)
+                       :execution/plan-root (:plan/root plan)
+                       :execution/compiler-id (:plan/compiler-id plan)
+                       :execution/compiler-version (:plan/compiler-version plan)
+                       :execution/value (:value outcome)
+                       :execution/effects (vec (:effects outcome))
+                       :execution/nodes (vec (:nodes outcome))})))))))))))
 
 (defn execute-combination
   "Compile a combination against a compilation context, then execute the
