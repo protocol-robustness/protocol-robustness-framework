@@ -13,25 +13,99 @@ public governance approval and production readiness are separate milestones.
 
 ## Starting position
 
-### Current verified execution state (2026-10-19)
+### Historical verified execution state (2026-10-19)
 
-The older status notes below describe the candidate before the approved local
-execution and are historical. The retained protocol-deployments receipt now
-records verified stages through C1 application on Anvil chain 31337. Its
-independent report is explicitly `verification-evidence-only-not-approval`,
-has six replayed PRF assertions, and remains `partial` with no capital-flow
-evidence. The live run is local-only and does not qualify W6 or W7.
+An earlier candidate's retained protocol-deployments receipt records verified
+stages through C1 application on Anvil chain 31337. Its independent report is
+explicitly `verification-evidence-only-not-approval`, has six replayed PRF
+assertions, and remains `partial` with no capital-flow evidence. That live run
+was local-only and did not qualify W6 or W7; it is not candidate v8 evidence.
+
+### Authoritative refresh (2026-10-22)
+
+Candidate v8 supersedes the v7 references in older handoff notes. Its initial
+input approval verifies against the exact frozen source snapshot at parent
+`e6fe09666adf8092b2023ea1ecdd84fbf24fa98a`, tree
+`066ee1dcd021ecf8e4d182f17a4ded02095cf3fb51e600ddbe96006f9d87ef09`, with 934
+locked files and manifest root
+`sha256:44a5c842a98b59653a4d2ea4c3a7933785d7e8f9fa7919e575a44fbc9589dc9f`.
+The separate successor-review approval also verifies for manifest root
+`sha256:1d4a8db274a8f9c502c534be1225a90bdb5a8e3f3a4430bca4a180d89446932b`.
+Both are scoped approvals for the exact frozen candidate; neither authorizes
+the EIP-191 authority transition or live deployment by itself. The current PRF
+working copy has since advanced beyond that source snapshot and inherits no
+approval; verification used the independently reconstructed frozen tree and
+selected trusted contexts.
+
+The retained v8 W3/W4 report integrity re-verifies to root
+`042507fd7c6acca3d69625c9d3527878d23e2fe21a11bb48b6e91dada24c0dfe`. It is
+still `partial`, `local-anvil-only`, and
+`verification-evidence-only-not-approval`: four PRF assertions replayed, zero
+capital-flow transactions, and no capital-flow evidence root. It records the
+C0 deployment, genesis seal and empty-registry seal, but no C0→C1 execution.
+The policy-v3 EIP-191 request remains unsigned; the required validator address
+is `0xc78884593859e84524e41ce94cce38fbcb58c5f8`. The previously supplied
+signature recovers to `0x44fbdfadcfc329615ac56c4375cb058518acb5d0`; the known
+`0xC0E…` keystore is also a different identity. Neither authenticates as that
+validator. The local
+RPC is currently unavailable and no Anvil process or candidate-specific state
+file was found in the inspected locations, so these retained readbacks are
+historical rather than current chain observations.
+
+Current protocol-deployments checks pass: `npm test` reports 41 files and 314
+tests passed, and `npm run typecheck` passes. These code checks do not change
+the live-execution or approval gates. W5 awaits the correctly authenticated
+authority-transition artifact and a matching live instance; W6 and W7 remain
+open because no composed capital-flow evidence exists.
+
+### Gate recheck (2026-10-23)
+
+The v8 initial-input approval was reverified against its exact frozen source
+identity, not the advanced current checkout. The verifier rejected the current
+checkout because a locked source file has changed; reconstructing the 934
+locked files from Jujutsu parent
+`e6fe09666adf8092b2023ea1ecdd84fbf24fa98a` reproduced tree
+`066ee1dcd021ecf8e4d182f17a4ded02095cf3fb51e600ddbe96006f9d87ef09`, and the
+approval verifier returned `valid: true`, `authenticated-local-approval` for
+manifest root
+`sha256:44a5c842a98b59653a4d2ea4c3a7933785d7e8f9fa7919e575a44fbc9589dc9f`.
+The separate successor-review approval also returned `valid: true` for root
+`sha256:1d4a8db274a8f9c502c534be1225a90bdb5a8e3f3a4430bca4a180d89446932b`.
+Neither approval was changed.
+
+The most recently supplied EIP-191 signature was checked against the exact
+v8 authority-transition request and trusted policy context. Verification
+rejected it as `invalid-transition-attestation`; the approved validator
+address remains `0xc78884593859e84524e41ce94cce38fbcb58c5f8`. No signature was
+written into the request and no transaction was authorized. The previously
+retained C0/C0-seal report remains historical: no Anvil process was running
+and JSON-RPC at `127.0.0.1:8545` was unavailable during this recheck.
+
+The current PRF checkout's focused authority-state, transition-review,
+genesis-seal-gate, genesis-seal-observer, registry-equivalence and
+successor-configuration suites pass: 27 tests, 189 assertions, zero failures
+or errors. This is implementation evidence only. W0 maintainer integration
+and historical artifact equivalence remain open; W5 still needs the valid
+policy-pinned signature and a live, matching instance; W6/W7 still need a
+fresh C1 capital-flow execution and independently replayable evidence.
+
+The existing PRF-EVM checkout independently passes the focused transition,
+genesis-continuity and admission-binding suites: 9, 10 and 19 tests
+respectively (38 total, zero failures). The checkout's five untracked Gate E
+fixture files were left untouched. This confirms the current local source
+behaviour; it does not integrate the release patch into an accepted upstream
+revision or change the v8 source lock.
 
 | Work | Current evidence | Status |
 | --- | --- | --- |
-| W0 release baseline | Candidate v7 pins 933 source identities, including the authority-continuity, Foundry-path normalization and v0.4.2 capital-flow replay patches. A clean Foundry compile and three v0.4.2 exports (one after that clean build) reproduce the same bundle byte-for-byte; the retained fixture validates. The historical v0.4.1 package root remains unreproduced. | Local candidate baseline; release-maintainer integration and historical equivalence remain open. |
-| W1 authority enforcement | Authority transition enforcement and focused tests are retained. The prior approved transition was applied at block 14 on the earlier candidate's deployment. | Code verified; old deployment evidence does not qualify candidate v7. |
-| W2 canonical input approval | The earlier initial-input and successor approvals remain valid only for their exact prior manifests and scope. Candidate v7 has a different source-bound manifest and is unapproved. | Open for candidate v7; the supplied ECDSA signature remains unbound without its exact signed request and digest. |
-| W3 verifier identity | The earlier deployment receipt records verifier/adapter identities and independent live checks; six PRF assertions replay in its independent report. | Verified for the earlier run only; candidate v7 artifact identities require fresh deployment observation. |
-| W4 genesis | The earlier chain-instance genesis and empty-registry seals have verified observations and readbacks. | Verified for the earlier run only; they do not bind candidate v7 runtime artifacts. |
-| W5 C0→C1 | The earlier approved transition and configuration application are recorded as verified. C1 was `0xfab68d6327ec91449a8b2755b0b45f9587d93c58a9357d3bf41359c31f990ecd`, epoch 1. | Verified for the earlier candidate only; a fresh transition review follows candidate v7 input approval and deployment. |
-| W6 capital flow | Replay support now covers setup and capital-flow transactions, but no real proof-admission/capital-flow evidence is retained. The report's `capitalFlowEvidenceRoot` is null. At the last live Anvil observation (chain 31337, block 25), the reserve had no funds and the ratification controller had no bound execution caller. | Open; operation and setup evidence must be separately approved before transactions. |
-| W7 evidence package | Independent report and partial execution receipt exist, but there is no approved expectation package or complete flow bundle. Setup replay is implemented; live evidence remains absent. | Open. |
+| W0 release baseline | Candidate v8 pins the 934-file source snapshot and v0.4.2 deployables used for the retained C0 run. Protocol-deployments typecheck passes and its current 41-file suite passes 314 tests. The historical v0.4.1 package root remains unreproduced. | Local candidate baseline; release-maintainer integration and historical equivalence remain open. |
+| W1 authority enforcement | Authority transition enforcement and focused tests are retained. The v8 execution has not applied the policy-v3 authority-state mutation. | Code verified; execution remains gated by the validator-bound transition artifact. |
+| W2 canonical input approval | v8 initial-input approval and the distinct successor-review approval both verify against their exact manifests and trusted contexts. | Content and transition review approvals are present; EIP-191 authority-transition attestation remains missing. |
+| W3 verifier identity | The retained v8 report verifies runtime closure for its local deployment and replays four PRF assertions. | Historical evidence only; current RPC readback is unavailable. |
+| W4 genesis | The v8 report records a verified genesis seal and empty-registry seal. | Retained historical readback; current RPC readback is unavailable. |
+| W5 C0→C1 | A separate successor-review approval is retained for C0 `131ff6…`, C1 `c6d7c1…`, chain-instance root `cddcc6…`, and epoch 1. The authority-transition request is unsigned. | Not executed. Requires the EIP-191 signature from the policy-pinned validator and a matching live instance. |
+| W6 capital flow | Replay support covers setup and capital-flow transactions, but the retained report has zero capital-flow transactions and a null `capitalFlowEvidenceRoot`. | Open; no live proof-admission/capital-flow evidence. |
+| W7 evidence package | The independent report verifies as partial evidence; no complete flow bundle or approved operation expectation package exists. | Open. |
 
 The prior deployment manifest root is
 `0x9e41374c74e541b8d2a32536ad1f2f0768aa8116659096a9f810516ec74d171c`,
@@ -47,9 +121,9 @@ is inferred from its predecessor's receipts.
 
 | Area | Available now | Remaining obligation |
 | --- | --- | --- |
-| Canonical authority | Generic state v1, local policy v1/v2/v3, atomic transition enforcement, Ed25519 and EIP-191 validator paths, shared commitment vectors; the bounded profile now deploys the immutable EIP-191 validator and enables transition mode before sealing | Execute and independently verify an approved authority-state transition; qualify the approved key/runtime |
-| Initial inputs | Four generic candidate artifacts now derive under local policy v3; source-bound review manifest and seven-root C0 artifact | Review and approve exact semantic content, validator address and source identity |
-| Review manifest | Generic v3 content/root, scope, principal, action and release-source bundle bindings; PRF verifier plus deployment gates for initial inputs, genesis sealing and separate C0→C1 approval | Supply real trusted initial-input and transition approval evidence |
+| Canonical authority | Generic state v1, local policy v1/v2/v3, atomic transition enforcement, Ed25519 and EIP-191 validator paths, shared commitment vectors; the bounded profile deploys the immutable EIP-191 validator and enables transition mode before sealing | Execute and independently verify the approved authority-state transition; qualify validator key/runtime against a current live instance |
+| Initial inputs | Four generic candidate artifacts derive under local policy v3; the v8 source-bound review manifest and seven-root C0 artifact have authenticated approval | Keep approval bound to the frozen source identity; policy-v3 transition signature remains separate |
+| Review manifest | Generic v3 content/root, scope, principal, action and release-source bundle bindings; PRF verifier plus deployment gates for initial inputs, genesis sealing and separate C0→C1 approval | Initial-input and successor-review approvals verify; supply the policy-pinned EIP-191 authority-transition attestation |
 | Solidity hardening | Pinned base `4b6b6ed159762c88099c96d4dafd635ab99470ea` plus the source-locked combined overlay reproduces tree `98e2ced7c0c61f146f7da902ed027780cee0f8b9`; the 129-test focused run and updated 10-test authority suite pass (130 cases across runs); the production Solidity source compiled and all 31 artifact records match the retained v0.4.1 fixture | The historical bundle root is not reproduced because its release commit object is absent from this mirror; qualify the trusted validator implementation, bind it to approved inputs and retain deployment/runtime evidence |
 | Registry equivalence | Shared fixtures pass in Clojure and Solidity | Retain fixture/release identities with the approved successor package |
 | Proof and replay | Real-proof and consumer/assurance regression tests pass | Repeat the composed capital flow under the newly approved deployed C1 |
@@ -98,8 +172,9 @@ authority-transition request, the executor can register/seal the successor
 verifier, apply the authority-state transition and apply C1. It checks exact
 call arguments before signing and verifies receipts and on-chain readbacks;
 the plan receipt reports these stages only from retained successful evidence.
-No owner-approved request or live deployment has been supplied, so W5 remains
-open and no proof-stage consumption or capital flow is claimed.
+As of 2026-10-22, candidate v8's initial-input and successor-review approvals
+verify, but its policy-pinned EIP-191 authority-transition request remains
+unsigned. W5 is open; no C1 transition or proof-stage consumption is claimed.
 
 The PRF review tooling now supports a detached Ed25519 approval envelope with
 an out-of-band trust policy. It binds the exact manifest root, local scope,
@@ -114,13 +189,15 @@ known placeholder bindings in the bounded architecture before spec resolution;
 non-placeholder values must already equal the approved roots. Plan resolution
 also requires this authenticated root set. Immediately before signing
 `sealGenesis`, the bounded signer consumes the independent live-observation
-preflight, and it retains the request/context digests and verifier output. No
-trusted owner key or approval envelope has been supplied; candidate packages
-remain unapproved. The signer requires the
+preflight, and it retains the request/context digests and verifier output. The
+v8 initial-input approval and seal readback are retained for the frozen
+candidate and historical Anvil instance; they do not transfer to later source
+or instance changes. Current RPC readback is unavailable. The signer requires the
 configuration's root argument to be the all-zero sentinel, substitutes only
 the independently derived root, and verifies the mined receipt and same-block
 readbacks. Both verifier outputs and their exact input digests are retained in
-the deployment record. No live sealing is claimed.
+the deployment record. The retained v8 seal is historical; a fresh live seal is
+not currently observed.
 
 A deployment-specific four-artifact candidate now lives in
 [bounded-configuration-local-candidate-v2](../../etc/deployments/bounded-configuration-local-candidate-v2/README.md).
@@ -474,14 +551,15 @@ PRF now has `scripts.deployment.successor-configuration`, a derivation-only
 tool that checks a closed C0 artifact, a local chain-instance genesis bound to
 the same protocol root and C0 root, and the canonical empty registry. It
 recomputes the instance root, optionally checks an independently retained
-expected root, changes only `verifier-registry/root`, and derives the v1
+  expected root, changes only `verifier-registry/root`, and derives the v1
 configuration-transition root for that exact instance at epoch 1. The output
 retains its chain-instance artifact so a fresh invocation can recompute and
 compare the complete derivation record. Fixture-level derivations are tested;
-the resumable deployment now invokes this tool against the authenticated C0,
-sealed instance and observed successor registry. No owner-approved C0 or
-successor-verifier package, signed transition approval, on-chain execution,
-authority successor update or live readback exists yet. The
+the resumable deployment invokes this tool against the authenticated C0, sealed
+instance and observed successor registry. Candidate v8's C0 and successor
+verifier package have separate authenticated review approvals. The policy-v3
+EIP-191 authority-transition signature, on-chain execution, authority
+successor update and current live readback remain absent. The
 configuration-transition schema commits the new registry root; the old
 registry root is committed through C0 itself.
 
@@ -665,9 +743,10 @@ accepting activation. The focused verifier/report suites pass 47 tests and
 TypeScript typecheck passes. Replay rejects evidence whose state assertions
 differ and includes the expectation digest in the independent verification
 root. This makes expectation review an explicit qualification input; approval
-of those values remains a trust assumption. The 2026-10-19 C0→C1 execution is live and independently reported,
-but it contains no W6 capital-flow actions, and no approved expectation package
-or complete capital-flow bundle exists.
+of those values remains a trust assumption. An earlier candidate's 2026-10-19
+C0→C1 execution was independently reported but contained no W6 capital-flow
+actions. Candidate v8's retained report stops before C1. No approved expectation
+package or complete capital-flow bundle exists.
 
 The W6 replay requires an explicit setup stage before its capital-flow action
 sequence. The deployed
@@ -775,10 +854,12 @@ exports have matched byte-for-byte, including one after a clean Foundry build,
 and the protocol-deployments bundle consumer validates
 the manifest and the three modified core artifacts. Capital-flow replay now
 uses the v0.4.2 ABIs and passes 34 tests. The v7 source-lock and
-manifest-binding test passes. Candidate v7 remains unapproved and undeployed.
-Fresh W2 approval, W3/W4 observations and W5 transition approval/execution
-are required; predecessor approvals and live readbacks remain valid only for
-their exact earlier candidate and instance.
+manifest-binding test passes. Candidate v7 remains an unapproved historical
+candidate. This 2026-10-19 audit was superseded by v8 on 2026-10-22; current
+approval and W3/W4 report evidence appear at the start of this plan.
+
+The following order table records the superseded 2026-10-19 sequence; the
+2026-10-22 table below it is the current execution order.
 
 | Order | Work | Concrete output | Gate / dependency |
 | --- | --- | --- | --- |
@@ -787,6 +868,16 @@ their exact earlier candidate and instance.
 | 3 | Complete W3/W4 execution gates against the approved package. Authenticate deployed verifier and validator runtime identities, perform fresh chain observations, independently derive genesis, and seal only when all bindings match. Retain mined receipt and same-block readbacks. | Verified local genesis seal and deployment evidence bundle. | Requires steps 1–2; changed source or deployment facts require a new derivation and approval as applicable. |
 | 4 | Complete W5. Deploy and bind the executor and empty epoch-0 registry to the sealed instance; deploy/authenticate the successor verifier; derive C1; obtain separate transition approval; execute the approved authority/configuration update and independently check readbacks. | Distinct, reproducible C0/C1 identities and retained approval, transaction and state evidence. | Initial-input approval does not authorize this transition. Stop if parent, epoch, instance, proof mode or registry differs from the approved manifest. |
 | 5 | Run W6, then package W7. Exercise the real proof and protected capital path, run negative and replay cases at the capital-consumer boundary, and create a verifier command that rechecks the complete retained bundle. | Local qualification bundle and independent verification result, scoped to the approved local deployment. | Requires successful W5. Public-chain evidence, public approval and production readiness remain out of scope. |
+
+### Superseding execution state (2026-10-22)
+
+| Order | Work | Next concrete action | Gate |
+| --- | --- | --- | --- |
+| 1 | W0 | Keep the v8 source lock and v0.4.2 bundle fixed; finish maintainer integration and explicitly record the unresolved historical v0.4.1 equivalence. | The 314-test protocol-deployments suite and typecheck pass; this is not release-maintainer acceptance. |
+| 2 | W2 | Preserve the verified v8 initial-input and successor-review approvals unchanged. | Recompute and reapprove if source, package roots, validator identity, or scope changes. |
+| 3 | W3/W4 | Before resuming, obtain a fresh RPC readback and compare chain ID, block ancestry, addresses, code hashes, seals and configuration-executor state with the retained instance. | RPC is currently down. If the approved instance cannot be recovered, stop and rederive/reapprove any changed instance-bound artifact. |
+| 4 | W5 | Obtain and verify the EIP-191 authority-transition attestation from policy-pinned address `0xc78884593859e84524e41ce94cce38fbcb58c5f8`; execute only after the approved instance is live and matching. | The request remains unsigned. The known `0xC0E…` key and previously supplied signature recover to other addresses. |
+| 5 | W6/W7 | After W5 is verified, prepare separately approved operation expectations, run positive/negative proof and protected-capital paths, then package and independently replay the full evidence bundle. | No W6 capital-flow evidence exists; W7 remains incomplete. |
 
 Build and test unapproved fixtures while approval work proceeds, but label those
 results as implementation evidence only. Never convert candidate artifacts or
