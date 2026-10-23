@@ -512,51 +512,99 @@ not alter the pin. New successor definitions must retain a distinct name and
 hash domain. This pin protects definition identity; it is not a new canonical
 artifact root or a runtime registry commitment.
 
-## Proposed command boundaries (not implemented)
+## Canonical artifact commands
 
-The catalog does not yet provide a runtime artifact API. Any future commands
-should keep four different actions distinct: inspect a definition, derive a
-semantic commitment, edit a candidate input, and compose inputs under a named
-composition profile. “Commit” should not be used as a command name: it could
-mean computing a canonical hash, freezing an artifact, or creating a JJ
-revision. Admission remains with the existing authority that owns it.
+The CLI uses explicit adapters and delegates semantic derivation to each
+artifact owner's existing implementation. It does not load executable function
+names from the proposed catalog. Supported operations are intentionally
+different:
 
-Candidate interface:
-
-```text
-canonical-artifacts show <artifact-id>
-canonical-artifacts derive <artifact-id> --input <path>
-canonical-artifacts draft create <artifact-id> --from <path> --output <path>
-canonical-artifacts draft edit <artifact-id> --from <path> --set <field=value> --output <path>
-canonical-artifacts compose <composition-profile> --component <artifact-id=path>...
+```bash
+bb canonical-artifacts show pro-rata-allocation-request.v1
+bb canonical-artifacts:derive pro-rata-allocation-request.v1 \
+  --input examples/canonical-artifacts/pro-rata-request.edn
+bb canonical-artifacts:bundle \
+  --input examples/canonical-artifacts/bundle.example.edn
+bb canonical-artifacts:compose realized-allocation-statement.v1 \
+  --input examples/canonical-artifacts/statement-components.example.edn
+bb canonical-artifacts:verify pro-rata-allocation-request.v1 \
+  --input examples/canonical-artifacts/pro-rata-request.edn \
+  --expected-root 6c60df09a5ec1efffaae94da7c0ab8bdf177df9311db525650765fee33e26d85
 ```
 
-These are design examples, not available CLI commands. `show` would report the
-definition owner, status, schema/version, derivation implementation and source
-references. `derive` would be read-only by default and available only when that
-artifact has an authoritative, versioned derivation adapter; its output should
-identify the schema, domain separator, normalized preimage and derived root.
-The caller must not be able to supply a root as if it had been derived.
+For the checked-in examples, derive reports request root
+`6c60df09a5ec1efffaae94da7c0ab8bdf177df9311db525650765fee33e26d85`; bundle
+reports structural root
+`bbabd3a44c65ac7272bae44815a04ae8c5f9799df3682a49f21fc3d5aec7b1a2`; and
+composition reports statement root
+`47cbc3289c5183c341e0041dc68eeb8f67fb9cb98e269da52ab5007c89b75158`. These
+are reproducibility examples, not admission or source-authenticity claims.
 
-Draft operations would write a separate candidate file. They must preserve the
-source artifact and its identity, reject fields or values outside the
-artifact's declared authoring rules, and never mutate an admitted or frozen
-snapshot in place. Editing an artifact is not authorization or admission.
+`derive` currently supports `pro-rata-allocation-request.v1`; it normalizes
+through the pinned `prf-pro-rata-allocation` implementation, rejects unknown
+fields and supplied roots, and reports the semantic preimage, canonical bytes,
+domain and root. `compose` currently supports
+`realized-allocation-statement.v1` and calls the pinned semantic owner's
+statement constructor/root function. Its example component roots are format
+fixtures only: when only roots are supplied, the command reconstructs the
+statement commitment but does not validate parent artifact data, source
+authority, proof verification or admission.
 
-`compose` would require a named, versioned profile that defines component
-types, order, duplicate handling, encoding, domain separation and the resulting
-identity. Without such a profile, composition must fail closed; concatenating
-arbitrary artifact roots or inventing a generic combined root is not valid.
-Domain-specific composition functions remain authoritative for their own
-semantics.
+`verify` is intentionally narrow. For the request, bundle and realized
+statement profiles it recomputes the root from the supplied inputs and compares
+it with `--expected-root`. A match means only that the bytes/root agree under
+the named adapter: it does not authenticate source data, prove economic truth,
+verify a proof or perform authority admission. The request adapter validates
+the request through its owner implementation; the realized statement checks
+only parent-root shape; the bundle recomputes its structural preimage and
+reports which members were recomputed versus opaque. The
+`opaque-commitment.v1` profile checks descriptor/root encoding only and returns
+`:opaque-unrecomputed`, never a verified-statement result. Mismatches and
+domain-input failures produce machine-readable non-success statuses and a
+nonzero CLI exit.
 
-Current commands have narrower meanings: `root-hash` reports roots for an
-existing run package, `ref-file` computes or checks file references, and
-`bb canonical-artifacts:validate` validates this proposed catalog against its
-declared source references. None is a generic semantic artifact derivation,
-editing, composition or admission command. Implementing the candidate
-interface requires adopted artifact definitions and owners for each supported
-derivation/profile; this proposal adds no runtime consumer or new root.
+`artifact-bundle.v1` is a structural collection commitment, not a semantic
+statement. Its normative canonical preimage has exactly these fields:
+
+| Field | Type and rule |
+|---|---|
+| `:schema-version` | String, exactly `artifact-bundle.v1` |
+| `:hash/scheme` | String, exactly `canonical-hash-scheme.v1` |
+| `:hash/algorithm` | String, exactly `sha256` |
+| `:hash/domain` | String, exactly `PRF_ARTIFACT_BUNDLE_V1` |
+| `:ordering` | String, exactly `lexicographic-role-id-schema-scheme-algorithm-domain-root.v1` |
+| `:duplicate-policy` | String, exactly `reject-duplicate-role-and-artifact-id.v1` |
+| `:members` | Non-empty vector of closed member maps below |
+
+Each committed member map has exactly `:member/role`, `:artifact/id`,
+`:artifact/schema`, `:hash/scheme`, `:hash/algorithm`, `:hash/domain`, and
+`:commitment/root`. The identity, role, scheme, algorithm and domain fields are
+non-empty strings; root is 64 lowercase hexadecimal characters. Members are
+sorted lexicographically by role, artifact ID, schema, scheme, algorithm,
+domain and root. Duplicate `(role, artifact ID)` pairs reject. The bundle root
+is SHA-256 of the UTF-8 domain tag concatenated with the existing typed
+canonical encoding of that exact preimage.
+
+Input-only `:commitment/status` and `:artifact/data` fields are not part of the
+committed member map. `:recompute` requires data for an explicit supported
+adapter and forbids a supplied root. `:opaque` requires a supplied root, forbids
+source data and performs syntax checks only. The resulting `:recomputed` or
+`:opaque-supplied` classification is reported outside the bundle root, so the
+root commits to the grouped artifact commitments, not the local operator's
+validation claim.
+
+The bundle asserts no economic validity, proof verification, source
+authenticity, authority approval, admission or settlement. No command in this
+group performs admission. `draft create/edit` remains deferred. `root-hash`,
+`ref-file` and `bb canonical-artifacts:validate` retain their narrower existing
+meanings.
+
+Frozen command vectors and negative-case IDs are in
+[`artifact-bundle-v1.edn`](../../../resources/test-vectors/canonical-artifacts/artifact-bundle-v1.edn).
+Examples are under `examples/canonical-artifacts/`. The current explicit
+dispatch supports one request derivation, three recomputation profiles and one
+opaque descriptor check; other catalog entries remain unsupported until an
+owner implementation and tests are wired in.
 
 ## Original validation performed for this proposal
 

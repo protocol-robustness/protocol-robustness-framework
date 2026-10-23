@@ -284,6 +284,26 @@ check:ownership
    {:doc "Validate the proposed canonical artifact baseline. Usage: bb canonical-artifacts:validate <manifest.edn> <prf-root> <prf-evm-root> <pinned-prf-canonical-root> <pinned-prf-pro-rata-allocation-root> <pinned-prf-coprocessor-root>"
     :task (apply shell "bb" "scripts/validate/canonical_artifacts.clj" *command-line-args*)}
 
+  canonical-artifacts
+  {:doc "Inspect, derive, bundle, compose or narrowly verify supported canonical artifacts. Usage: bb canonical-artifacts show | derive pro-rata-allocation-request.v1 --input FILE [--output FILE] | bundle --input FILE [--output FILE] | compose realized-allocation-statement.v1 --input FILE [--output FILE] | verify <profile> --input FILE [--output FILE]"
+   :task (apply shell "clojure" "-M" "-m" "resolver-sim.commands.canonical-artifacts" *command-line-args*)}
+
+  canonical-artifacts:derive
+  {:doc "Derive a supported canonical artifact commitment. Usage: bb canonical-artifacts:derive pro-rata-allocation-request.v1 --input FILE [--output FILE]"
+   :task (apply shell "clojure" "-M" "-m" "resolver-sim.commands.canonical-artifacts" "derive" *command-line-args*)}
+
+  canonical-artifacts:bundle
+  {:doc "Create a structural artifact-bundle.v1 commitment. Usage: bb canonical-artifacts:bundle --input FILE [--output FILE]"
+   :task (apply shell "clojure" "-M" "-m" "resolver-sim.commands.canonical-artifacts" "bundle" *command-line-args*)}
+
+  canonical-artifacts:compose
+  {:doc "Compose a supported semantic artifact. Usage: bb canonical-artifacts:compose realized-allocation-statement.v1 --input FILE [--output FILE]"
+   :task (apply shell "clojure" "-M" "-m" "resolver-sim.commands.canonical-artifacts" "compose" *command-line-args*)}
+
+  canonical-artifacts:verify
+  {:doc "Recompute a supported commitment or classify an opaque commitment. Usage: bb canonical-artifacts:verify <profile> --input FILE [--expected-root HEX] [--output FILE]"
+   :task (apply shell "clojure" "-M" "-m" "resolver-sim.commands.canonical-artifacts" "verify" *command-line-args*)}
+
   assurance:verify-checkpoint
   {:doc "Verify a hash-bound assurance checkpoint from its bound historical revisions"
    :task (apply shell "bb" "scripts/assurance/verify_checkpoint.clj" "verify-checkpoint" *command-line-args*)}

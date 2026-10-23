@@ -21,6 +21,10 @@
   (cond
     (fn? value) {:runtime/function-class
                  (str/replace (.getName (class value)) #"\$fn__\d+.*$" "")}
+    (instance? clojure.lang.Ratio value)
+    {:canonical/type "ratio"
+     :canonical/numerator (numerator value)
+     :canonical/denominator (denominator value)}
     (or (instance? Double value) (instance? Float value))
     (let [number (double value)]
       (if (Double/isFinite number)
