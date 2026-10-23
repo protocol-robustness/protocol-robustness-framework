@@ -89,15 +89,16 @@ and historical artifact equivalence remain open; W5 still needs the valid
 policy-pinned signature and a live, matching instance; W6/W7 still need a
 fresh C1 capital-flow execution and independently replayable evidence.
 
-The PRF-EVM checkout now has a narrow local review change,
+The PRF-EVM review branch has a narrow change,
 `57f7bc77` (`bounded-configuration-authority-hardening`), created on
 the exact fetched `main`/`origin/main` parent `9f702a10446f7e045bab6f281f20b53f80f8b32d`.
 It contains only the 13 bounded authority-transition, genesis-continuity,
 admission-binding and related test paths; the unrelated partial-fill work was
 excluded. The focused Forge suites pass 44 tests: authority state 9, ECDSA
 validator 4, genesis 10, statement admission 19 and governor integration 2.
-The change is local and unpushed. Its full compile succeeded, but an export from
-that main-based change still uses bundle version 0.4.0 and contains only 30
+The branch is published for maintainer review, but is not integrated or
+accepted as a release. Its full compile succeeded, but an export from that
+main-based change still uses bundle version 0.4.0 and contains only 30
 artifacts, omitting `PrfEcdsaAuthorityTransitionValidator`; it is not a release
 bundle. The five pre-existing Gate E fixture files were restored to their
 original working-copy state and were not included in the review change. The
@@ -160,6 +161,28 @@ or alter the pinned release package without a reviewed release decision.
 | W5 C0→C1 | A separate successor-review approval is retained for C0 `131ff6…`, C1 `c6d7c1…`, chain-instance root `cddcc6…`, and epoch 1. The authority-transition request is unsigned. | Not executed. Requires the EIP-191 signature from the policy-pinned validator and a matching live instance. |
 | W6 capital flow | Replay support covers setup and capital-flow transactions, but the retained report has zero capital-flow transactions and a null `capitalFlowEvidenceRoot`. | Open; no live proof-admission/capital-flow evidence. |
 | W7 evidence package | The independent report verifies as partial evidence; no complete flow bundle or approved operation expectation package exists. | Open. |
+
+### Handoff recheck (2026-10-23)
+
+The PRF-EVM hardening change is available on the published
+`bounded-configuration-authority-hardening` review branch at `57f7bc77`; it
+has not been merged or accepted as a release. The public repository currently
+has no release for the retained v0.4.2 bundle, and the source commit named by
+that bundle (`0dad4c2790a60ecca9a41c5d518f99522eab94ce`) is not present in its
+public commit history. Consequently, the exact artifact-producing toolchain
+and canonical bundle root still need maintainer resolution. No further source
+change can establish that missing provenance locally.
+
+The deployment transition request remains unsigned by the policy-pinned EIP-191
+validator, and there is no matching live Anvil instance. Do not execute W5 or
+start a replacement instance: either would require the external signature and
+instance-bound evidence first. W6 and W7 depend on W5 and have no live
+capital-flow evidence. The authenticated initial-input and successor-review
+approvals remain valid only for their frozen v8 manifest and scope.
+
+This follow-up is documentation-only: it corrects the branch publication
+status and records the remaining external gates without changing approved
+candidate inputs or source locks.
 
 The prior deployment manifest root is
 `0x9e41374c74e541b8d2a32536ad1f2f0768aa8116659096a9f810516ec74d171c`,
