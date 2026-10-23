@@ -89,16 +89,22 @@ and historical artifact equivalence remain open; W5 still needs the valid
 policy-pinned signature and a live, matching instance; W6/W7 still need a
 fresh C1 capital-flow execution and independently replayable evidence.
 
-The existing PRF-EVM checkout independently passes the focused transition,
-genesis-continuity and admission-binding suites: 9, 10 and 19 tests
-respectively (38 total, zero failures). The checkout's five untracked Gate E
-fixture files were left untouched. This confirms the current local source
-behaviour; it does not integrate the release patch into an accepted upstream
-revision or change the v8 source lock.
+The PRF-EVM checkout has a narrow local review change
+`57f7bc77` (`bounded-configuration-authority-hardening`) was then created on
+the exact fetched `main`/`origin/main` parent `9f702a10446f7e045bab6f281f20b53f80f8b32d`.
+It contains only the 13 bounded authority-transition, genesis-continuity,
+admission-binding and related test paths; the unrelated partial-fill work was
+excluded. The focused Forge suites pass 44 tests: authority state 9, ECDSA
+validator 4, genesis 10, statement admission 19 and governor integration 2.
+The change is local and unpushed, so maintainer integration and release-artifact
+export remain outstanding. The five pre-existing Gate E fixture files were
+restored to their original working-copy state and were not included in the
+review change. This candidate does not alter the v8 source lock or inherit its
+approval.
 
 | Work | Current evidence | Status |
 | --- | --- | --- |
-| W0 release baseline | Candidate v8 pins the 934-file source snapshot and v0.4.2 deployables used for the retained C0 run. Protocol-deployments typecheck passes and its current 41-file suite passes 314 tests. The historical v0.4.1 package root remains unreproduced. | Local candidate baseline; release-maintainer integration and historical equivalence remain open. |
+| W0 release baseline | Candidate v8 pins the 934-file source snapshot and v0.4.2 deployables used for the retained C0 run. A separate narrow PRF-EVM review change (`57f7bc77`, parent `9f702a10`) isolates 13 bounded paths and passes 44 focused tests. Protocol-deployments typecheck passes and its current 41-file suite passes 314 tests. The historical v0.4.1 package root remains unreproduced. | Review change is local and unpushed; release-maintainer integration, deployable export/pinning and historical equivalence remain open. |
 | W1 authority enforcement | Authority transition enforcement and focused tests are retained. The v8 execution has not applied the policy-v3 authority-state mutation. | Code verified; execution remains gated by the validator-bound transition artifact. |
 | W2 canonical input approval | v8 initial-input approval and the distinct successor-review approval both verify against their exact manifests and trusted contexts. | Content and transition review approvals are present; EIP-191 authority-transition attestation remains missing. |
 | W3 verifier identity | The retained v8 report verifies runtime closure for its local deployment and replays four PRF assertions. | Historical evidence only; current RPC readback is unavailable. |
