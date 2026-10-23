@@ -1,0 +1,543 @@
+{
+  "type": "protocol-deployment-plan-execution/v1",
+  "executionStatus": "partial",
+  "planId": "prf/controlled-shortfall-successor-fork.v1",
+  "planHash": "0xe07d3fe18f122a46824942cd7af71cc5de475aeef761954f946da1595c0a3810",
+  "environment": "pro-rata-v2-entitlement-local",
+  "chainId": 31337,
+  "localOnly": true,
+  "selectedUnits": [
+    "prf-assurance",
+    "protected-operations",
+    "pro-rata-successor-entitlements"
+  ],
+  "excludedUnits": [
+    "sew-protocol"
+  ],
+  "selectedContracts": [
+    {
+      "logicalId": "prf/local-token",
+      "kind": "local-fixture",
+      "unit": "protected-operations",
+      "fixtureId": "local-snapshot-token-v1",
+      "stage": "deploy-local-token"
+    },
+    {
+      "logicalId": "prf/governance-authority",
+      "kind": "deploy",
+      "unit": "prf-assurance",
+      "stage": "deploy-authority-and-verifier"
+    },
+    {
+      "logicalId": "prf/genesis",
+      "kind": "deploy",
+      "unit": "prf-assurance",
+      "stage": "deploy-genesis"
+    },
+    {
+      "logicalId": "prf/verifier-registry",
+      "kind": "deploy",
+      "unit": "prf-assurance",
+      "stage": "deploy-authority-and-verifier"
+    },
+    {
+      "logicalId": "prf/sp1-verifier-groth16",
+      "kind": "deploy",
+      "unit": "prf-assurance",
+      "stage": "deploy-authority-and-verifier"
+    },
+    {
+      "logicalId": "prf/source-bound-entitlement-verifier-adapter-v1",
+      "kind": "deploy",
+      "unit": "prf-assurance",
+      "stage": "deploy-authority-and-verifier"
+    },
+    {
+      "logicalId": "prf/configuration-executor",
+      "kind": "deploy",
+      "unit": "prf-assurance",
+      "stage": "deploy-configuration-executor"
+    },
+    {
+      "logicalId": "prf/statement-admission",
+      "kind": "deploy",
+      "unit": "prf-assurance",
+      "stage": "deploy-statement-admission"
+    },
+    {
+      "logicalId": "shortfall/prepared-operation-controller-v2",
+      "kind": "deploy",
+      "unit": "protected-operations",
+      "stage": "deploy-protected-operations"
+    },
+    {
+      "logicalId": "shortfall/pro-rata-allocator-v2",
+      "kind": "deploy",
+      "unit": "protected-operations",
+      "stage": "deploy-protected-operations"
+    },
+    {
+      "logicalId": "shortfall/shortfall-reserve-v2",
+      "kind": "deploy",
+      "unit": "protected-operations",
+      "stage": "deploy-protected-operations"
+    },
+    {
+      "logicalId": "shortfall/source-bound-entitlement-assurance-v1",
+      "kind": "deploy",
+      "unit": "pro-rata-successor-entitlements",
+      "stage": "deploy-successor-entitlements"
+    },
+    {
+      "logicalId": "shortfall/entitlement-ratification-controller-v1",
+      "kind": "deploy",
+      "unit": "pro-rata-successor-entitlements",
+      "stage": "deploy-successor-entitlements"
+    },
+    {
+      "logicalId": "prf/authority-transition-validator",
+      "kind": "deploy",
+      "unit": "prf-assurance",
+      "stage": "deploy-authority-and-verifier"
+    }
+  ],
+  "manifestRoot": "0xfadfc6d98516392d60f8aafdcaf66b8bd96e6491354f0f5cd8dc7fad666431e2",
+  "resolvedSpecSha256": "8cf861b14ba446df000ef965c57c18b8bf728e0394d8e1bcd7edde31a08b26dd",
+  "stageOutputBindings": [],
+  "stages": [
+    {
+      "id": "derive-genesis-roots",
+      "kind": "derive-canonical-roots",
+      "status": "verified",
+      "outputs": {
+        "protocolGenesisRoot": "0x668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775",
+        "authorityStateRoot": "0x4db9006e3b44e2f32e3cd197a85846bd39513049eba1e278fa027bad2ca1d914",
+        "emptyRegistryRoot": "0x2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240"
+      },
+      "evidence": {
+        "type": "prf-initial-input-approval",
+        "manifestRoot": "sha256:ce9ee290f19ff43728144ef9e0bd93bb76dc42b596fea8564fe4496ba5bc4def",
+        "verifierOutputSha256": "35dd1ef8a86d603cce9858dbae7a70840c806dc3fa4bb2cf9b2c6597b09eaf62",
+        "inputSha256": [
+          "4bb375c8fb430f3294d6d01a5a6841c1042a8b85ca9c7798d14eb882fefe9002",
+          "0d582d9704635586f9e13d6acdd823f2855ddfab930198fc96afa393cbed71bd",
+          "27948edaf7f616b9ecb48cb27df552c7436a3878f602e831e9c42f6df2e02870",
+          "b347efaa95d01691a112c40aa2e319e0bcda5605244121b40894af428fda4382"
+        ]
+      }
+    },
+    {
+      "id": "derive-initial-configuration",
+      "kind": "derive-canonical-roots",
+      "status": "verified",
+      "outputs": {
+        "initialConfigurationRoot": "0x131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95"
+      },
+      "evidence": {
+        "type": "prf-initial-input-approval",
+        "manifestRoot": "sha256:ce9ee290f19ff43728144ef9e0bd93bb76dc42b596fea8564fe4496ba5bc4def",
+        "verifierOutputSha256": "35dd1ef8a86d603cce9858dbae7a70840c806dc3fa4bb2cf9b2c6597b09eaf62",
+        "inputSha256": [
+          "4bb375c8fb430f3294d6d01a5a6841c1042a8b85ca9c7798d14eb882fefe9002",
+          "0d582d9704635586f9e13d6acdd823f2855ddfab930198fc96afa393cbed71bd",
+          "27948edaf7f616b9ecb48cb27df552c7436a3878f602e831e9c42f6df2e02870",
+          "b347efaa95d01691a112c40aa2e319e0bcda5605244121b40894af428fda4382"
+        ]
+      }
+    },
+    {
+      "id": "deploy-local-token",
+      "kind": "deploy",
+      "status": "verified",
+      "outputs": {
+        "localToken": {
+          "address": "0x9338ca7d556248055f5751d85cda7ad6ef254433",
+          "transactionHash": "0x8c643bd324b357eaf64fff97f0291086e4468d9a9c1f99d9d1f97ee6439421a3",
+          "blockNumber": "121",
+          "runtimeBytecodeSha256": "75dbd2fbacda1ca20c67dfce9c55c39ef85839c99bb4b6cde29e397a163701a2"
+        }
+      }
+    },
+    {
+      "id": "deploy-authority-and-verifier",
+      "kind": "deploy",
+      "status": "verified",
+      "outputs": {
+        "authorityAdapter": {
+          "address": "0x7cf4be31f546c04787886358b9486ca3d62b9acf",
+          "transactionHash": "0x658bfbc3608eb85741b3988b43d6d27a7d305d0f233cd11719a59947561194e5",
+          "blockNumber": "123",
+          "runtimeBytecodeSha256": "834a1f321fdade6e68aec9d72488e1dbc923fc7e61a91f99189cbfeeb9ca21f5"
+        },
+        "registry": {
+          "address": "0x33e45b187da34826abceda1039231be46f1b05af",
+          "transactionHash": "0x4c03d87b23eddaaeba83f81b77204ca578852d2886769c1279e26228a6ee4efd",
+          "blockNumber": "124",
+          "runtimeBytecodeSha256": "b2f09672b249cc3d35fd50218a33db33a81db0f88331d9b53017253f49281c26"
+        },
+        "sp1Verifier": {
+          "address": "0x0c626fc4a447b01554518550e30600136864640b",
+          "transactionHash": "0xc74e2ce4868d7f24b71ec754ef544ad8d0770e9aeac114e5c79a665b295efaf8",
+          "blockNumber": "125",
+          "runtimeBytecodeSha256": "8f6a0b7972eda1a6eee4478002ff4cfa7e0a0adaf84e0fca0a2d53bdd896894b"
+        },
+        "successorAdapter": {
+          "address": "0xa21ddc1f17df41589bc6a5209292aed2df61cc94",
+          "transactionHash": "0x1c5e97ac6d7b92b2ef595ff428faeaeca1925a3d72b7884918510ddce4fc47d0",
+          "blockNumber": "126",
+          "runtimeBytecodeSha256": "59e5f11862256f1775cebebce66aacc47f320dba68b55ef31064cd08f7daee84"
+        },
+        "authorityTransitionValidator": {
+          "address": "0x9c65f85425c619a6cb6d29ff8d57ef696323d188",
+          "transactionHash": "0x4ae448c0a9e9f9ad58ed19e912eb2d9716c8856ebc1426121ca6af277ffb6ece",
+          "blockNumber": "122",
+          "runtimeBytecodeSha256": "cac561b5687050294f0d501c3220a7f86d885241cd4de7265d86dd6d7e6e6f4c"
+        }
+      }
+    },
+    {
+      "id": "derive-registry-roots",
+      "kind": "derive-canonical-roots",
+      "status": "verified",
+      "outputs": {
+        "successorRegistryRoot": "0x58c69021c3658afc12e24e4d739e397d584b580359715a19fcf505280e757cbf"
+      },
+      "evidence": {
+        "schema": "prf-verifier-registry-derivation-evidence.v1",
+        "qualification": "canonical-root-derived-and-solidity-equivalent",
+        "root": "0x58c69021c3658afc12e24e4d739e397d584b580359715a19fcf505280e757cbf",
+        "entry": {
+          "id": "0x966cc6eee5072b17efdd6a108941d21ee07fd93d63dd13120f0731f490188bb1",
+          "adapter": "0xa21ddc1f17df41589bc6a5209292aed2df61cc94",
+          "programVKey": "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9",
+          "programElfSha256": "0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8",
+          "programId": "source-bound-entitlement-sp1-program.v1",
+          "statementSchemaVersionHash": "0x71fc0589dce6888fb7c2da5ddd88275753cf9f9de0aca477f307bd96de8660de",
+          "publicValuesSchema": "0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde",
+          "active": true
+        },
+        "observationBlock": {
+          "number": "131",
+          "hash": "0x54e2baa1c0b3a463f4306221274736da15189ddbcf81cfe52bc1624b3cfa46b5"
+        },
+        "solidityRoot": "0x58c69021c3658afc12e24e4d739e397d584b580359715a19fcf505280e757cbf",
+        "requestSha256": "8e18444ac9128ce0e13a5bca257a0b94a73dde448bb99b8d5daf463f277472d9",
+        "outputSha256": "48b03a1d3188cffb5219c94ff32d9dddcf45930b916e0dfcf2c214e9b42519c8",
+        "output": "{\"schema\":\"prf-verifier-registry-derivation-result.v1\",\"root\":\"0x58c69021c3658afc12e24e4d739e397d584b580359715a19fcf505280e757cbf\",\"entries\":[{\"id\":\"0x966cc6eee5072b17efdd6a108941d21ee07fd93d63dd13120f0731f490188bb1\",\"adapter\":\"0xa21ddc1f17df41589bc6a5209292aed2df61cc94\",\"programVKey\":\"0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9\",\"programElfSha256\":\"0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8\",\"programId\":\"source-bound-entitlement-sp1-program.v1\",\"statementSchemaVersionHash\":\"0x71fc0589dce6888fb7c2da5ddd88275753cf9f9de0aca477f307bd96de8660de\",\"publicValuesSchema\":\"0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde\",\"active\":true}]}\n",
+        "verifierCommand": [
+          "clojure",
+          "-M:test",
+          "-m",
+          "scripts.deployment.registry-equivalence",
+          "derive-json",
+          "/tmp/prf-verifier-registry-ETLMNi/request.json"
+        ]
+      }
+    },
+    {
+      "id": "deploy-genesis",
+      "kind": "deploy",
+      "status": "verified",
+      "outputs": {
+        "genesisAddress": {
+          "address": "0x2a590c461db46bca129e8dbe5c3998a8ff402e76",
+          "transactionHash": "0xeff765cb8cefbe74e9f3ef07c8e08fd142fc728ddd9e05a07fb8efe7717909cc",
+          "blockNumber": "127",
+          "runtimeBytecodeSha256": "fdcc19c22d9acea9501390a239581aae4620a27dcfd9970aba11eedc24f31bd6"
+        },
+        "genesisRuntimeCodeHash": "0xf95b2580c83218f4f200f01696b9996a86e04ce3ab3f296528a6d1e109916757"
+      }
+    },
+    {
+      "id": "derive-chain-instance-root",
+      "kind": "derive-canonical-roots",
+      "status": "verified",
+      "outputs": {
+        "chainInstanceGenesisRoot": "sha256:2a19747a3680218c7654011fa6a8c711c6f24344992194841977dae8e236299f"
+      },
+      "evidence": {
+        "type": "prf-genesis-seal-preflight",
+        "manifestRoot": "sha256:ce9ee290f19ff43728144ef9e0bd93bb76dc42b596fea8564fe4496ba5bc4def",
+        "verifierOutputSha256": "a972749d7410cfd5834729250bcaf144d6ff4d013e24db96399638437a953df9"
+      }
+    },
+    {
+      "id": "seal-chain-instance-genesis",
+      "kind": "seal-genesis",
+      "status": "verified",
+      "outputs": {
+        "sealedGenesisObservation": {
+          "chainInstanceGenesisRoot": "sha256:2a19747a3680218c7654011fa6a8c711c6f24344992194841977dae8e236299f",
+          "transactionHash": "0x58bc9180495c7ccdc125c7fdf3afe910bd111c9502ae31d468c1cca56b02c059",
+          "blockNumber": "129"
+        }
+      },
+      "evidence": {
+        "type": "prf-genesis-seal-result",
+        "verifierOutputSha256": "f37cb13b0c046b1b737af256585b118936ba53af77d271702e05c7ae7e8c4cb5",
+        "preflightOutputSha256": "a972749d7410cfd5834729250bcaf144d6ff4d013e24db96399638437a953df9"
+      }
+    },
+    {
+      "id": "seal-empty-verifier-registry",
+      "kind": "authorize-configuration",
+      "status": "verified",
+      "outputs": {
+        "emptyRegistryReceipt": {
+          "root": "0x2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240",
+          "transactionHash": "0xbb06c81c3bd91bf5a759bf7eb30001e95c785df852216dc6eae1efdea7d9cee9",
+          "blockNumber": "130"
+        }
+      },
+      "evidence": {
+        "schema": "prf-empty-registry-seal-result.v1",
+        "root": "0x2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240",
+        "computedEmptyRoot": "0x2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240",
+        "transactionHash": "0xbb06c81c3bd91bf5a759bf7eb30001e95c785df852216dc6eae1efdea7d9cee9",
+        "blockNumber": "130",
+        "blockNumberAtDerivation": "129",
+        "blockHashAtDerivation": "0x0813cb88768ea850e533e3b4baf8fcc91ae00feef53c93b944912cc608f9ba49",
+        "governor": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "authorityGovernor": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "registryArtifactRuntimeBytecodeSha256": "b2f09672b249cc3d35fd50218a33db33a81db0f88331d9b53017253f49281c26"
+      }
+    },
+    {
+      "id": "deploy-configuration-executor",
+      "kind": "deploy",
+      "status": "verified",
+      "outputs": {
+        "configurationExecutor": {
+          "address": "0x9849832a1d8274aaedb1112ad9686413461e7101",
+          "transactionHash": "0x3db4973dccd4a04f50eaea586f4fcd007fbf458f6e3faa464af72ecf63442102",
+          "blockNumber": "131",
+          "runtimeBytecodeSha256": "82b4fe2dea1b01dc491c65d0a35644ea3c3a81d11125f513e7cafbf6f7d8b90f"
+        }
+      }
+    },
+    {
+      "id": "derive-successor-configuration",
+      "kind": "derive-canonical-roots",
+      "status": "verified",
+      "outputs": {
+        "decisionRoot": "sha256:28d0605fcb3b9bedc173acd04088c77c5b74dbf32c191db84f338f3d7b03fa2f",
+        "successorConfigurationRoot": "sha256:f8fa9013e9ba64dac0215844f95aee2b32adecaba7402ec5fcc428b0c0349f71",
+        "configurationEpoch": 1,
+        "targetRoot": "sha256:2a19747a3680218c7654011fa6a8c711c6f24344992194841977dae8e236299f"
+      },
+      "evidence": {
+        "type": "prf-successor-configuration-derivation",
+        "requestSha256": "b9d0f407b8e357ec35ad2cc8171cb483132d13fb50971dba874697d085f75d6c",
+        "verifierOutputSha256": "4f0ed0be2984b77cfa443ece8be1eda71dcb61d28f54d3817b53c7a4fdde1c73",
+        "qualification": "successor-configuration-independently-derived-not-approved"
+      }
+    },
+    {
+      "id": "verify-successor-transition-approval",
+      "kind": "verify",
+      "status": "verified",
+      "outputs": {
+        "successorTransitionApprovalEvidence": {
+          "manifestRoot": "sha256:4918f4062ddb93ba4b9cb1da3648feeeab4749fbbf932640bbd0fd280a9b6ac8",
+          "scope": {
+            "protocol/genesis-root": "sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775",
+            "execution/chain-id": 31337,
+            "chain-instance-genesis-root": "sha256:2a19747a3680218c7654011fa6a8c711c6f24344992194841977dae8e236299f",
+            "configuration/parent-root": "sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95",
+            "configuration/new-root": "sha256:f8fa9013e9ba64dac0215844f95aee2b32adecaba7402ec5fcc428b0c0349f71",
+            "epoch": 1,
+            "entitlement-proof-mode": 1,
+            "qualification": "local-only"
+          }
+        }
+      },
+      "evidence": {
+        "type": "prf-successor-transition-approval",
+        "outputSha256": "167c46c7ce165c8d2bf0f0f3a2e1f159251110cbe4a18b38e28d0ecc1d42bc0e",
+        "inputSha256": [
+          "6af61076283978298371314825bd8636bfe24c883e51c16809e91e9ff40ac39d",
+          "709c769f394e38bc8f87c97a4571563f1f9430efb21d5e55b4077c874817927d",
+          "c45c47f9550161cded770cc520d9906806985382f93ab59e3ac66ad2806d07d8",
+          "a0b7e283a2d411f4a2d015edcc67dd89692a79312424cafa99794f7027edfd33"
+        ]
+      }
+    },
+    {
+      "id": "register-successor-verifier",
+      "kind": "authorize-configuration",
+      "status": "verified",
+      "outputs": {
+        "registrationReceipt": {
+          "registryRoot": "0x58c69021c3658afc12e24e4d739e397d584b580359715a19fcf505280e757cbf",
+          "transactionHash": "0x27ff0449434589b1cfe1198ce2165c510f95010d080d1ecc087a189ba005e5f4",
+          "blockNumber": "132"
+        }
+      },
+      "evidence": {
+        "registryRoot": "0x58c69021c3658afc12e24e4d739e397d584b580359715a19fcf505280e757cbf",
+        "entry": {
+          "id": "0x966cc6eee5072b17efdd6a108941d21ee07fd93d63dd13120f0731f490188bb1",
+          "adapter": "0xa21ddc1f17df41589bc6a5209292aed2df61cc94",
+          "programVKey": "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9",
+          "programElfSha256": "0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8",
+          "programId": "source-bound-entitlement-sp1-program.v1",
+          "statementSchemaVersionHash": "0x71fc0589dce6888fb7c2da5ddd88275753cf9f9de0aca477f307bd96de8660de",
+          "publicValuesSchema": "0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde",
+          "active": true
+        },
+        "transactionHash": "0x27ff0449434589b1cfe1198ce2165c510f95010d080d1ecc087a189ba005e5f4",
+        "blockNumber": "132",
+        "approvalManifestRoot": "sha256:4918f4062ddb93ba4b9cb1da3648feeeab4749fbbf932640bbd0fd280a9b6ac8"
+      }
+    },
+    {
+      "id": "seal-successor-verifier-registry",
+      "kind": "authorize-configuration",
+      "status": "verified",
+      "outputs": {
+        "sealedSuccessorRegistryObservation": {
+          "registryRoot": "0x58c69021c3658afc12e24e4d739e397d584b580359715a19fcf505280e757cbf",
+          "transactionHash": "0x2e7f6bb7f4ff88b08803dad990cc8c6c35c46ca1b0c107846527553c8c2b1c0c",
+          "blockNumber": "133"
+        }
+      },
+      "evidence": {
+        "registryRoot": "0x58c69021c3658afc12e24e4d739e397d584b580359715a19fcf505280e757cbf",
+        "transactionHash": "0x2e7f6bb7f4ff88b08803dad990cc8c6c35c46ca1b0c107846527553c8c2b1c0c",
+        "blockNumber": "133",
+        "approvalManifestRoot": "sha256:4918f4062ddb93ba4b9cb1da3648feeeab4749fbbf932640bbd0fd280a9b6ac8"
+      }
+    },
+    {
+      "id": "authorize-successor-configuration",
+      "kind": "authorize-configuration",
+      "status": "verified",
+      "outputs": {
+        "authorityTransitionReceipt": {
+          "transactionHash": "0xacca2e63710b4f44264b7ca4e7315967eeb11ce3dc28cc0f06df1629598c5bb5",
+          "blockNumber": "134"
+        },
+        "successorAuthorityStateRoot": "0x78277b8aa5323319d8b142a88ef13b1046b98fc85b3bece4db37056ab481141f"
+      },
+      "evidence": {
+        "type": "prf-authority-transition-application",
+        "approvalManifestRoot": "sha256:4918f4062ddb93ba4b9cb1da3648feeeab4749fbbf932640bbd0fd280a9b6ac8",
+        "previousRoot": "0x4db9006e3b44e2f32e3cd197a85846bd39513049eba1e278fa027bad2ca1d914",
+        "previousRevision": 0,
+        "successorRoot": "0x78277b8aa5323319d8b142a88ef13b1046b98fc85b3bece4db37056ab481141f",
+        "successorRevision": 1,
+        "scope": {
+          "transition-root": "sha256:28d0605fcb3b9bedc173acd04088c77c5b74dbf32c191db84f338f3d7b03fa2f",
+          "adapter-address": "0x7cf4be31f546c04787886358b9486ca3d62b9acf",
+          "previous-revision": 0,
+          "execution-commitment": "0x664a994fc5207415f45d596e762b64fbf5fb62e3f41620112cc048a2207b14b2",
+          "decision-root": "sha256:28d0605fcb3b9bedc173acd04088c77c5b74dbf32c191db84f338f3d7b03fa2f",
+          "successor-root": "sha256:78277b8aa5323319d8b142a88ef13b1046b98fc85b3bece4db37056ab481141f",
+          "successor-revision": 1,
+          "policy-root": "sha256:55e3035d6c51764ed35aba1342fd062d2461624d7829c4c9b0aadf2300356159",
+          "chain-instance-genesis-root": "sha256:2a19747a3680218c7654011fa6a8c711c6f24344992194841977dae8e236299f",
+          "previous-root": "sha256:4db9006e3b44e2f32e3cd197a85846bd39513049eba1e278fa027bad2ca1d914"
+        },
+        "decisionPreimagesRoot": "0x61f8f6f5cccff6c9411486c514ce1f3adbf8157bf27c87a60fff211f3be4899d",
+        "executionMutationRoot": "0x93e9140fbd37a66b5deca5dd60cc2d462f3e8b83102839d00c2cec9a48d6403d",
+        "verifierOutputSha256": "ac490c49bd374c7f822e194c73ecdb37895ca694289a370b2d39753f2ddd020c"
+      }
+    },
+    {
+      "id": "apply-successor-configuration",
+      "kind": "authorize-configuration",
+      "status": "verified",
+      "outputs": {
+        "configurationTransitionReceipt": {
+          "transactionHash": "0xaff5945846a11d949cce19fb4961af70017c0fc8f605f1f3069bb30c25f00778",
+          "blockNumber": "135"
+        },
+        "activeConfigurationRoot": "0xf8fa9013e9ba64dac0215844f95aee2b32adecaba7402ec5fcc428b0c0349f71",
+        "activeConfigurationEpoch": 1,
+        "activeEntitlementProofMode": 1
+      },
+      "evidence": {
+        "type": "prf-successor-configuration-application",
+        "decisionRoot": "0x28d0605fcb3b9bedc173acd04088c77c5b74dbf32c191db84f338f3d7b03fa2f",
+        "configurationRoot": "0xf8fa9013e9ba64dac0215844f95aee2b32adecaba7402ec5fcc428b0c0349f71",
+        "verifierRegistryRoot": "0x58c69021c3658afc12e24e4d739e397d584b580359715a19fcf505280e757cbf",
+        "epoch": 1,
+        "entitlementProofMode": 1,
+        "consumed": true
+      }
+    },
+    {
+      "id": "deploy-statement-admission",
+      "kind": "deploy",
+      "status": "verified",
+      "outputs": {
+        "admission": {
+          "address": "0x5ffe31e4676d3466268e28a75e51d1efa4298620",
+          "transactionHash": "0xd790f67daec0cad2468adb57a377b8ecadad570b97140da5a8c2dc04355a59dc",
+          "blockNumber": "136",
+          "runtimeBytecodeSha256": "01d3df55a1d4ce5f4c57d628908b5a8fa83c637c20f7a56ec737a545f2d74ff1"
+        }
+      }
+    },
+    {
+      "id": "deploy-protected-operations",
+      "kind": "deploy",
+      "status": "verified",
+      "outputs": {
+        "preparedController": {
+          "address": "0x627b9a657eac8c3463ad17009a424dfe3fdbd0b1",
+          "transactionHash": "0x346ddebc3f5c5a21b66711af6955e0ce162e563da812db3dbfb214bf047f32ce",
+          "blockNumber": "137",
+          "runtimeBytecodeSha256": "035ec1d0adf6f551a7acdafc4bfe5dd2cc01eff7f896ce352527291b6c5dfce4"
+        },
+        "allocator": {
+          "address": "0xa62835d1a6bf5f521c4e2746e1f51c923b8f3483",
+          "transactionHash": "0x2a6b99c1a79f21f4a0f0bb50598540a8df51461572963706dad55462ed3ab9b2",
+          "blockNumber": "138",
+          "runtimeBytecodeSha256": "938435a906d652bf8875463934fdbf23f68f0c7c4f96a65cd5107836fc02d19e"
+        },
+        "reserve": {
+          "address": "0x8e45c0936fa1a65bdad3222befec6a03c83372ce",
+          "transactionHash": "0xa12a313cbb138e989254b25024c192053e6541dcda28ac595dbf26b7972af38f",
+          "blockNumber": "139",
+          "runtimeBytecodeSha256": "d1b098f747242535e1914bc59dca0dc4232773feb18c69c510584d4057d9f9bc"
+        }
+      }
+    },
+    {
+      "id": "deploy-successor-entitlements",
+      "kind": "deploy",
+      "status": "verified",
+      "outputs": {
+        "assurance": {
+          "address": "0xbee6ffc1e8627f51ccdf0b4399a1e1abc5165f15",
+          "transactionHash": "0x0a635440e4773656b7ac0707d4c446a5e1445bec5c090922289cee9780247ce4",
+          "blockNumber": "140",
+          "runtimeBytecodeSha256": "34ae2cb24d7a8d1241900c06e988fc1d51cc146c446b31e7c540ca9713634af1"
+        },
+        "ratificationController": {
+          "address": "0xc32609c91d6b6b51d48f2611308fef121b02041f",
+          "transactionHash": "0xdffb02350bba8bbea9213507db6f880333cb652feebc85d88ed8d475bbbd2eee",
+          "blockNumber": "141",
+          "runtimeBytecodeSha256": "89eba713d692ca3f21fbb6503cdce9d1c81caf6a32b912fbf3e136fb056a8a13"
+        }
+      }
+    },
+    {
+      "id": "proof-admission-and-operation",
+      "kind": "proof-admission",
+      "status": "not-executed"
+    },
+    {
+      "id": "entitlement-activation-and-claims",
+      "kind": "entitlement-execution",
+      "status": "not-executed"
+    },
+    {
+      "id": "independent-reconcile",
+      "kind": "reconcile",
+      "status": "not-executed"
+    }
+  ],
+  "planExecutionRoot": "0x5d95c85ffba91a1e25bcece31936d094475a9c6c888802fd120c935dd790ab85"
+}

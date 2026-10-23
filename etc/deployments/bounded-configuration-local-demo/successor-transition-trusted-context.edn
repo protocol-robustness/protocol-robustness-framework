@@ -1,0 +1,9 @@
+{:source-revision "e6fe09666adf8092b2023ea1ecdd84fbf24fa98a"
+ :principal "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+ :action "approve-successor-transition"
+ :trust-policy {:trusted-keys
+                [{:key/id :bounded-v8-local-successor-transition-approver-2026-10-19
+                  :key/public "14430977fa5a77855dbde8a754c6f5cb149d6010b4403ef99bc9653290da703f"
+                  :key/role :prf-local-successor-configuration-approver
+                  :key/status :active
+                  :approval/principal "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"}]}}
