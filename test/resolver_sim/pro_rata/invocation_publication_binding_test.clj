@@ -3,6 +3,7 @@
             [resolver-sim.benchmark.distributed.executable-distribution :as distribution]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.canonical-effects :as effects]
+            [resolver-sim.pro-rata.allocation :as allocator]
             [resolver-sim.pro-rata.evm :as evm]
             [resolver-sim.pro-rata.invocation-publication-binding :as sut]
             [resolver-sim.pro-rata.protocol-transaction-realization :as realization]
@@ -24,7 +25,12 @@
 (defn- fixture []
   (let [before {(root :liquidity) 10}
         canonical (effects/transition before [(effects/delta (root :liquidity) -1)])
-        allocation {:allocation/hash (root :allocation)}
+        allocation (allocator/allocate
+                    {:allocation/id :test/pro-rata
+                     :available 1
+                     :rows [{:row/id :claim/test
+                             :obligation/id :obligation/test
+                             :requested 1 :weight 1}]})
         app (evm/build-application {:state-before-root (:state-before/root canonical)
                                     :allocation-root (:allocation/hash allocation)
                                     :application-policy-root (root :policy)

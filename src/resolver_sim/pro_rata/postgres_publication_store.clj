@@ -360,7 +360,7 @@
   (let [safe-resolve (fn [resolver root]
                        (when (and (fn? resolver) root)
                          (try
-                           (resolver root)
+                           (resolver (ref/sha256-ref root))
                            (catch Exception _ nil))))
         head-result (resolve-head store conflict-key)
         head (:artifact head-result)
@@ -384,34 +384,82 @@
                  :capability-binding (:capability-binding/root binding)
                  :executable-distribution (:executable-distribution/root binding)
                  :publication-ordering (:publication-ordering/root binding)})
-        bodies (when (and authoritative? (fn? resolver))
-                 (into {}
-                       (map (fn [[key root]] [key (safe-resolve resolver root)]))
-                       roots))
-        output-root (get-in bodies [:capability-binding :invocation/output-root])
+        ;; Resolve the exact semantic closure needed by correspondence checks.
+        ;; The publication ordering itself is retained in PostgreSQL; every
+        ;; other body is recovered from the sealed durable artifact resolver.
+        bodies0 (when (and authoritative? (fn? resolver))
+                  (into {}
+                        (map (fn [[key root]] [key (safe-resolve resolver root)]))
+                        (dissoc roots :publication-ordering)))
+        capability-binding (:capability-binding bodies0)
+        output-root (:invocation/output-root capability-binding)
         output (when output-root (safe-resolve resolver output-root))
+        allocation-root (:allocation/root output)
+        transition-root (:pro-rata-transition/root output)
+        canonical-transition-root (:canonical-transition/root output)
+        pro-rata-transition (when transition-root (safe-resolve resolver transition-root))
+        pro-rata-application-root (:application/root pro-rata-transition)
+        realization-root (:transaction/realization-root ordering)
+        protocol-transaction-realization (when realization-root
+                                          (safe-resolve resolver realization-root))
+        receipt-root (:transaction/application-receipt-root ordering)
+        receipt (when receipt-root (safe-resolve resolver receipt-root))
+        capability-descriptor-root (:capability/descriptor-root capability-binding)
+        transition-binding-root (:transition-binding/root protocol-transaction-realization)
+        protocol-effect-realization-root (:protocol-effect-realization/root
+                                         protocol-transaction-realization)
+        bodies (merge bodies0
+                      {:capability-descriptor (when capability-descriptor-root
+                                                (safe-resolve resolver capability-descriptor-root))
+                       :output output
+                       :allocation (when allocation-root (safe-resolve resolver allocation-root))
+                       :pro-rata-application (when pro-rata-application-root
+                                               (safe-resolve resolver pro-rata-application-root))
+                       :pro-rata-transition pro-rata-transition
+                       :canonical-transition (when canonical-transition-root
+                                               (safe-resolve resolver canonical-transition-root))
+                       :receipt receipt
+                       :protocol-transaction-realization protocol-transaction-realization
+                       :transition-binding (when transition-binding-root
+                                             (safe-resolve resolver transition-binding-root))
+                       :protocol-effect-realization (when protocol-effect-realization-root
+                                                     (safe-resolve resolver
+                                                                   protocol-effect-realization-root))})
+        closure-roots (merge roots
+                             {:capability-descriptor capability-descriptor-root
+                              :output output-root
+                              :allocation allocation-root
+                              :pro-rata-application pro-rata-application-root
+                              :pro-rata-transition transition-root
+                              :canonical-transition canonical-transition-root
+                              :receipt receipt-root
+                              :protocol-transaction-realization realization-root
+                              :transition-binding transition-binding-root
+                              :protocol-effect-realization protocol-effect-realization-root})
         v2? (= binding/output-v2-schema (:pro-rata-output/schema output))
-        v2-roots (when v2?
-                   {:allocation (:allocation/root output)
-                    :pro-rata-application (:application/root (get bodies :use-case-application))
-                    :pro-rata-transition (:pro-rata-transition/root output)
-                    :canonical-transition (:canonical-transition/root output)
-                    :compilation (:effect-compilation/root
-                                  (safe-resolve resolver (:effect-compilation-binding/root output)))
-                    :effect-compilation-binding (:effect-compilation-binding/root output)})
-        v2-bodies (when v2?
-                    (into {}
-                          (map (fn [[key root]] [key (safe-resolve resolver root)]))
-                          v2-roots))
-        resolved (merge bodies v2-bodies {:output output})
+        effect-compilation-binding-root (:effect-compilation-binding/root output)
+        effect-compilation-binding (when (and v2? effect-compilation-binding-root)
+                                     (safe-resolve resolver effect-compilation-binding-root))
+        compilation-root (:effect-compilation/root effect-compilation-binding)
+        compilation (when compilation-root (safe-resolve resolver compilation-root))
+        target-map-root (:target-map/root compilation)
+        semantics-root (:effect-compilation-semantics/root compilation)
+        v2-bodies {:effect-compilation-binding effect-compilation-binding
+                   :compilation (when target-map-root (safe-resolve resolver compilation-root))
+                   :target-map (when target-map-root (safe-resolve resolver target-map-root))
+                   :semantics (when semantics-root (safe-resolve resolver semantics-root))}
+        v2-roots {:effect-compilation-binding effect-compilation-binding-root
+                  :compilation compilation-root
+                  :target-map target-map-root
+                  :semantics semantics-root}
+        all-bodies (assoc (merge bodies (when v2? v2-bodies))
+                          :publication-ordering ordering)
+        closure-roots (merge closure-roots (when v2? v2-roots))
+        resolved all-bodies
         reachable? (and authoritative? (fn? resolver)
-                        (every? some? (vals bodies))
-                        (or (not v2?) (every? some? (vals v2-bodies))))
-        missing-roots (vec (concat
-                            (keep (fn [[key root]] (when-not (get bodies key) root)) roots)
-                            (when v2?
-                              (keep (fn [[key root]] (when-not (get v2-bodies key) root))
-                                    v2-roots))))
+                        (every? some? (vals all-bodies)))
+        missing-roots (vec (keep (fn [[key root]] (when-not (get all-bodies key) root))
+                                 closure-roots))
         correspondence? (and reachable?
                              (try
                                (binding/binding-eligible?

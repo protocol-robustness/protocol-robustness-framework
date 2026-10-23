@@ -391,8 +391,8 @@
                                     :state-before-root (root "d")
                                     :application-root (root "e")
                                     :state-after-root (root "f")
-                                    :program-identity-root (root "g")
-                                    :statement-schema-root (root "h")
+                                    :program-identity-root (root "7")
+                                    :statement-schema-root (root "8")
                                     :asserted-provenance {} :attested-provenance {}})
         swapped (assoc prov :schema-version "wrong")]
     (is (false? (evm/provenance-valid? swapped)))))
@@ -404,8 +404,8 @@
                                     :state-before-root (root "d")
                                     :application-root (root "e")
                                     :state-after-root (root "f")
-                                    :program-identity-root (root "g")
-                                    :statement-schema-root (root "h")
+                                    :program-identity-root (root "7")
+                                    :statement-schema-root (root "8")
                                     :asserted-provenance {} :attested-provenance {}})
         missing (dissoc prov :allocation/root)]
     (is (false? (evm/provenance-valid? missing)))))
@@ -423,16 +423,16 @@
                                     :state-before-root (:state-before/root app)
                                     :application-root (:application/root app)
                                     :state-after-root (:state-after/root app)
-                                    :program-identity-root (root "g")
-                                    :statement-schema-root (root "h")
+                                    :program-identity-root (root "7")
+                                    :statement-schema-root (root "8")
                                     :asserted-provenance {} :attested-provenance {}})
         stmt (evm/build-statement {:allocation-root (:allocation/root app)
                                    :transition-root (:transition/root transition)
                                    :provenance-root (:provenance/root prov)
                                    :configuration-root (:configuration/root prov)})]
-    (is (evm/statement-valid? stmt transition prov))
+    (is (evm/statement-valid? stmt transition app prov))
     (let [wrong-stmt (assoc stmt :pro-rata-evm-v1/root (root "X"))]
-      (is (false? (evm/statement-valid? wrong-stmt transition prov))))))
+      (is (false? (evm/statement-valid? wrong-stmt transition app prov))))))
 
 ;; ─── Negative conformance: transact family ─────────────────────────────────
 
@@ -531,6 +531,12 @@
    :transition/root      "17088623ded1ae4ac735cad69ef134609fac3ecdc31e2155fd419d6a110c0bb3"
    :allocation/hash      "b38788fbfa5a9aa620b25d9a7e7b8753899540ab61a37fd226992cd205747d0a"
    :evidence/hash        "bcc4e4a67046c0bb166821d147df2c20b0c17e6e65f19e8dbcc16b5f2faa114d"})
+
+(def current-sew-6040-roots
+  "Current compatibility roots for calculate-sew-slash-allocation's frozen
+   60/40 input. Historical roots remain in frozen-6040-hex-vectors above."
+  {:allocation/hash "9486d9d821e1f4fa9d9163bf8aad70682ac3e85366284f4d6e49b52f0984384f"
+   :evidence/hash "20793eccaa2811cd515874d49c5ad02e0decd836db2b421a7942dcea96a43e2b"})
 
 (deftest frozen-6040-hex-vector-reconstructs-transition-root
   (testing "reconstructing the 60/40 canonical transition from semantic inputs
@@ -667,17 +673,24 @@
                                              {:id :b :slashable-stake 40}]}
           result (sew/calculate-sew-slash-allocation allocation-input)
           evidence (:mechanism/evidence result)
-          allocation-hash (:allocation/hash result)]
+          allocation-result (:mechanism/result evidence)
+          allocation-hash (:allocation/hash allocation-result)]
       (is (= [60 40] (map :paid (:allocations result)))
           "production allocation is exactly 60/40")
       (is (= 100 (:recovered-total result))
           "all obligation is recovered")
       (is (= 0 (:unmet-total result))
           "no unmet obligation")
-      (is (= (:allocation/hash frozen-6040-hex-vectors) allocation-hash)
-          "SEW allocation hash matches frozen canonical root")
-      (is (= (:evidence/hash frozen-6040-hex-vectors) (:evidence/hash evidence))
-          "SEW evidence hash matches frozen canonical root")
+      (is (= (:allocation/hash current-sew-6040-roots) allocation-hash)
+          "SEW allocation hash matches its current frozen compatibility root")
+      (is (= allocation-hash (:mechanism/result-hash evidence))
+          "mechanism evidence commits to the embedded allocation result")
+      (is (true? (alloc/allocation-hash-valid? allocation-result))
+          "embedded allocation result verifies against the pinned allocator")
+      (is (= (:evidence/hash current-sew-6040-roots) (:evidence/hash evidence))
+          "SEW mechanism evidence hash matches its current frozen root")
+      (is (true? (evidence/evidence-valid? evidence))
+          "SEW mechanism evidence independently reconstructs")
       (is (every? true? (map :holds? (:mechanism/validation-results evidence)))
           "all mechanism validation results hold"))))
 
@@ -702,16 +715,23 @@
       (is (= :passed (:status verdict))
           "independent verifier agrees with production SEW allocation"))))
 
-;; ── All-active modeled composition (all-active-modeled-v1) ──────────────
+;; ── All-active modeled composition ─────────────────────────────────────
 ;; Grafted from the resubmission-genesis line: composition conformance over a
 ;; closed all-active fixture. Deliberately a synthetic native-state model; it
 ;; proves the artifact builders compose and does not claim production SEW
 ;; execution, SEW frame preservation, or final-evidence publication.
 
-(def fixture-path "test/fixtures/pro-rata/commitment-stack/all-active-modeled-v1.edn")
+(def fixture-path "test/fixtures/pro-rata/commitment-stack/all-active-modeled-v2.edn")
 
 (defn- fixture []
   (edn/read-string (slurp fixture-path)))
+
+(deftest all-active-modeled-v1-remains-preserved-as-historical-evidence
+  (let [historical (edn/read-string
+                    (slurp "test/fixtures/pro-rata/commitment-stack/all-active-modeled-v1.edn"))]
+    (is (= :all-active-modeled-v1 (:fixture/id historical)))
+    (is (= "5268ea4c09d15b0a09f9062fdc950473ebd7c677ae74914d2fe7f47ec5f2bb6b"
+           (get-in historical [:expected :roots :effect-compilation :realized-allocation/root])))))
 
 (defn- protocol-root [state]
   (hc/domain-hash :world-state state))

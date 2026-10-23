@@ -49,16 +49,27 @@
 
 ;; ── Self-root verification functions ────────────────────────────────────────
 
+(defn- root-reference
+  "Normalize a canonical digest or hash reference to the CAS reference form."
+  [root]
+  (cond
+    (ref/valid-sha256-ref? root) root
+    (and (string? root) (re-matches #"[0-9a-f]{64}" root)) (ref/sha256-ref root)
+    :else nil))
+
+(defn- root-matches? [reference digest]
+  (= reference (root-reference digest)))
+
 (defn- verify-head-root
   "Verify a publication head artifact recomputes to the requested root."
   [body root]
   (let [schema (:schema-version body)]
     (cond
       (= schema publication/application-publication-head-schema)
-      (= root (publication/application-head-root body))
+      (root-matches? root (publication/application-head-root body))
 
       (= schema publication/publication-head-schema)
-      (= root (publication/head-root body))
+      (root-matches? root (publication/head-root body))
 
       :else false)))
 
@@ -66,65 +77,65 @@
   "Verify a transaction-ordering artifact recomputes to the requested root."
   [body root]
   (let [v (ordering/verify-ordering body)]
-    (and (:valid? v) (= root (:transaction-ordering/hash body)))))
+    (and (:valid? v) (root-matches? root (:transaction-ordering/hash body)))))
 
 (defn- verify-binding-root
   "Verify a publication binding recomputes to the requested root."
   [body root]
-  (and (= root (:pro-rata-invocation-publication-binding/root body))
-       (= root (binding/binding-root body))))
+  (and (root-matches? root (:pro-rata-invocation-publication-binding/root body))
+       (root-matches? root (binding/binding-root body))))
 
 (defn- verify-output-root
   "Verify a pro-rata capability output recomputes to the requested root."
   [body root]
-  (and (= root (:pro-rata-output/root body))
-       (= root (binding/output-root body))))
+  (and (root-matches? root (:pro-rata-output/root body))
+       (root-matches? root (binding/output-root body))))
 
 (defn- verify-compilation-root
   "Verify a V3 effect-compilation artifact recomputes to the requested root."
   [body root]
-  (and (= root (:effect-compilation/root body))
-       (= root (compilation/compilation-root body))))
+  (and (root-matches? root (:effect-compilation/root body))
+       (root-matches? root (compilation/compilation-root body))))
 
 (defn- verify-binding-v2-root
   "Verify an effect-compilation-binding v2 recomputes to the requested root."
   [body root]
-  (and (= root (:effect-compilation-binding/root body))
-       (= root (compilation-binding/binding-root body))))
+  (and (root-matches? root (:effect-compilation-binding/root body))
+       (root-matches? root (compilation-binding/binding-root body))))
 
 (defn- verify-transition-root
   "Verify a canonical-effect-transition recomputes to the requested root."
   [body root]
-  (and (= root (:canonical-effect-transition/root body))
-       (= root (effects/transition-root body))))
+  (and (root-matches? root (:canonical-effect-transition/root body))
+       (root-matches? root (effects/transition-root body))))
 
 (defn- verify-receipt-root
   "Verify an applied-effect-receipt recomputes to the requested root."
   [body root]
-  (and (= root (:applied-effect-receipt/root body))
+  (and (root-matches? root (:applied-effect-receipt/root body))
        (application/receipt-valid? body)))
 
 (defn- verify-realization-root
   "Verify a protocol-transaction-realization recomputes to the requested root."
   [body root]
-  (= root (realization/realization-root body)))
+  (root-matches? root (realization/realization-root body)))
 
 (defn- verify-semantics-root
   "Verify effect-compilation-semantics recomputes to the requested root."
   [body root]
-  (and (= root (:effect-compilation-semantics/root body))
+  (and (root-matches? root (:effect-compilation-semantics/root body))
        (semantics/valid? body)))
 
 (defn- verify-allocation-root
   "Verify a realized allocation recomputes to the requested root."
   [body root]
-  (and (= root (:allocation/hash body))
+  (and (root-matches? root (:allocation/hash body))
        (allocation/allocation-hash-valid? body)))
 
 (defn- verify-target-map-root
   "Verify a target-map artifact recomputes to the requested root."
   [body root]
-  (= root (target-map/target-map-root body)))
+  (root-matches? root (target-map/target-map-root body)))
 
 (def ^:private self-verify-fns
   "Map of artifact role to self-root verification function."
@@ -150,25 +161,23 @@
    root — the sha256 root to resolve (may be nil)
    resolution — CAS resolver function [root -> body-or-nil]"
   [root role resolution]
-  (let [verify-fn (self-verify-fns role)]
+  (let [reference (root-reference root)
+        verify-fn (self-verify-fns role)]
     (cond
-      (nil? root)
+      (nil? reference)
       {:artifact-role role :root nil :resolved? false :reason :root-mismatch :body nil}
 
-      (not (ref/valid-sha256-ref? root))
-      {:artifact-role role :root root :resolved? false :reason :root-mismatch :body nil}
-
       :else
-      (let [body (try (resolution root) (catch Exception _ nil))]
+      (let [body (try (resolution reference) (catch Exception _ nil))]
         (cond
           (nil? body)
-          {:artifact-role role :root root :resolved? false :reason :missing :body nil}
+          {:artifact-role role :root reference :resolved? false :reason :missing :body nil}
 
-          (and verify-fn (not (verify-fn body root)))
-          {:artifact-role role :root root :resolved? false :reason :corrupt :body nil}
+          (and verify-fn (not (verify-fn body reference)))
+          {:artifact-role role :root reference :resolved? false :reason :corrupt :body nil}
 
           :else
-          {:artifact-role role :root root :resolved? true :reason nil :body body})))))
+          {:artifact-role role :root reference :resolved? true :reason nil :body body})))))
 
 (defn- optional-edge
   "Resolve an edge that may not have a root. Returns nil when root is nil."
@@ -272,7 +281,7 @@
   (let [head-root (:head-root opts)
         ordering-root (:ordering-root opts)]
     (cond
-      (and head-root (ref/valid-sha256-ref? head-root))
+      (root-reference head-root)
       (let [head-edge (resolve-edge head-root :publication/head resolution)]
         (if-let [head-body (:body head-edge)]
           (let [downstream (trace-from-head resolution head-body)]
@@ -285,7 +294,7 @@
            :trace/reasons [:missing]
            :trace/edges [head-edge]}))
 
-      (and ordering-root (ref/valid-sha256-ref? ordering-root))
+      (root-reference ordering-root)
       (let [ordering-edge (resolve-edge ordering-root :publication/ordering resolution)]
         (if-let [ordering-body (:body ordering-edge)]
           (let [downstream (trace-from-ordering resolution ordering-body)]

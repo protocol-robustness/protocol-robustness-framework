@@ -155,15 +155,24 @@
                            :provenance/root :configuration/root])
     (assoc base :pro-rata-evm-v1/root (statement-root base))))
 
-(defn statement-valid? [statement transition provenance]
-  (and (transition-valid? transition (:application transition))
-       (provenance-valid? provenance)
-       (= (:allocation/root statement) (:allocation/root transition))
-       (= (:allocation/root statement) (:allocation/root provenance))
-       (= (:transition/root statement) (:transition/root transition))
-       (= (:provenance/root statement) (:provenance/root provenance))
-       (= (:configuration/root statement) (:configuration/root provenance))
-       (= (:pro-rata-evm-v1/root statement) (statement-root statement))))
+(defn statement-valid?
+  "Validate an EVM V1 statement against its transition and provenance.
+
+   The three-argument form remains compatible with transition artifacts that
+   embed their application. The four-argument form should be used when the
+   application is supplied separately; it verifies the complete transition
+   relationship instead of relying on an embedded copy."
+  ([statement transition provenance]
+   (statement-valid? statement transition (:application transition) provenance))
+  ([statement transition application provenance]
+   (and (transition-valid? transition application)
+        (provenance-valid? provenance)
+        (= (:allocation/root statement) (:allocation/root transition))
+        (= (:allocation/root statement) (:allocation/root provenance))
+        (= (:transition/root statement) (:transition/root transition))
+        (= (:provenance/root statement) (:provenance/root provenance))
+        (= (:configuration/root statement) (:configuration/root provenance))
+        (= (:pro-rata-evm-v1/root statement) (statement-root statement)))))
 
 (defn statement-v2-root [statement]
   (hc/domain-hash :pro-rata-evm-v2
