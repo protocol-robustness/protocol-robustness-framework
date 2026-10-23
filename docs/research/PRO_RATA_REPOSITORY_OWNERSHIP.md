@@ -1,8 +1,7 @@
 # Pro-rata repository ownership map
 
-Status: first-pass inventory. This records current ownership and proposed
-follow-up work; it does not authorize moving files or changing canonical
-identities.
+Status: ownership inventory, updated 2026-10-23. It records current ownership
+and follow-up work; it does not authorize changing canonical identities.
 
 ## Ownership by area
 
@@ -71,27 +70,43 @@ archives clean source checkouts of both pinned dependencies, records their
 URLs/revisions, and excludes Git metadata and build output. Historical source
 inventories and retained evidence remain unchanged.
 
-## Recommended sequence
+## Completed allocation fixture migration
 
-1. **Close the package ownership migration.** The integration workspace pins
-   the Git revisions above, PRF compatibility checks pass, source archives
-   include the exact dependencies, and the live implementation mirror is
-   removed. Keep the independent reference.
-2. **Split contract ownership on paper before moving files.** Identify which
-   vectors/spec sections define allocation V1 and which define generic effects,
-   state, and transitions. Preserve exact bytes and roots and assign one
-   authoritative home to each.
-3. **Migrate only portable allocation contract material.** Make PRF and the
-   allocation repository consume a single immutable vector/spec revision;
-   leave generic effect/transition semantics with their chosen owner.
-4. **Align PRF integration tests and profiles.** PRF-specific integration,
-   runtime controls, SEW/bounty composition, assurance, EVM, and scenario tests
-   stay in PRF. Update profile generation to resolve pinned dependencies
-   explicitly rather than exposing stale in-tree package paths.
-5. **Do a path presentation cleanup.** Rename/group directories only after
-   ownership and consumers have settled. Update build aliases, scripts,
-   notebooks, source manifests, evidence inventories, docs, and CI references;
-   prove canonical roots and frozen bytes unchanged.
+The allocator repository exposes its frozen fixture bundle at
+`prf/pro_rata/fixtures/portable-pro-rata-contract/` from immutable revision
+`e0788f911e4fba3a27544cbccbb95d59d7daf2f7`. PRF pins that revision in root
+`deps.edn`; both the independent PRF contract tests and the PRF adapter parity
+test read allocation vectors and canonical bytes from that dependency resource.
+The `:pro-rata-contract/test` alias now retains root dependencies so the pinned
+fixture resources are present on its classpath.
+
+Verified on 2026-10-22: allocator conformance passed 8 tests / 79 assertions;
+PRF independent contract suite passed 7 tests / 80 assertions; allocator
+adapter parity passed 1 test / 12 assertions. The old combined bundle remains
+only as frozen historical evidence for its release root and generic transition
+tests. No allocation semantics or canonical roots changed. This is source
+qualification evidence, not release promotion.
+
+## Remaining sequence
+
+1. **Path presentation cleanup (deferred).** Rename/group `pro_rata_contract_src`,
+   its test tree, and the historical `portable-pro-rata-contract` path only
+   after consumer paths and evidence inventories are enumerated. Update build
+   aliases, scripts, profile source roots, fixture lookups, conformance runners,
+   docs, and CI references. Preserve the historical mixed-bundle root and all
+   canonical bytes exactly.
+
+The ownership split is documented below and the external packages are already
+pinned. PRF integration tests and profile composition remain PRF-owned; no
+separate profile repository is warranted. The pre-active-set redistribution
+implementation has been removed from PRF runtime source. Its historical
+divergence remains as a frozen expected allocation in the PRF differential test,
+so the runtime has one active redistribution implementation: the pinned
+`prf-pro-rata-allocation` package with PRF execution adapters.
+
+The PRF consumer health gate passed on 2026-10-23: 292 pro-rata namespace tests
+(1,150 assertions), 167 downstream consumer tests (699 assertions), the
+independent contract suite (7 tests / 80 assertions), and `bb check:defs`.
 
 ## Contract bundle ownership split
 

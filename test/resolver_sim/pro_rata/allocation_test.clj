@@ -12,12 +12,6 @@
   [{:row/id :row/alice :obligation/id :withdrawal/alice :requested 8 :weight 8 :cap 8}
    {:row/id :row/bob :obligation/id :withdrawal/bob :requested 7 :weight 7 :cap 7}])
 
-(defn- legacy-redistribution
-  [request]
-  ((ns-resolve 'resolver-sim.pro-rata.redistribution
-               'allocate-pro-rata-with-redistribution-legacy)
-   request))
-
 (deftest runtime-claimant-execution-settings-are-not-canonical-allocation-inputs
   (let [rows (mapv (fn [i]
                      {:row/id (keyword (str "row-" i))
@@ -43,7 +37,7 @@
     (is (= (:request/hash serial) (:request/hash parallel)))
     (is (= (:allocation/hash serial) (:allocation/hash parallel)))))
 
-(deftest corrected-active-set-redistribution-intentionally-diverges-from-legacy
+(deftest corrected-active-set-redistribution-preserves-frozen-legacy-comparison
   (let [request {:amount 8
                  :items [{:id :a :weight 8 :cap 1}
                          {:id :b :weight 1 :cap 10}
@@ -52,8 +46,11 @@
                  :cap-fn :cap
                  :rounding :floor-with-largest-remainder
                  :ordering-policy :canonical-id}
-        legacy (legacy-redistribution request)
+        ;; Historical result from the removed pre-active-set implementation.
+        ;; Keep the differential witness without retaining a second allocator.
+        legacy-allocation [[:a 1N] [:b 3N] [:c 3N] [:d 1N]]
         corrected (redistribution/allocate-pro-rata-with-redistribution request)
+        corrected-allocation (mapv (juxt :id :allocated) (:allocations corrected))
         mechanism (allocation/allocate
                    {:allocation/id :semantic-divergence
                     :available 8
@@ -62,11 +59,9 @@
                            {:row/id :b :obligation/id :b :requested 10 :weight 1 :cap 10}
                            {:row/id :c :obligation/id :c :requested 10 :weight 1 :cap 10}
                            {:row/id :d :obligation/id :d :requested 10 :weight 1 :cap 10}]})]
-    (is (= [[:a 1N] [:b 3N] [:c 3N] [:d 1N]]
-           (mapv (juxt :id :allocated) (:allocations legacy))))
-    (is (= [[:a 1N] [:b 3N] [:c 2N] [:d 2N]]
-           (mapv (juxt :id :allocated) (:allocations corrected))))
-    (is (not= (:allocations legacy) (:allocations corrected)))
+    (is (= [[:a 1N] [:b 3N] [:c 3N] [:d 1N]] legacy-allocation))
+    (is (= [[:a 1N] [:b 3N] [:c 2N] [:d 2N]] corrected-allocation))
+    (is (not= legacy-allocation corrected-allocation))
     (is (empty? (invariants/result-violations mechanism)))))
 
 (deftest proposed-effects-are-provable-from-the-allocation-witness

@@ -28,11 +28,20 @@
 (defn delta
   "Construct the portable signed-delta primitive."
   [quantity-root signed-delta]
+  (when-not (root? quantity-root)
+    (throw (ex-info "invalid canonical quantity root"
+                    {:reason :portable-contract/noncanonical-input
+                     :quantity/root quantity-root})))
   (portable-contract/delta quantity-root signed-delta))
 
 (defn normalize-effects
   "Compose all deltas for each target, discard net-zero changes, and order by target root."
   [effects]
+  (doseq [effect effects]
+    (when-not (root? (:quantity/root effect))
+      (throw (ex-info "invalid canonical quantity root"
+                      {:reason :portable-contract/noncanonical-input
+                       :quantity/root (:quantity/root effect)}))))
   (portable-contract/normalize-effects effects))
 
 (defn apply-effects

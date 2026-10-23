@@ -158,14 +158,15 @@
 (defn protected-lineage-valid?
   "Return true when an allocation witness is bound to protected application state."
   [{:keys [allocation proposal evidence receipt]}]
-  (and allocation proposal evidence receipt
-       (allocation/allocation-hash-valid? allocation)
-       (evidence/evidence-valid? evidence)
-       (evidence/proposed-effects-valid? allocation proposal)
-       (receipt-valid? receipt)
-       (= (:allocation/hash allocation) (:allocation/hash proposal))
-       (= (:allocation/hash allocation)
-          (:mechanism/result-hash evidence))))
+  (boolean
+   (and allocation proposal evidence receipt
+        (allocation/allocation-hash-valid? allocation)
+        (evidence/evidence-valid? evidence)
+        (evidence/proposed-effects-valid? allocation proposal)
+        (receipt-valid? receipt)
+        (= (:allocation/hash allocation) (:allocation/hash proposal))
+        (= (:allocation/hash allocation)
+           (:mechanism/result-hash evidence)))))
 
 (defn protected-lineage
   "Return the verified lineage from an allocation/evidence witness to protected
