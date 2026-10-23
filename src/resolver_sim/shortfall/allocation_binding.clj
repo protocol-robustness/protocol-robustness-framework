@@ -49,17 +49,17 @@
           (case (:schema-version reserve-binding)
             "prf/onchain-shortfall-reserve-binding.v1"
             (reserve-binding-v1/build-binding {:reserve-observation reserve-observation
-                                                :shortfall-context (select-keys shortfall-context
+                                               :shortfall-context (select-keys shortfall-context
                                                                                [:shortfall/profile :asset/root :allocation-context-root
                                                                                 :candidates :availability/source :availability/root
                                                                                 :available-amount :allocation-policy :temporal-basis-root])
-                                                :operation-id operation-id})
+                                               :operation-id operation-id})
             "prf/onchain-shortfall-reserve-binding.v2"
             (reserve-binding-v2/build-binding {:reserve-observation reserve-observation
                                                :shortfall-context (select-keys shortfall-context
-                                                                              [:shortfall/profile :asset/root :allocation-context-root
-                                                                               :candidates :availability/source :availability/root
-                                                                               :available-amount :allocation-policy :temporal-basis-root])
+                                                                               [:shortfall/profile :asset/root :allocation-context-root
+                                                                                :candidates :availability/source :availability/root
+                                                                                :available-amount :allocation-policy :temporal-basis-root])
                                                :operation-id operation-id})
             (throw (ex-info "unsupported reserve binding schema"
                             {:schema-version (:schema-version reserve-binding)})))
