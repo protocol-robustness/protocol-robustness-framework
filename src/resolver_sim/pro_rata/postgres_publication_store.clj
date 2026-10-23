@@ -401,13 +401,13 @@
         pro-rata-application-root (:application/root pro-rata-transition)
         realization-root (:transaction/realization-root ordering)
         protocol-transaction-realization (when realization-root
-                                          (safe-resolve resolver realization-root))
+                                           (safe-resolve resolver realization-root))
         receipt-root (:transaction/application-receipt-root ordering)
         receipt (when receipt-root (safe-resolve resolver receipt-root))
         capability-descriptor-root (:capability/descriptor-root capability-binding)
         transition-binding-root (:transition-binding/root protocol-transaction-realization)
         protocol-effect-realization-root (:protocol-effect-realization/root
-                                         protocol-transaction-realization)
+                                          protocol-transaction-realization)
         bodies (merge bodies0
                       {:capability-descriptor (when capability-descriptor-root
                                                 (safe-resolve resolver capability-descriptor-root))
@@ -423,8 +423,8 @@
                        :transition-binding (when transition-binding-root
                                              (safe-resolve resolver transition-binding-root))
                        :protocol-effect-realization (when protocol-effect-realization-root
-                                                     (safe-resolve resolver
-                                                                   protocol-effect-realization-root))})
+                                                      (safe-resolve resolver
+                                                                    protocol-effect-realization-root))})
         closure-roots (merge roots
                              {:capability-descriptor capability-descriptor-root
                               :output output-root
