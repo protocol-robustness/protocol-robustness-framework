@@ -1,0 +1,35 @@
+{
+  "schema": "prf-local-demo-current-chain-readback.v1",
+  "qualification": "latest-state-readback-only",
+  "observedAt": {
+    "chainId": 31337,
+    "blockNumber": 147,
+    "blockNumberHex": "0x93"
+  },
+  "genesis": {
+    "address": "0x2a590c461db46bca129e8dbe5c3998a8ff402e76",
+    "sealed": true,
+    "chainInstanceGenesisRoot": "0x2a19747a3680218c7654011fa6a8c711c6f24344992194841977dae8e236299f"
+  },
+  "configurationExecutor": {
+    "address": "0x9849832a1d8274aaedb1112ad9686413461e7101",
+    "configurationRoot": "0xf8fa9013e9ba64dac0215844f95aee2b32adecaba7402ec5fcc428b0c0349f71",
+    "epoch": 1,
+    "verifierRegistryRoot": "0x58c69021c3658afc12e24e4d739e397d584b580359715a19fcf505280e757cbf"
+  },
+  "successorVerifierRegistry": {
+    "address": "0x33e45b187da34826abceda1039231be46f1b05af",
+    "root": "0x58c69021c3658afc12e24e4d739e397d584b580359715a19fcf505280e757cbf",
+    "sealed": true
+  },
+  "checks": {
+    "chainInstanceRootMatchesDeploymentManifest": true,
+    "configurationMatchesApprovedC1": true,
+    "epochIsOne": true,
+    "executorRegistryMatchesSealedRegistry": true
+  },
+  "historicalReplay": {
+    "status": "unavailable-after-local-node-restart",
+    "detail": "The reloaded Anvil state exposes latest block 147, but its history does not include the previously recorded seal block 128. Historical eth_getCode at block 128 returned BlockOutOfRangeError."
+  }
+}
