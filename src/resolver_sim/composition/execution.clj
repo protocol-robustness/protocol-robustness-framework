@@ -231,7 +231,7 @@
         (let [initial {:value input-value :effects [] :nodes [] :status :running}
               outcome
               (reduce (fn [acc node]
-                        (if (or (:failure acc) (:short-circuited? acc))
+                        (if (or (:failure acc) (:rejection acc) (:short-circuited? acc))
                           (reduced acc)
                           (let [entry (get extension-map (:capability-key node))]
                             (try
@@ -293,9 +293,9 @@
                                                  (:may-short-circuit? node))
                                           (assoc acc' :short-circuited? true)
                                           (if (:short-circuit? result)
-                                            (assoc acc' :failed-node node
-                                                   :failure {:failure/type :execution-failure/invalid-result
-                                                             :failure/details {:reason :undeclared-short-circuit}})
+                                            (assoc acc' :rejection
+                                                   {:violation/id :violation/unauthorized-short-circuit
+                                                    :details {:node/id (:node/id node)}})
                                             acc'))))))))
                               (catch Throwable t
                                 (assoc acc :failed-node node
@@ -304,6 +304,10 @@
                       (assoc initial :observations [])
                       nodes)]
           (cond
+            (:rejection outcome)
+            (reject (get-in outcome [:rejection :violation/id])
+                    (get-in outcome [:rejection :details]))
+
             (:failure outcome)
             (let [failure (:failure outcome)]
               (assoc (failed plan (:failed-node outcome) (:observations outcome)

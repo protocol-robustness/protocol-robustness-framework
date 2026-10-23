@@ -18,7 +18,7 @@
   :resolver-sim.composition.compiler/sequential-v1)
 
 (def compiler-version
-  1)
+  2)
 
 ;; ── graph helpers ─────────────────────────────────────────────────────────
 

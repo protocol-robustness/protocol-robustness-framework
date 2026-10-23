@@ -67,7 +67,7 @@
 (defn cap
   "Build a composition-capable award-amount capability with the given
    composition contract parameters."
-  [id & {:keys [input-semantic output-semantic modes terminal? determinism
+   [id & {:keys [input-semantic output-semantic modes terminal? may-short-circuit? determinism
                 effects exclusive merge custody failure-mode entrypoint entrypoint-safety]
          :or {input-semantic :amount output-semantic :amount
               modes #{:sequential} entrypoint 'resolver-sim.composition.fixtures/identity-award}}]
@@ -95,7 +95,7 @@
                                                     :accounts #{}
                                                     :exclusive-accounts #{}})
                           :composition/control {:terminal? (boolean terminal?)
-                                                :may-short-circuit? false
+                                                :may-short-circuit? (boolean may-short-circuit?)
                                                 :failure-mode (or failure-mode :abort)}
                           :composition/determinism {:required? (if (nil? determinism)
                                                                  true determinism)
