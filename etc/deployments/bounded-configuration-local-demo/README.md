@@ -46,6 +46,15 @@ refused to report qualification while the retained plan assertions were not
 re-evaluated. The existing deployment report remains a partial execution
 record; the latest-state readback does not replace historical receipt replay.
 
+A fresh readback on 2026-10-25 at block 147 independently confirmed chain ID
+31337, the sealed instance root, C1 at epoch 1, the canonical sealed successor
+registry, authority revision 1, and admission's instance/C1 bindings. It also
+rechecked the adapter's effective verifier, VKey, ELF hash, schema identities,
+and current adapter/verifier runtime hashes against the retained deployment
+closure. Admission count remains zero. This current-state observation does not
+replay historical deployment receipts or close the proof and capital-flow
+stages; see `current-chain-readback-2026-10-25.v1.json`.
+
 The reserve-binding input uses the explicitly labeled local-demo schema in the
 deployment manifest. Do not present that demonstration binding as a qualified
 cross-language PRF/Solidity equivalence result. The local demonstration is
@@ -57,4 +66,5 @@ Evidence file SHA-256 digests:
 - Deployment manifest: `ff38c5def60d5bb3c761c1a97ddd61d334248eb80b3140ceecbd115d2e73cab5`
 - Plan execution report: `599c0ffd15fc3fc643a5549fe79183d1de6416fd8851f9c62793f79263dffb69`
 - Latest-state readback: `9af5fead79a308d6317b479dd4a2e5bf348659dc6e62b278563c417494422bdc`
+- Fresh live readback: `131466dad91c69c85e9fdb7decaf411341efba762d34b8832d3d247fdf317821`
 - Proof attempt record: `d786bf22b3abbe6ef8e0b74fa5ddff7a426f97d853991a3c33a811cf10ec2d82`
