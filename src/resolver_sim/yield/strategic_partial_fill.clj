@@ -109,7 +109,7 @@
 
 (defn- valid-candidate-action-profile? [profile model]
   (let [entitlement (some #(when (= (:entitlement/id %) (:entitlement/id profile)) %)
-                           (:entitlements model))
+                          (:entitlements model))
         round-index (:round/index profile)
         round (when (and (integer? round-index)
                          (<= 0 round-index (dec (count (:rounds model)))))
@@ -147,7 +147,7 @@
       :withhold-liquidity
       (and (= :liquidity-provider
               (:role (some #(when (= (:player/id profile) (:player/id %)) %)
-                            (:players model))))
+                           (:players model))))
            (integer? (:amount profile))
            (pos? (:amount profile)))
 
@@ -207,7 +207,7 @@
                                                       (not (neg? %))))
                                            (vals (:requested-by-entitlement round)))
                                      (some #(or (not (integer? (:amount %)))
-                                                    (neg? (:amount %))
+                                                (neg? (:amount %))
                                                 (nil? (:event/id %))
                                                 (nil? (:source %))
                                                 (not= :modeled-assumption
@@ -257,7 +257,7 @@
                                            round (when (and (integer? round-index)
                                                             (<= 0 round-index)
                                                             (< round-index (count rounds)))
-                                                  (nth rounds round-index))]
+                                                   (nth rounds round-index))]
                                        (and round
                                             (some #{(:entitlement/id submission)}
                                                   (:incoming round)))))
@@ -274,7 +274,7 @@
                                       (contains? #{:concurrent-arrival :staggered-arrival}
                                                  (:submission-time-model parallelism))
                                       (= :shared-liquidity
-                                                 (:contention parallelism))
+                                         (:contention parallelism))
                                       (= :single-settlement-per-entitlement
                                          (:duplicate-entitlement-policy parallelism))
                                       (= :per-submission (:submission-atomicity parallelism))
@@ -422,7 +422,7 @@
                            :when (or (nil? p)
                                      (not (vector? (:payments p)))
                                      (some (fn [k] (not (and (integer? (get p k))
-                                                              (not (neg? (get p k))))))
+                                                             (not (neg? (get p k))))))
                                            [:delay-rounds :fees :expected-unrecovered
                                             :priority-externality :penalty-count])
                                      (some #(or (not (and (integer? (:amount %))
@@ -473,7 +473,7 @@
                              :priority-externality priority-externality-cost
                              :penalties penalty-cost}
                       utility (+ discounted-payments continuation-value
-                                  (- (reduce + 0 (vals costs))))]
+                                 (- (reduce + 0 (vals costs))))]
                   [player {:utility utility
                            :components {:discounted-payments discounted-payments
                                         :delay-cost delay-cost

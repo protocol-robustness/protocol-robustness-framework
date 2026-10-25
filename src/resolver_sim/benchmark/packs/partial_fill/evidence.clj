@@ -959,7 +959,7 @@
                                     (string? (:source-state-root %))
                                     (not-empty (:source-state-root %))
                                     (or (not (#{:beneficiary-payment :new-entitlement
-                                               :liability-reduction} (:kind %)))
+                                                :liability-reduction} (:kind %)))
                                         (and (some? (:entitlement/id %))
                                              (some? (:beneficiary %))))
                                     (or (not= :availability-reclassification (:kind %))
@@ -1024,7 +1024,7 @@
                     (assoc current entitlement
                            {:entitlement/id entitlement
                             :beneficiary beneficiary
-                            :amount (:amount event) }))
+                            :amount (:amount event)}))
 
                   current))))
           rights
@@ -1061,8 +1061,8 @@
                                new-decision? (and (not first-observation?)
                                                   (> observed-decision-index decision-index))
                                decision-order-valid? (or first-observation?
-                                                        (and (some? observed-decision-index)
-                                                             (>= observed-decision-index decision-index)))
+                                                         (and (some? observed-decision-index)
+                                                              (>= observed-decision-index decision-index)))
                                next-rights (if first-observation?
                                              (when (empty? (:events-since-prior observation))
                                                (rights-at-decision decision
@@ -1170,8 +1170,8 @@
                                  :declared-capital-recovery-event-amount
                                  (when (seq timeline)
                                    (reduce + 0 (for [event (:events-since-prior observation)
-                                                    :when (= :capital-recovery (:kind event))]
-                                                (:amount event))))
+                                                     :when (= :capital-recovery (:kind event))]
+                                                 (:amount event))))
                                  :shortfall/residual-after-observation shortfall
                                  :episode/first-positive-observed-at active-opened-at
                                  :episode/onset-left-censored? left-censored?
@@ -1249,9 +1249,9 @@
               :round-count (count rounds)
               :rounds rounds
               :budget-provenance/holds? (and (seq rounds)
-                                              (every? :budget-provenance/holds? rounds))
+                                             (every? :budget-provenance/holds? rounds))
               :decision-integrity/holds? (and (seq rounds)
-                                               (every? :decision-integrity/holds? rounds))
+                                              (every? :decision-integrity/holds? rounds))
               :recovery-observation {:method :per-round-liquidity-budget-provenance
                                      :shortfall-timeline-source (if observations-valid?
                                                                   :explicit-source-referenced-observations
@@ -1271,7 +1271,7 @@
                                         :source-authentication :not-performed}
               :episode-duration-policy/holds? duration-policy-valid?
               :shortfall-observations/holds? (or (nil? shortfall-observations)
-                                                  observations-valid?)
+                                                 observations-valid?)
               :lineage-conservation lineage
               :lineage-conservation/holds? (and (seq rounds) (:holds? lineage))
               :decision-set/root (when (seq decisions)
@@ -1297,8 +1297,8 @@
                                         :observation/order (:order observation)
                                         :observation/phase (:observation/phase observation)}
                                        source-context (merge source-context
-                                                            (select-keys observation
-                                                                         [:chain/id :deployment/id]))
+                                                             (select-keys observation
+                                                                          [:chain/id :deployment/id]))
                                        expected-observation
                                        (select-keys observation
                                                     [:observed-at :obligation/amount
@@ -1393,8 +1393,8 @@
         budget? (true? (:budget-provenance/holds? expected))
         decisions? (true? (:decision-integrity/holds? expected))
         source-authentication (authenticate-shortfall-source-inputs
-                              (get-in artifact [:shortfall-observations :source-inputs])
-                              source-authenticator)
+                               (get-in artifact [:shortfall-observations :source-inputs])
+                               source-authenticator)
         source-authentication? (or (not (:required? source-authentication))
                                    (true? (:holds? source-authentication)))]
     {:classification (cond (not evaluated?) :not-evaluated

@@ -45,12 +45,12 @@ protect the workstation. This is a local resource limit, not a proof rejection.
 After the resource stop, the managed Anvil process stopped and was restarted
 from its persisted state without a reset. Latest-state reads at block 147
 confirm the sealed chain-instance root, approved C1 root, epoch 1, and sealed
-successor registry; see `current-chain-readback.v1.json`. The full independent
-plan replay could not be repeated because the reloaded node no longer serves
-the earlier seal block 128 (`BlockOutOfRangeError`). The live verifier also
-refused to report qualification while the retained plan assertions were not
-re-evaluated. The existing deployment report remains a partial execution
-record; the latest-state readback does not replace historical receipt replay.
+successor registry; see `current-chain-readback.v1.json`. The reloaded node
+serves historical block headers, but not historical contract state: reading
+the genesis runtime code at block 128 returns `BlockOutOfRangeError`. The live
+verifier therefore cannot replay the seal observation. The existing
+deployment report remains a partial execution record; the latest-state
+readback does not replace historical receipt replay.
 
 A fresh readback on 2026-10-25 at block 147 independently confirmed chain ID
 31337, the sealed instance root, C1 at epoch 1, the canonical sealed successor
@@ -60,6 +60,44 @@ and current adapter/verifier runtime hashes against the retained deployment
 closure. Admission count remains zero. This current-state observation does not
 replay historical deployment receipts or close the proof and capital-flow
 stages; see `current-chain-readback-2026-10-25.v1.json`.
+
+A 2026-10-25 independent-replay retry reconstructed all 934 files in the
+approved source snapshot from Jujutsu parent
+`e6fe09666adf8092b2023ea1ecdd84fbf24fa98a`; each file matched the pinned v7
+source-lock digest. The reloaded Anvil exposed the original signed
+transactions and block headers but not historical contract state. To restore
+that state reproducibly, `historical-chain-replay.v1.json.gz` retains the
+genesis identity, timestamps, block hashes, and 370 signed transactions for
+blocks 1–147. `scripts/deployment/replay_local_anvil_history.py` replays this
+bundle on a fresh local Anvil and checks every block hash. Two independent
+replays matched all 147 hashes; the retained result is
+`historical-chain-replay-result.v1.json`.
+
+The deployment verifier then replayed against the reconstructed history. Its
+six PRF approval/derivation assertions and live verification passed, and
+`verify:plan-report` verified report integrity. The retained report is
+`current-independent-verification-2026-10-25.v4.json`, SHA-256
+`6e74a9ee97d4c87f84ce5766a9c1b20135ba429debf3de29d60973c90fe1241d`, report
+root `e9a489c6cc0152f5d26e667d4b55e7568239de4ea4b24c9abf6e0e159348811c`.
+It remains explicitly `partial`, `local-anvil-only`, and
+`verification-evidence-only-not-approval`: no capital-flow transactions or
+state assertions were supplied. The complete W6 flow and its evidence remain
+required for W7. Replay bundle SHA-256 is
+`6757fd63ae34e365e179c591434b9bf68f8f3951a49b5237aaa1296301c7af38`; replay
+result SHA-256 is
+`0d8bd1dc0ca6dd69872ee17bca65644eed2d9845dbf85a53aa060a51ec3c7a0f`; and
+the replay utility SHA-256 is
+`ee1d63c7b8870cf2d2cd2e9f0ec60012f7810d514ba2b345b3aa27bd47ae4086`.
+
+Reconstruct the historical state on a fresh local node with:
+
+```sh
+anvil --host 127.0.0.1 --port 8548 --chain-id 31337 \
+  --timestamp 1791555682 --base-fee 1000000000 --gas-limit 30000000
+python3 scripts/deployment/replay_local_anvil_history.py \
+  --bundle etc/deployments/bounded-configuration-local-demo/historical-chain-replay.v1.json.gz \
+  --rpc-url http://127.0.0.1:8548
+```
 
 The W6 setup was subsequently executed through block 147: funding and
 ratification authorities were bound, an entitlement operation was prepared
