@@ -38,12 +38,23 @@
 (defn- evidence-content
   "Recover evaluator input from either a legacy content node or a persisted
    claim-evaluation execution node. Execution-node :result contains lifecycle
-   status, so only use it when it is itself claim-evaluation content."
+   status, so only use it when it is itself claim-evaluation content.
+
+   Recognized formats:
+   1. {:result {:claims/input-context ... :claims/direct-result ...}} — full claim-evaluation content
+   2. {:extensions {:claims/evaluation-content ...}} — persisted execution node
+   3. {:result {:claims/direct-result ...}} — direct-result-only (e.g. test-vector evidence nodes)"
   [evidence-nodes]
   (when-let [node (first evidence-nodes)]
     (let [result (:result node)]
-      (if (contains? result :claims/input-context)
+      (cond
+        (contains? result :claims/input-context)
         result
+
+        (contains? result :claims/direct-result)
+        result
+
+        :else
         (get-in node [:extensions :claims/evaluation-content])))))
 
 (defn- input-ctx
