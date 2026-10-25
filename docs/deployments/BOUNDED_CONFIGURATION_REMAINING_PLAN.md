@@ -160,7 +160,7 @@ or alter the pinned release package without a reviewed release decision.
 | W4 genesis | The 2026-10-25 live readback confirms the sealed chain-instance root and sealed canonical successor registry. | Verified at the observed local chain state; historical full deployment replay remains incomplete. |
 | W5 C0→C1 | The current local demo is at C1 `0xf8fa9013…c0349f71`, epoch 1; its authority revision is 1. The separate successor approval is retained. | Executed and read back on local Anvil only. |
 | W6 capital flow | Corrected W6 setup evidence records successful setup/preparation transactions through block 147, reserve availability 70, and an on-chain/PRF v2 commitment match. The real proof attempt produced no proof; admission count is zero. | Open: recover or rederive and approve the exact proof inputs, then perform real proof admission, entitlement activation/claims, and independent reconcile. |
-| W7 evidence package | A fresh 2026-10-25 readback and W6 setup record are retained. Reloaded Anvil cannot serve the earlier seal block needed for full historical replay. | Open: complete capital-flow bundle and independent end-to-end replay are absent. |
+| W7 evidence package | A retained history bundle and replay utility reproduce all 147 block hashes and 370 signed transactions. Independent plan verification replays six PRF assertions and live deployment checks; report root `e9a489c6…948811c` is integrity-verified. | Open: W6 capital-flow transactions, trusted expectations, and historical state assertions are absent; the independent report remains partial. |
 
 ### Current local-demo refresh (2026-10-25)
 
@@ -783,7 +783,7 @@ reads. The execution receipt binds a retained final resolved-spec artifact,
 including post-C1 constructor bindings, and standalone verification checks that
 digest against the manifest before recomputing live runtime and assertion
 evidence from the RPC and pinned fixtures. The verifier can retain a deterministic
-`protocol-deployment-independent-verification/v3` report binding the receipt,
+`protocol-deployment-independent-verification/v4` report binding the receipt,
 its complete/partial status, manifest, resolved-spec digest, replay count and
 live-verification root. Partial prefixes stay identified as partial. The report
 now enumerates the independently supplied trust context, RPC observation,

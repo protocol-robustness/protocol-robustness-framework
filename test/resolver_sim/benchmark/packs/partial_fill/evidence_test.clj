@@ -244,7 +244,7 @@
     (is (= 2 (:round-count artifact)))
     (is (= [3 3] (mapv (comp count :incoming-claims) (:rounds artifact))))
     (is (= [0 15] (mapv #(get-in % [:budget-observation :liquidity/available])
-                         (:rounds artifact))))
+                        (:rounds artifact))))
     (is (= [nil 15] (mapv :budget-change-from-prior-round (:rounds artifact))))
     (is (= [300 300] (mapv #(get-in % [:totals :owed]) (:rounds artifact))))
     (is (= [0 15] (mapv #(get-in % [:totals :filled]) (:rounds artifact))))
@@ -618,11 +618,11 @@
               :module/id :test-mod :token :USDC :time-unit :seconds
               :observation/phase :post-settlement
               :obligation/amount (reduce + 0 (map :deferred
-                                                   (get-in decision [:evidence :allocation-rows])))
+                                                  (get-in decision [:evidence :allocation-rows])))
               :liquidity/available 0
               :claim-set (mapv (fn [row] {:entitlement/id (:key row)
-                                         :beneficiary (:key row)
-                                         :amount (:deferred row)})
+                                          :beneficiary (:key row)
+                                          :amount (:deferred row)})
                                (filter #(pos? (:deferred %))
                                        (get-in decision [:evidence :allocation-rows])))
               :events-since-prior [] :source :chain-state

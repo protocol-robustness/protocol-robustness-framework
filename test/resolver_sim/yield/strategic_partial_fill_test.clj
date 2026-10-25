@@ -276,8 +276,8 @@
           recovery-before-first-claim (reduce + 0 (map :amount
                                                        (:recovery-events (first rounds))))
           initial-shortfall (max 0 (- initial-request
-                                     (- (:available-liquidity (first rounds))
-                                        recovery-before-first-claim)))
+                                      (- (:available-liquidity (first rounds))
+                                         recovery-before-first-claim)))
           outstanding-by-round
           (mapv (fn [round]
                   (let [requested (reduce + 0 (vals (:requested-by-entitlement round)))]
