@@ -29,11 +29,18 @@
     :artifact/canonical-bytes-v2
     :artifact/canonical-hash-v2})
 
+(def ^:const artifact-post-hash-keys
+  "Keys added AFTER the content hash is computed.  The custody module's
+   build-held-custody-artifact computes the hash from the body, then assocs
+   both :artifact/id and :artifact/hash onto the result.  These must be
+   excluded when re-deriving the hash from a stored artifact."
+  #{:artifact/id})
+
 (defn artifact-body
-  "The artifact body with every envelope key removed (what the content hash and
-   canonical preimage commit to)."
+  "The artifact body with envelope and post-hash keys removed (what the content
+   hash and canonical preimage commit to)."
   [report]
-  (apply dissoc report artifact-envelope-keys))
+  (apply dissoc report (into artifact-envelope-keys artifact-post-hash-keys)))
 
 (defn- bytes->hex-str
   "Lowercase hex encoding of a byte array."
