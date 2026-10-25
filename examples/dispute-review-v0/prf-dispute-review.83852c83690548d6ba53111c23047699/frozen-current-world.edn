@@ -1,0 +1,6 @@
+{:fixture/id "partial-fill-invariant-observation-v0"
+ :fixture/claim :claim/allocation-conserves-local-inputs
+ :fixture/input {:alice 50 :bob 30 :carol 20 :allocated 70}
+ :fixture/expected {:alice 35 :bob 21 :carol 14 :total 70}
+ :fixture/contradictory-observation {:alice 35 :bob 21 :carol 15 :total 71}
+ :fixture/authority-boundary :modelled-local-only}
