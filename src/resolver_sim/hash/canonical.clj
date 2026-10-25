@@ -655,7 +655,9 @@
    :prf-yield-effective-policy-v1 "PRF_YIELD_EFFECTIVE_POLICY_V1"
    :prf-yield-transition-event-v1 "PRF_YIELD_TRANSITION_EVENT_V1"
    :prf-yield-transition-basis-v1 "PRF_YIELD_TRANSITION_BASIS_V1"
-   :prf-yield-withdrawal-ledger-state-cutpoint-v2 "PRF_YIELD_WITHDRAWAL_LEDGER_STATE_CUTPOINT_V2"})
+   :prf-yield-withdrawal-ledger-state-cutpoint-v2 "PRF_YIELD_WITHDRAWAL_LEDGER_STATE_CUTPOINT_V2"
+   :yield-materialized-scenario-v1 "YIELD_MATERIALIZED_SCENARIO_V1"
+   :yield-generation-provenance-v1 "YIELD_GENERATION_PROVENANCE_V1"})
 
 ;; The byte-level codec lives in the standalone canonical package. This namespace
 ;; remains the PRF compatibility facade for hashing and semantic projections.

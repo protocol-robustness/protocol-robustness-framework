@@ -1,7 +1,7 @@
-;; Proposed definition inventory only. No runtime reads this manifest.
+;; Adopted PRF identity/ownership baseline; non-runtime. No runtime reads this manifest.
 ;; Registry entry IDs are administrative keys, not new canonical identities.
 {:registry/schema "canonical-artifacts.v1"
- :registry/status :proposed
+ :registry/status :adopted
  :registry/encoding {:scheme "canonical-hash-scheme.v1" :definition [:prf-canonical "clj/src/prf/canonical/codec.clj" "canonical-bytes"] :normative [:prf-canonical "CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI.md"]}
  :registry/shared-domains [{:domain "PROJECTION_ARTIFACT_V1" :artifacts [:primitive-request :primitive-result]}]
  :registry/entries

@@ -10,6 +10,24 @@
 
 ## Unreleased
 
+- Adopted the 36-entry canonical artifact identity and ownership inventory as a
+  non-runtime PRF review baseline; existing artifact meanings and roots remain
+  unchanged, and implementation gaps remain explicit.
+
+- Confirmed step 2 of canonical repository extraction: PRF consumes the standalone
+  `prf-canonical` compatibility-qualified candidate at its immutable dependency
+  pin. The candidate remains unpublished; PRF domain, intent, and scheme policy
+  stay in the compatibility layer.
+
+- Confirmed the allocation semantics extraction is already consumed at its
+  immutable dependency pin. The candidate remains partially conformant; a
+  described Jujutsu change updates its release metadata to the adopted 36-entry
+  baseline, pending remote publication and a matching PRF dependency-pin update.
+
+- Added versioned canonical materialized-yield scenario and generation-provenance commitments. Scenario identity excludes generator IDs/seeds; provenance separately binds the scenario root, generator/source identity, RNG algorithm, actual seed, and normalized options.
+
+- Canonical yield scenario validation now rejects distinct map keys or set members that would collide during scenario normalization, before the normalizer can overwrite or discard either value.
+
 - Sew transition-assurance state projection now encodes rational values with the canonical exact numerator/denominator representation, allowing yield scenarios with ratios to produce deterministic commitments without float conversion.
 
 - Added `bb canonical-artifacts` commands for explicit artifact derivation, structural `artifact-bundle.v1` commitments, realized-allocation-statement composition, and narrow commitment verification. Verification reports recomputed matches, mismatches, invalid inputs, or opaque unrecomputed commitments; it does not establish source authenticity, statement truth, proof validity, or authority admission.
