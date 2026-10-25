@@ -158,7 +158,7 @@
               :observation/issued-at issued-at}
         observation-root (head-observation-root body)
         envelope (signatures/build-envelope* observation-signature-profile
-                                              observation-root key-id private-key)]
+                                             observation-root key-id private-key)]
     (assoc body
            :observation/signature envelope
            :observation/root observation-root)))
@@ -173,7 +173,7 @@
    When supplied, :max-age-seconds and :max-future-skew-seconds are enforced
    even for nonce-bound observations."
   [observation source {:keys [now expected-nonce max-age-seconds
-                             max-future-skew-seconds]}]
+                              max-future-skew-seconds]}]
   (let [bad (fn [error] {:status :invalid :valid? false :errors [error]})
         unknown (fn [error] {:status :stale-or-unknown :valid? false :errors [error]})
         issued-at (try (java.time.Instant/parse (:observation/issued-at observation))
@@ -184,7 +184,7 @@
                             (valid-signature-envelope? signature))
                    (try
                      (signatures/verify-envelope* observation-signature-profile
-                                                   signature (:source/public-key source))
+                                                  signature (:source/public-key source))
                      (catch Exception _ nil)))]
     (cond
       (not (valid-observation-source? source)) (bad :observation/invalid-source-config)
@@ -251,15 +251,15 @@
         safe-sources (if sources-sequential? sources [])
         source-by-id (into {} (map (juxt :source/id identity) safe-sources))
         checks (mapv (fn [observation]
-                      (verify-head-observation observation
-                                               (get source-by-id (:source/id observation))
-                                               {:now now
-                                                :expected-nonce (if (map? expected-nonce)
-                                                                  (get expected-nonce (:source/id observation))
-                                                                  expected-nonce)
-                                                :max-age-seconds max-age-seconds
-                                                :max-future-skew-seconds max-future-skew-seconds}))
-                    safe-observations)
+                       (verify-head-observation observation
+                                                (get source-by-id (:source/id observation))
+                                                {:now now
+                                                 :expected-nonce (if (map? expected-nonce)
+                                                                   (get expected-nonce (:source/id observation))
+                                                                   expected-nonce)
+                                                 :max-age-seconds max-age-seconds
+                                                 :max-future-skew-seconds max-future-skew-seconds}))
+                     safe-observations)
         valid-checks (filter :valid? checks)
         roots (set (map :checkpoint/root valid-checks))
         groups (set (map :source/independence-group valid-checks))
@@ -287,19 +287,19 @@
                                                   (get-in % [:checkpoint :checkpoint/sequence]))))
                                      known-checkpoints))
         observed-checkpoints (map (fn [check]
-                                   (some #(when (and (= (:checkpoint/root check)
-                                                        (or (:checkpoint/root %)
-                                                            (get-in % [:checkpoint :checkpoint/root])))
+                                    (some #(when (and (= (:checkpoint/root check)
+                                                         (or (:checkpoint/root %)
+                                                             (get-in % [:checkpoint :checkpoint/root])))
                                                       (= :certified (or (:status %)
                                                                         (get-in % [:verification :status]))))
                                              (let [checkpoint (or (:checkpoint %) %)]
                                                {:checkpoint/root (:checkpoint/root checkpoint)
                                                 :checkpoint/sequence (:checkpoint/sequence checkpoint)
                                                 :checkpoint/previous-root (:checkpoint/previous-root checkpoint)}))
-                                         known-checkpoints))
+                                          known-checkpoints))
                                   valid-checks)
         all-known? (and certified?
-                         (every? verified-checkpoint? valid-checks))
+                        (every? verified-checkpoint? valid-checks))
         conflict? (and all-known?
                        (some (fn [[i left]]
                                (some (fn [right]

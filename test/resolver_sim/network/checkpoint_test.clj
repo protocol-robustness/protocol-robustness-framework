@@ -427,7 +427,7 @@
                 :source-id "observer:0" :key-id "observer-key:0"
                 :checkpoint (:checkpoint f) :client-nonce nil
                 :issued-at (.toString (.minusSeconds now 60))
-                :private-key (.getPrivate ^KeyPair (first (:pairs f)))} )
+                :private-key (.getPrivate ^KeyPair (first (:pairs f)))})
         nonce-bound-stale (checkpoint/sign-head-observation
                            {:genesis-root (get-in f [:genesis :network/genesis-root])
                             :source-id "observer:0" :key-id "observer-key:0"
@@ -612,11 +612,11 @@
                  :conflict/evidence [{:checkpoint {:checkpoint/root root-a
                                                    :checkpoint/sequence 1
                                                    :checkpoint/previous-root (get-in f [:genesis :checkpoint/root])}
-                                     :verification {:status :certified}}
-                                    {:checkpoint {:checkpoint/root root-b
-                                                  :checkpoint/sequence 1
-                                                  :checkpoint/previous-root (get-in f [:genesis :checkpoint/root])}
-                                     :verification {:status :certified}}]}
+                                      :verification {:status :certified}}
+                                     {:checkpoint {:checkpoint/root root-b
+                                                   :checkpoint/sequence 1
+                                                   :checkpoint/previous-root (get-in f [:genesis :checkpoint/root])}
+                                      :verification {:status :certified}}]}
         result (checkpoint/verify-observed-heads
                 observations sources
                 {:network/genesis-root (get-in f [:genesis :network/genesis-root])
@@ -648,7 +648,7 @@
 (deftest malformed-history-entries-return-a-typed-invalid-result
   (let [f (fixture)
         result (checkpoint/verify-history (:genesis f) :not-an-entry-sequence
-                                           (:context f))]
+                                          (:context f))]
     (is (= :invalid (:status result)))
     (is (false? (:valid? result))))
   (let [result (checkpoint/verify-history nil [] {})]
