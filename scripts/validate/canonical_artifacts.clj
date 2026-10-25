@@ -1,5 +1,5 @@
 #!/usr/bin/env bb
-;; Narrow, deterministic validator for the proposed definition inventory.
+;; Narrow, deterministic validator for the adopted non-runtime definition inventory.
 ;; It does not load the manifest from application/runtime namespaces.
 (require '[clojure.edn :as edn]
          '[clojure.java.io :as io]
@@ -112,8 +112,8 @@
         (fail! issues "shared-domain entries must match the closed v1 shape")))
     (when-not (= "canonical-artifacts.v1" (:registry/schema manifest))
       (fail! issues "registry schema must remain canonical-artifacts.v1"))
-    (when-not (= :proposed (:registry/status manifest))
-      (fail! issues "registry must remain explicitly :proposed and non-runtime"))
+    (when-not (= :adopted (:registry/status manifest))
+      (fail! issues "registry must remain explicitly :adopted and non-runtime"))
     (when-not (and (vector? entries) (seq entries))
       (fail! issues "registry entries must be a non-empty vector"))
     (when-not (= (count entries) (count by-id))

@@ -1,13 +1,13 @@
 # Canonical Artifact Registry: NOW extraction proposal
 
-Status: **PROPOSED; zero migration; no runtime consumer**.
+Status: **ADOPTED as the PRF non-runtime canonical identity and ownership baseline; zero migration; no runtime consumer**.
 
 This inventory was read from the current PRF `agent-c` working tree and the
 companion `/home/user/Code/prf-evm` working tree. The last PRF snapshot inspected
 was `6442af9a`; the companion HEAD was
 `28b63bacf26c5ced89ceb7c617e61308b56b57c5`. Both trees contain work beyond those
 snapshots. These revisions identify the inspection context, not immutable
-reproduction inputs for the proposed manifest. No companion files were edited.
+reproduction inputs for the reviewed manifest. No companion files were edited.
 
 The authority for NOW production semantics is
 [the Protected Capital freeze](../PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md),
@@ -17,13 +17,32 @@ or the inspected code.
 
 ## Incremental package extraction
 
-The independently loadable Clojure source package now contains normalization,
-row ordering, policy/result projections, witness derivation, single-pass
-allocation, and active-set cap redistribution. PRF continues to supply explicit
-execution and hash adapters. The manifest records those package implementations
-alongside the retained PRF entry points and portable reference implementation.
-Its 34 identity definitions, owners, domains, baseline pin, and proposed status
-are unchanged.
+The common canonical codec package has already been extracted as the standalone
+`prf-canonical` repository and is consumed at the immutable pin in `deps.edn`.
+It owns the generic Clojure/Rust value codec, shared V1 vectors, and
+domain-separated SHA-256 mechanics. PRF retains its compatibility facade,
+semantic domain and intent registries, projections, and scheme validation.
+The candidate is compatibility-qualified but unpublished; extraction is
+complete, while publication remains a separate release decision.
+
+The allocation source package is also independently extracted and consumed at
+the immutable pin in `deps.edn`. It owns normalization, row ordering, allocation
+arithmetic, policy/result projections, witness derivation, single-pass
+allocation, and active-set cap redistribution in Clojure and Rust. PRF
+facades delegate those semantics while retaining explicit execution, lifecycle,
+context, evidence, and compatibility adapters. The manifest records package
+implementations alongside retained PRF entry points and the portable reference
+implementation. Its 36 identity definitions, owners, domains, and frozen
+identity pin are recorded in the adopted non-runtime baseline.
+
+The allocation candidate is source-qualified but not fully release-qualified.
+Its source checkout now has a described Jujutsu change and local bookmark that update
+`RELEASE.edn` from the earlier identity digest
+`0d0af1b9e7e487f334c11f6a7029a6026caa75af9383e899db03747eb4a6c71a` to the
+adopted baseline
+`e0e33c5ab0f976df2be635124dbc7c0a0bea1619b31af6f3a8d787a3da3c366e`. PRF's
+immutable dependency still points to the prior package revision; update that pin
+only after the metadata change is committed and exported as a package revision.
 
 See the [pinned allocation repository](https://github.com/protocol-robustness/prf-pro-rata-allocation/tree/48e0b362748cd39d09994a8aa1496c668199aa74)
 for the portable package boundary, adapter contracts, conformance ownership,
@@ -71,13 +90,16 @@ SP1, or Solidity proof qualification.
 
 ## What is checked in
 
-[canonical-artifacts.v1.edn](canonical-artifacts.v1.edn) is a proposed inventory
-of **34 definition entries**, including the explicitly incomplete
+[canonical-artifacts.v1.edn](canonical-artifacts.v1.edn) is the adopted inventory
+of **36 definition entries**, including the explicitly incomplete
 `AllocationBindingV1` record. It has no own canonical root and is not loaded by
-runtime code. Entry IDs are administrative manifest keys; existing artifact
-names, schemas and domains retain their exact spellings and meanings.
+runtime code. Adoption freezes the inventory's identity interpretation and
+single-owner assignments for review and extraction planning; it does not
+certify implementation readiness or make the manifest a runtime registry.
+Entry IDs are administrative manifest keys; existing artifact names, schemas
+and domains retain their exact spellings and meanings.
 
-Every entry identifies one proposed owner, its existing hash definition, input
+Every entry identifies one adopted semantic owner, its existing hash definition, input
 types, implementation coverage, evidence locations and normative records.
 Missing implementations and incomplete conformance are explicit. References
 to tests describe available coverage, not a claim that those tests ran in this
@@ -119,15 +141,15 @@ It does not imply creating another repository in this task.
 | `primitive-policy-outcome` / `pro-rata-policy-outcome.v1` | A | pro-rata-allocation | Derived consequence of validated primitive result, with no consumption/authority claim. Clojure fixtures exist; independent Rust implementation missing. |
 | `evaluation-package` / `PRO_RATA_EVALUATION_V1` | A | pro-rata-allocation | Existing evaluation body uses integer `:schema-version 1`. Distinct from the primitive request/result wire schemas; constrained side surface. |
 | `evaluation-result-envelope` / `PRO_RATA_ALLOCATION_RESULT_V1` | A | pro-rata-allocation | Existing evaluation/provenance envelope uses integer schema version 1 and an intent-aware root. It is not the primitive `:allocation/hash` merely because both say allocation result. |
-| `allocation-context` / `allocation-context.v1` | A | other/allocation-context | Claimants, economic owners, outcomes, rates, policy and randomness; generic selection context, not Shortfall demand or just allocation arithmetic. **Ownership ambiguity O2.** |
+| `allocation-context` / `allocation-context.v1` | A | other/allocation-context | Claimants, economic owners, outcomes, rates, policy and randomness; generic selection context, not Shortfall demand or just allocation arithmetic. **Adopted owner decision O2.** |
 | `realized-request-set` / `REALIZED_REQUEST_SET_V1` | A | pro-rata-allocation | Claim-keyed requested map; no separately named/versioned wire schema. Clojure/Rust reconstruction coverage. |
 | `realized-fill-policy` / `ALLOCATION_POLICY_V1` | A | pro-rata-allocation | Effective fill policy, excluding fail-action policy. Preserve this root separately from `PRO_RATA_ALLOCATION_POLICY_V1`. |
-| `realized-results` / `REALIZED_RESULTS_V1` | A | pro-rata-allocation | Ordered realized rows, disposition and filled/deferred/haircut/unrealized amounts; no separate wire schema. **Ownership ambiguity O3.** |
-| `fail-action-policy` / `FAIL_ACTION_POLICY_V1` | A | pro-rata-allocation | Existing general partial-fill treatment/default. Distinct from Shortfall-specific unmet-demand interpretation. **Ownership ambiguity O3.** |
-| `round-lifecycle` / `ROUND_LIFECYCLE_V1` | A | other/certified-round-lifecycle | Historical round/certified-cancellation-window projection. It is not the new activation/custody state machine. **Ownership ambiguity O4.** |
+| `realized-results` / `REALIZED_RESULTS_V1` | A | pro-rata-allocation | Ordered realized rows, disposition and filled/deferred/haircut/unrealized amounts; no separate wire schema. **Adopted owner decision O3.** |
+| `fail-action-policy` / `FAIL_ACTION_POLICY_V1` | A | pro-rata-allocation | Existing general partial-fill treatment/default. Distinct from Shortfall-specific unmet-demand interpretation. **Adopted owner decision O3.** |
+| `round-lifecycle` / `ROUND_LIFECYCLE_V1` | A | other/certified-round-lifecycle | Historical round/certified-cancellation-window projection. It is not the new activation/custody state machine. **Adopted owner decision O4.** |
 | `realized-statement` / `realized-allocation-statement.v1` | A | pro-rata-allocation | Frozen six-root statement. Clojure/Rust and narrow SP1 statement path; Solidity verifies/consumes the opaque root rather than rebuilding canonical bodies. |
-| `allocation-binding-record` / `AllocationBindingV1` | A | pro-rata-allocation | Frozen record only; schema/domain/implementation/vectors missing. **Ownership ambiguity O1.** |
-| `evm-asset` / `prf/evm-erc20-asset.v1` | A | other/asset-identity | Generic computational chain/token/base-unit identity, neither token authenticity nor a deployment transaction. **Ownership ambiguity O5.** |
+| `allocation-binding-record` / `AllocationBindingV1` | A | pro-rata-allocation | Frozen record only; schema/domain/implementation/vectors missing. **Adopted owner decision O1; identity remains unregistered.** |
+| `evm-asset` / `prf/evm-erc20-asset.v1` | A | other/asset-identity | Generic computational chain/token/base-unit identity, neither token authenticity nor a deployment transaction. **Adopted owner decision O5.** |
 | `shortfall-context-v1` / `prf/shortfall-context.v1` | A | Shortfall | Frozen eligibility/candidate universe, authority-bound availability and scarcity context; asset ID/unit fields preserved. Clojure implemented. |
 | `shortfall-context-v2` / `prf/shortfall-context.v2` | A | Shortfall | Frozen asset-root successor, not a change to V1. Clojure/Rust provenance path. |
 | `reserve-observation-v1` / `prf/onchain-shortfall-reserve-observation.v1` | A | Shortfall | Frozen canonical source-fact definition reconstructing a V1 reserve snapshot. Contains snapshot ID and creation block by existing contract. This does not make arbitrary RPC observations canonical semantics. |
@@ -137,8 +159,8 @@ It does not imply creating another repository in this task.
 | `shortfall-allocation-binding-v1` / `prf/onchain-shortfall-allocation-binding.v1` | A | Shortfall | Implemented application binding of reserve-binding root, realized-statement root and operation ID. Successor pure derivation hashes the same body but does not establish all parent authority. |
 | `beneficiary-entitlement` / `beneficiary-entitlement.v1` | A | capital-lifecycle | B2 registered canonical member, excludes salt/current signer/proof mode/consumption. Clojure/Rust; successor Solidity missing. |
 | `beneficiary-entitlement-set` / `beneficiary-entitlement-set.v1` | A | capital-lifecycle | B2 registered ordered positive members, canonical ordinals, recomputed count/total. Its root is not a public-value word in the 288-byte layout. |
-| `entitlement-representation-descriptor` / `entitlement-representation-descriptor.v1` | A | capital-lifecycle | B2 canonical logical descriptor for fixed encoding, opening, claim tree/table and consumption-index schemes. Deployment address/code are excluded. **Ownership ambiguity O6.** |
-| `allocation-entitlement-policy` / `allocation-entitlement-policy.v1` | D | capital-lifecycle | Fixed authority-domain configuration policy; excludes realized population. No beneficiary profile or Requested/Required enforcement mode. **Ownership ambiguity O7.** |
+| `entitlement-representation-descriptor` / `entitlement-representation-descriptor.v1` | A | capital-lifecycle | B2 canonical logical descriptor for fixed encoding, opening, claim tree/table and consumption-index schemes. Deployment address/code are excluded. **Adopted owner decision O6.** |
+| `allocation-entitlement-policy` / `allocation-entitlement-policy.v1` | D | capital-lifecycle | Fixed authority-domain configuration policy; excludes realized population. No beneficiary profile or Requested/Required enforcement mode. **Adopted owner decision O7.** |
 | `protocol-genesis` / `protocol-genesis.v1` | A | other/chain-governance | Canonical semantic protocol identity, excludes deployment metadata and current configuration. Solidity consumes the root. |
 | `chain-instance-genesis` / `chain-instance-genesis.v1` | A | other/chain-governance | Canonical initial execution/settlement/control-plane/authority binding; prescribed address/code fields are semantic inputs. Solidity's local projection is a different B identity. |
 | `authority-semantics-policy` / `authority-semantics-policy.v1` | D | other/chain-governance | Canonical policy selected by configuration V2+. No generic verifier-registry merger. |
@@ -212,7 +234,7 @@ reinterpreted as the missing NOW artifacts. The existing cancellation artifact
 map similarly documents Sew party-cancellation and certified-round surfaces;
 their existence does not implement Protected Capital cancellation consequences.
 
-### Explicit ownership ambiguities
+### Adopted ownership decisions
 
 | Decision | Proposed owner | Reason and question to resolve before moving sources |
 |---|---|---|
@@ -244,7 +266,7 @@ or instance-persistence mechanism.
 | Conformance coverage | `:status`, `:sources` | none |
 
 `registry/schema` is exactly `"canonical-artifacts.v1"`; registry status is
-`:proposed` until reviewed adoption. A later registry-data format uses a new
+`:adopted` for this non-runtime identity baseline. A later registry-data format uses a new
 registry schema; this does not version or mutate any artifact identity.
 
 Entry IDs are unique keywords. `artifact/name` is the exact existing artifact
@@ -307,8 +329,8 @@ file paths and release metadata do not enter economic artifact roots.
 1. **Closed data and ownership:** parse EDN without evaluation; validate the exact
    keys/enums/tuples above; unique administrative IDs; one allowed scalar owner;
    valid parent/successor references; reject path traversal and unrecognized repo
-   aliases. Every proposed owner ambiguity is explicitly reviewed for the package
-   being extracted. Unregistered entries cannot satisfy a production contract.
+   aliases. Apply the adopted owner decisions below when planning package
+   extraction. Unregistered entries cannot satisfy a production contract.
 2. **Identity consistency:** domain strings must match their declarations and
    derivation's actual hash scheme/preimage. Require unique domains except exact,
    checked-in legacy sharing declarations. The one existing exception here is
@@ -321,7 +343,7 @@ file paths and release metadata do not enter economic artifact roots.
    an existing identity; a new semantic shape needs an explicitly new artifact
    identity and successor declaration. Moving a source reference with unchanged
    byte semantics is permitted. Do not freeze entire source file hashes or treat
-   the current proposed inventory as already adopted authority.
+   this non-runtime inventory as runtime authority.
 4. **Resolvable evidence:** referenced files/directories and symbols must exist
    in explicitly supplied PRF/companion checkouts. Missing coverage is allowed in
    an inventory but fails production readiness for an affected extracted profile.
@@ -355,8 +377,7 @@ file paths and release metadata do not enter economic artifact roots.
    only with its own matching vectors and consumer. Nothing in this task changes
    public values, programs, VKeys, domains or Solidity.
 
-These are proposed adoption/extraction gates, not new CI jobs wired by this
-patch. A small data validator plus the existing focused conformance runners is
+These are extraction gates, not new CI jobs wired by the adoption. A small data validator plus the existing focused conformance runners is
 sufficient. Start with static checks; run production profiles only when their
 implementations exist. No broad PRF research gate is needed to decide definition
 ownership.
@@ -379,7 +400,7 @@ PRF checkout
 │                                             Shortfall, entitlement and execution blend
 ├── prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/*-sp1-program/                 distinct guest/profile identities
 ├── etc/conformance/ + portable.../vectors/    semantic fixtures across current locations
-└── docs/architecture/canonical-artifacts/     proposed definition inventory
+└── docs/architecture/canonical-artifacts/     adopted definition inventory
 
 companion prf-evm checkout
 ├── src/core/                                 genesis, verifier registry, admission
@@ -446,10 +467,11 @@ Material extraction costs found:
   Both successor implementations reconstruct the pro-rata statement and hash a
   Shortfall allocation binding. A mere file move would violate generic
   capital-lifecycle's required boundary.
-- **Canonical code is duplicated.** The production Clojure codec, portable
-  Clojure codec, core Rust codec and conformance verifier codec are distinct
-  implementations. Package extraction must carry the frozen byte contract and
-  compare bytes, not assume identical source ownership means identical code.
+- **Independent codec implementations remain.** PRF production Clojure now
+  delegates byte encoding to the extracted package; portable allocation and
+  conformance-verifier code retain independent implementations. Their frozen
+  byte contract and shared vectors must continue to be compared; package
+  ownership alone does not establish implementation parity.
 - **Arithmetic widths are profile constraints.** Generic Clojure allocation
   uses exact arbitrary-precision integers, while the present Rust realized rows
   use `i64` and the reserve fields use `u128`. Solidity has uint256 ABI words.
@@ -473,16 +495,20 @@ Material extraction costs found:
   cannot turn the existing Funded endpoint into the frozen Activated endpoint.
 
 The manifest allows one package to be extracted at a time while the repository
-continues consuming explicit pinned/local dependencies. First adopt the
-definition inventory and baseline; then package the common codec; then move
-allocation semantics with its exact supporting adapters and vectors. Generic
-capital lifecycle requires the dependency boundary work above. Shortfall and
-deployment remain assembly consumers throughout. This proposal performs none
-of those source moves.
+continues consuming explicit pinned/local dependencies. The definition inventory
+and identity baseline are adopted; both the common codec and allocation
+semantics have been extracted as pinned source candidates and are consumed by
+PRF. The codec candidate is compatibility-qualified but unpublished. The
+allocation candidate remains partially conformant and its updated release
+identity metadata is committed locally but not remotely published. The next package
+boundary is generic capital lifecycle, but extraction remains gated on the
+mechanism-independent adapter boundary described above. Shortfall and deployment
+remain assembly consumers throughout. This update records existing package
+extractions; it performs no further source moves.
 
 ## Baseline validator (non-runtime)
 
-The inventory remains explicitly `:proposed` and has no runtime consumer. The
+The inventory is explicitly `:adopted` as a review baseline and has no runtime consumer. The
 checked-in deterministic validator checks the closed v1 shape, unique IDs and
 names, sole owners, status/hash consistency, declared shared domains, input
 references and cycles, source-reference existence, cross-language conformance
@@ -493,7 +519,8 @@ parent relationships. The manifest records current capital-lifecycle links to
 pro-rata and Shortfall explicitly as extraction adapter work. The validator
 does not prove implementations or replace conformance tests.
 
-Run it with the PRF, EVM, and pinned allocation repository roots supplied:
+Run it with the PRF, EVM, and pinned canonical, allocation, and coprocessor
+repository roots supplied:
 
 ```bash
 bb canonical-artifacts:validate \
@@ -501,11 +528,12 @@ bb canonical-artifacts:validate \
   /path/to/prf \
   /path/to/prf-evm \
   /path/to/pinned-prf-canonical \
-  /path/to/prf-pro-rata-allocation-at-the-deps.edn-pin
+  /path/to/prf-pro-rata-allocation-at-the-deps.edn-pin \
+  /path/to/pinned-prf-coprocessor
 ```
 
 The validator pins the baseline identity tuple digest
-`0d0af1b9e7e487f334c11f6a7029a6026caa75af9383e899db03747eb4a6c71a`.
+`e0e33c5ab0f976df2be635124dbc7c0a0bea1619b31af6f3a8d787a3da3c366e`.
 Adding an entry or changing a pinned identity tuple requires an explicit review
 and corresponding validator-baseline update; coverage/reference corrections do
 not alter the pin. New successor definitions must retain a distinct name and
@@ -606,15 +634,23 @@ dispatch supports one request derivation, three recomputation profiles and one
 opaque descriptor check; other catalog entries remain unsupported until an
 owner implementation and tests are wired in.
 
-## Original validation performed for this proposal
+## Validation record
 
-- Babashka parsed the actual EDN file as data. An isolated temporary checker
-  validated the documented closed shapes, IDs/names, ownership/status enums,
-  domain declarations and shared-domain exception, input references and cycles,
-  source paths/symbols, and local Markdown links: **34 entries, 146 distinct
-  source references, zero errors**. That was the proposal-time review; the
-  checked-in static validator and task above now retain the narrow baseline
-  checks without adding a runtime consumer.
+- Adoption-time canonical inventory validation passed: **36 entries, 184 source
+  references**, identity tuple digest
+  `e0e33c5ab0f976df2be635124dbc7c0a0bea1619b31af6f3a8d787a3da3c366e`.
+  `bb fmt:check` passed after dependencies were made available. `bb validate`
+  passed lint, notebook support, all notebook checks, and SPEDS.
+- `bb backstop` completed its yield unit tests (**179 tests / 969 assertions**),
+  yield provider scenarios (**14/14**) and sew yield scenarios (**15/15**). Its
+  formatting check initially could not write missing dependencies to the
+  sandboxed Maven cache; the separately rerun `bb fmt:check` passed. The backstop
+  gate is not claimed as fully passed.
+- The proposal-time isolated check covered **34 entries and 146 distinct source
+  references**. The adopted manifest contains 36 entries; its sorted identity
+  tuple digest matches the checked-in validator pin above. Full source-reference
+  validation must use clean canonical, allocation, EVM, and coprocessor checkouts
+  at their declared revisions.
 - The required `bb backstop` was attempted. Its yield unit stage passed **179
   tests / 969 assertions**. The CLI scenario stage reported **139/140 passing**,
   with S106 `reversal-track2-evidence-appeal` failing after `:not-resolver` and
@@ -623,13 +659,11 @@ owner implementation and tests are wired in.
   interrupted during lint after those failures; command exit was 130. Full
   backstop completion is therefore **not claimed**. Log:
   `/tmp/prf-artifact-registry-backstop.log`.
-- No Clojure/Rust/Solidity source changes, structural editor operations, nREPL
-  evaluations, new tests, source moves or golden updates were performed.
-  `bb validate`, new cryptographic proving and companion Foundry suites were
-  skipped for this documentation/data-only proposal. The changelog is unchanged
-  because this is an unadopted design, not a changed runtime/interface contract.
-- Remaining uncertainty is explicit: eight ownership decisions need review,
-  specified NOW identity families need adoption/implementations, and successor
-  source authentication and Clojure/Rust/Solidity conformance need the concrete
+- No Clojure/Rust/Solidity implementation changes, source moves or golden updates
+  were performed during adoption. Production conformance remains separate from
+  this ownership/identity decision.
+- Remaining work is explicit: specified NOW identity families need definitions
+  and implementations, and successor source authentication and
+  Clojure/Rust/Solidity conformance need the concrete
   adapter/consumer checks identified above. Static reference validation does not
   resolve those production readiness gaps.
