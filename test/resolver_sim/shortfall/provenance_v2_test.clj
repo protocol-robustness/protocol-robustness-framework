@@ -26,7 +26,7 @@
         commitment (observation/economic-state-commitment base)]
     (assoc base :reserve-state-commitment commitment
            :authoritative-observation-root
-           (observation/solidity-observation-root commitment 1 42))))
+           (observation/solidity-observation-root prepared-root commitment 1 42))))
 
 (defn shortfall-context [obs]
   {:shortfall/profile :shortfall-pro-rata.v1
@@ -60,8 +60,12 @@
     ;; the deployed Solidity field types and abi.encode word layout.
     (is (= "0x8d7259643668aae1842538fef7f8835c372c007c800c5250f55c799664751b15"
            (:reserve-state-commitment obs)))
-    (is (= "0x83445d3cb9c87cbf4f82ef3aaada79c923e597744954c8213206a4a3d40bffd5"
+    (is (= "0x1273b3fccf30d0cc0294ab275257c1683dc08d643d70df894b78ae85943e465a"
            (:authoritative-observation-root obs)))
+    (is (not= (:authoritative-observation-root obs)
+              (observation/solidity-observation-root
+               "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+               (:reserve-state-commitment obs) 1 42)))
     (is (re-matches #"^sha256:[0-9a-f]{64}$" (:observation/root obs)))
     (is (= instance-root (:chain-instance-genesis-root result)))
     (is (= config-root (:configuration-root result)))
