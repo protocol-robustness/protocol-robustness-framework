@@ -29,9 +29,15 @@ stages. The files' SHA-256 digests are recorded below.
 
 The three not-executed stages are proof admission and operation, entitlement
 activation and claims, and independent reconcile. The proof attempt details are
-preserved in `proof-generation-attempt.v1.json`. Local SP1 Groth16 proof
-generation was attempted with the deployed source verifier identity and the
-current witness. Native Rust derivation accepted the witness, but the CPU
+preserved in `proof-generation-attempt.v1.json`. That record retains the
+manifest and witness digests, but the raw witness and its generation manifest
+are not present in this demo package. The recorded operation and reserve state
+are insufficient to recreate the witness by themselves: the reserve-binding
+root was a supplied input and must be recovered from its approved source or
+rederived under an explicitly reviewed local-demo derivation. Do not guess a
+replacement root. Local SP1 Groth16 proof generation was attempted with the
+deployed source verifier identity and the current witness. Native Rust
+derivation accepted the witness, but the CPU
 prover reached approximately 16 GB resident memory and exhausted nearly all
 system swap before a proof artifact was produced. The run was stopped to
 protect the workstation. This is a local resource limit, not a proof rejection.
@@ -55,6 +61,30 @@ closure. Admission count remains zero. This current-state observation does not
 replay historical deployment receipts or close the proof and capital-flow
 stages; see `current-chain-readback-2026-10-25.v1.json`.
 
+The W6 setup was subsequently executed through block 147: funding and
+ratification authorities were bound, an entitlement operation was prepared
+against C1, and 80 demo tokens were deposited with 10 reserved for an unrelated
+obligation. The observed available amount is 70. The supplemental
+`w6-setup-evidence.v1.json` records the successful setup receipts, operation
+binding and reserve readback. These are pre-proof preparation transactions;
+proof generation, statement admission, entitlement claims and independent
+reconciliation remain unexecuted. This file supplements, and does not upgrade,
+the 19-stage plan report or provide a complete capital-flow replay.
+
+An audit found that the first version of the W6 record contained an incorrect
+reserve commitment. At block 147, both the reserve's `economicState` and
+`currentCommitment` return `0x266c831f…048a5d0c3`; PRF v2 independently
+recomputes the same value. The corrected evidence retains the earlier recorded
+value and the verification result. The original proof-attempt manifest and
+witness are missing, so that attempt cannot be revalidated against the
+corrected commitment.
+
+The same audit found and fixed a PRF v2 observation-root bug: the Solidity
+projection omitted `preparedOperationRoot` from `authoritativeObservation`.
+The corrected PRF projection matches the contract for the observed operation
+and block 148 fixture. Focused PRF tests pass (6 tests, 26 assertions). This
+does not create a proof or qualify W6.
+
 The reserve-binding input uses the explicitly labeled local-demo schema in the
 deployment manifest. Do not present that demonstration binding as a qualified
 cross-language PRF/Solidity equivalence result. The local demonstration is
@@ -68,3 +98,4 @@ Evidence file SHA-256 digests:
 - Latest-state readback: `9af5fead79a308d6317b479dd4a2e5bf348659dc6e62b278563c417494422bdc`
 - Fresh live readback: `131466dad91c69c85e9fdb7decaf411341efba762d34b8832d3d247fdf317821`
 - Proof attempt record: `d786bf22b3abbe6ef8e0b74fa5ddff7a426f97d853991a3c33a811cf10ec2d82`
+- W6 setup evidence: `eec2ea53a8c2c82317a37a70a21d433742c46347797427d7b087d97f5b8857dd`

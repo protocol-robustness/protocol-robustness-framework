@@ -154,13 +154,56 @@ or alter the pinned release package without a reviewed release decision.
 | Work | Current evidence | Status |
 | --- | --- | --- |
 | W0 release baseline | Candidate v8 pins the 934-file source snapshot and v0.4.2 deployables used for the retained C0 run. Foundry 1.7.1 reproduces all ABI and bytecode hashes but 13 artifact-file hashes differ only in immutable-reference IDs (`fb2cff…` vs pinned `1c040b…`). The release README instead names Foundry 1.5.1; its exact source/submodule rebuild, even with EVM Osaka explicitly selected, differs in all 31 bytecode hashes (`207333…`). The source does not pin EVM version, and available provenance does not identify the exact artifact-producing toolchain. The narrow PRF-EVM hardening change (`57f7bc77`) is now published on a review branch and passes 44 focused tests, but exports an incomplete 30-artifact v0.4.0 package from main. Protocol-deployments typecheck passes and its current 41-file suite passes 314 tests. The historical v0.4.1 package root remains unreproduced. | Release package and source are pinned, but its canonical root is not independently reproducible; resolve toolchain provenance and maintainer integration before claiming W0 complete. |
-| W1 authority enforcement | Authority transition enforcement and focused tests are retained. The v8 execution has not applied the policy-v3 authority-state mutation. | Code verified; execution remains gated by the validator-bound transition artifact. |
-| W2 canonical input approval | v8 initial-input approval and the distinct successor-review approval both verify against their exact manifests and trusted contexts. | Content and transition review approvals are present; EIP-191 authority-transition attestation remains missing. |
-| W3 verifier identity | The retained v8 report verifies runtime closure for its local deployment and replays four PRF assertions. | Historical evidence only; current RPC readback is unavailable. |
-| W4 genesis | The v8 report records a verified genesis seal and empty-registry seal. | Retained historical readback; current RPC readback is unavailable. |
-| W5 C0→C1 | A separate successor-review approval is retained for C0 `131ff6…`, C1 `c6d7c1…`, chain-instance root `cddcc6…`, and epoch 1. The authority-transition request is unsigned. | Not executed. Requires the EIP-191 signature from the policy-pinned validator and a matching live instance. |
-| W6 capital flow | Replay support covers setup and capital-flow transactions, but the retained report has zero capital-flow transactions and a null `capitalFlowEvidenceRoot`. | Open; no live proof-admission/capital-flow evidence. |
-| W7 evidence package | The independent report verifies as partial evidence; no complete flow bundle or approved operation expectation package exists. | Open. |
+| W1 authority enforcement | Transition enforcement and focused tests are retained. The fresh local demo readback records authority revision 1 with transitions enabled. | Implementation and local transition are verified; production authority remains out of scope. |
+| W2 canonical input approval | The local-demo package retains separate initial-input and C0→C1 approval records and their trusted contexts. | Local-only approvals are present for this demo; they do not authorize public deployment. |
+| W3 verifier identity | The 2026-10-25 live readback rechecked adapter metadata, effective verifier identity, and adapter/verifier runtime hashes against the retained deployment closure. | Verified at the observed local chain state; historical full deployment replay remains incomplete. |
+| W4 genesis | The 2026-10-25 live readback confirms the sealed chain-instance root and sealed canonical successor registry. | Verified at the observed local chain state; historical full deployment replay remains incomplete. |
+| W5 C0→C1 | The current local demo is at C1 `0xf8fa9013…c0349f71`, epoch 1; its authority revision is 1. The separate successor approval is retained. | Executed and read back on local Anvil only. |
+| W6 capital flow | Corrected W6 setup evidence records successful setup/preparation transactions through block 147, reserve availability 70, and an on-chain/PRF v2 commitment match. The real proof attempt produced no proof; admission count is zero. | Open: recover or rederive and approve the exact proof inputs, then perform real proof admission, entitlement activation/claims, and independent reconcile. |
+| W7 evidence package | A fresh 2026-10-25 readback and W6 setup record are retained. Reloaded Anvil cannot serve the earlier seal block needed for full historical replay. | Open: complete capital-flow bundle and independent end-to-end replay are absent. |
+
+### Current local-demo refresh (2026-10-25)
+
+The separate local-demo profile has a fresh chain readback at block 147. It
+confirms chain ID 31337, the sealed instance root, C1 at epoch 1, authority
+revision 1, verifier/runtime closure, and admission count zero. Its SHA-256 is
+`131466dad91c69c85e9fdb7decaf411341efba762d34b8832d3d247fdf317821`.
+
+W6 preparation was executed in blocks 142–147: the funding and ratification
+bindings were configured, an entitlement operation was prepared against C1,
+80 demo tokens were deposited, and 10 were reserved for an unrelated
+obligation. The resulting available amount is 70. The supplemental
+`etc/deployments/bounded-configuration-local-demo/w6-setup-evidence.v1.json`
+has SHA-256
+`eec2ea53a8c2c82317a37a70a21d433742c46347797427d7b087d97f5b8857dd`.
+These transactions are setup evidence, not proof admission or completed
+capital-flow evidence. The proof-attempt record preserves manifest and witness
+digests, but the raw witness and its generation manifest are absent from the
+demo bundle. The operation and reserve readback do not determine the supplied
+reserve-binding root; recover it from its approved source or review and approve
+a new local-demo derivation before regenerating the witness. Do not substitute
+a guessed value. The CPU proof attempt stopped at the workstation's resource
+limit without producing a proof; no statement was admitted and no claims or
+reconciliation were executed. The full plan replay is also still unavailable
+because the reloaded local node does not serve the earlier seal block. This
+refresh supersedes the older statements above about the then-unavailable RPC
+and unexecuted C0→C1 transition for the separate local-demo profile; it does
+not change the frozen v8 source identity or its qualification limits.
+
+A fresh RPC check of `economicState` and `currentCommitment` at block 147
+returned `0x266c831f1d32e4871e1fdd2e26e529e98db2fb806c887898b0e9642048a5d0c3`.
+PRF's `economic-state-commitment` recomputation returned the same value. The
+earlier supplemental record had incorrectly stored
+`0xb55531e705f51aed2f3c7d6d92fd71f11c3a74c7c748fa416036bce35175eb4f`; the
+corrected artifact preserves that superseded value in its audit details.
+
+This audit also found that PRF v2's Solidity observation projection omitted
+`preparedOperationRoot`, which the Solidity `authoritativeObservation` includes.
+The projection and cross-language fixture are corrected, and the focused
+provenance/allocation-binding suites pass 6 tests and 26 assertions. For the
+current C1 operation, PRF and the deployed contract agree on the predicted
+block-148 observation root. This is candidate-input derivation evidence only;
+it does not recover or approve the missing earlier proof input.
 
 ### Handoff recheck (2026-10-23)
 
@@ -681,7 +724,11 @@ Owner: protocol-deployments and prf-evm; PRF checks canonical evidence.
 Priority: P1. Dependencies: W5.
 
 - Produce operation and witness inputs from the actual C1 deployment manifest.
-  Generate a real proof bound to that prepared operation and configuration.
+  Derive the reserve input from a validated reserve-v2 observation and
+  operation-bound Shortfall context, or use a separately reviewed local-demo
+  derivation whose supplied root is retained and approved. Retain the exact
+  input manifest, raw witness, generator identity and digests. Generate a real
+  proof bound to that prepared operation and configuration.
 - Exercise admission, assurance preparation, ratification, capital reservation
   and funding, entitlement activation and withdrawal through the actual
   applicable topology. Reconcile final balances, liabilities, reserve state
@@ -693,7 +740,9 @@ Priority: P1. Dependencies: W5.
   same receipt cannot create another capital effect. Retain generic receipt
   identity semantics and enforce consumption at the capital boundary.
 
-Acceptance: the positive run completes under approved C1. Wrong proof,
+Acceptance: an independent verifier can reconstruct the witness and reserve
+binding root from retained, approved inputs; the positive run completes under
+approved C1. Wrong proof,
 verifier, instance, operation and unauthorized-route cases fail at their
 intended boundary with no unauthorized state or capital effect. A valid stale
 C0 proof may be admitted under the active C1 verifier, but assurance preparation

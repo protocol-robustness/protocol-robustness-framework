@@ -59,11 +59,12 @@
                      (str "0x" (word available-amount))
                      (str "0x" (word availability-revision))])))
 
-(defn solidity-observation-root [commitment snapshot-id created-at-block]
+(defn solidity-observation-root [prepared-operation-root commitment snapshot-id created-at-block]
+  (bytes32! :prepared-operation-root prepared-operation-root)
   (bytes32! :reserve-state-commitment commitment)
   (doseq [[field value] [[:snapshot-id snapshot-id] [:created-at-block created-at-block]]]
     (uint! field value))
-  (abi-words-hash [(keccak-utf8 observation-domain) commitment
+  (abi-words-hash [(keccak-utf8 observation-domain) prepared-operation-root commitment
                    (str "0x" (word snapshot-id)) (str "0x" (word created-at-block))]))
 
 (defn build-observation [input]
@@ -99,7 +100,10 @@
               (not (pos? (:available-amount input))))
       (throw (ex-info "reserve v2 state has no positive consistent availability" {})))
     (let [commitment (economic-state-commitment input)
-          observation-root (solidity-observation-root commitment (:snapshot-id input) (:created-at-block input))]
+          observation-root (solidity-observation-root (:prepared-operation-root input)
+                                                      commitment
+                                                      (:snapshot-id input)
+                                                      (:created-at-block input))]
       (when-not (= commitment (:reserve-state-commitment input))
         (throw (ex-info "reserve v2 economic commitment mismatch"
                         {:expected commitment :actual (:reserve-state-commitment input)})))
