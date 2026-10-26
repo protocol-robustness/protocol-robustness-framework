@@ -8,8 +8,8 @@
             [resolver-sim.research.ratification :as ratification]
             [resolver-sim.use-cases.registry :as use-cases]))
 
-(def ^:private test-private-key "test-keys/test-researcher-signing-key")
-(def ^:private test-public-key "test-keys/test-researcher-signing-key.pub")
+(def ^:private test-private-key "test/fixtures/signing-keys/test-researcher-signing-key")
+(def ^:private test-public-key "test/fixtures/signing-keys/test-researcher-signing-key.pub")
 
 (defn- test-root [domain value]
   (ref/sha256-ref (canonical/domain-hash :claim-outcome-v1

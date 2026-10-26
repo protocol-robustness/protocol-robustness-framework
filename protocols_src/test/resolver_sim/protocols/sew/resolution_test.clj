@@ -139,8 +139,8 @@
         current-snapshot (some #(when (= snapshot-root (:sew/adjudication-snapshot-root %)) %)
                                (get-in world [:adjudication-snapshots 0]))
         target (sew-ratification/build-target basis current-snapshot (:policy/root policy))
-        key-path "test-keys/test-researcher-signing-key"
-        public-path "test-keys/test-researcher-signing-key.pub"
+        key-path "test/fixtures/signing-keys/test-researcher-signing-key"
+        public-path "test/fixtures/signing-keys/test-researcher-signing-key.pub"
         contributions
         (mapv (fn [[researcher principal]]
                 (let [subject-root

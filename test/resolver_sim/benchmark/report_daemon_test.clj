@@ -9,8 +9,8 @@
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.pro-rata.allocation :as allocation]))
 
-(def ^:private test-priv-key "test-keys/test-researcher-signing-key")
-(def ^:private test-pub-key "test-keys/test-researcher-signing-key.pub")
+(def ^:private test-priv-key "test/fixtures/signing-keys/test-researcher-signing-key")
+(def ^:private test-pub-key "test/fixtures/signing-keys/test-researcher-signing-key.pub")
 
 (defn- root [c]
   (str "sha256:" (apply str (repeat 64 (first c)))))

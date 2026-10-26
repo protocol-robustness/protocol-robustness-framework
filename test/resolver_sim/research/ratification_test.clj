@@ -3,8 +3,8 @@
             [resolver-sim.benchmark.researcher-force-authorisation :as decisions]
             [resolver-sim.research.ratification :as ratification]))
 
-(def ^:private private-key "test-keys/test-researcher-signing-key")
-(def ^:private public-key "test-keys/test-researcher-signing-key.pub")
+(def ^:private private-key "test/fixtures/signing-keys/test-researcher-signing-key")
+(def ^:private public-key "test/fixtures/signing-keys/test-researcher-signing-key.pub")
 (def ^:private evidence-root (str "sha256:" (apply str (take 64 (cycle "ab")))))
 (def ^:private round-root (str "sha256:" (apply str (take 64 (cycle "cd")))))
 (def ^:private subject-root (str "sha256:" (apply str (take 64 (cycle "ef")))))

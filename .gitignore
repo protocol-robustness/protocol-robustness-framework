@@ -119,7 +119,7 @@ workspaces/private-discovery-template/disclosure-candidates/
 workspaces/private-discovery-template/export/
 
 # Locally generated, non-authoritative Challenge 001 dev/test signing keys.
-/test-keys/challenge-001-devtest-keys/
+/test/fixtures/signing-keys/challenge-001-devtest-keys/
 **/disclosure-candidates/
 
 # System files
