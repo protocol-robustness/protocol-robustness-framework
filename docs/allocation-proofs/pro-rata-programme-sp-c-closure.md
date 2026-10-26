@@ -48,6 +48,13 @@ from artifacts — not merely the constituent roots:
   `unsupported`)
 - `:exact-set-complete`
 
+The receipt verifier also requires the original request-bearing plan, recomputes
+its plan root, derives stage IDs from the request and evidence, reconstructs the
+closed receipt body, and checks the receipt hash. A changed field cannot pass by
+merely recomputing the receipt hash. Until SP-C.5 adapters exist, the runner
+rejects plans requesting statement, proof, verification, or admission stages;
+the verifier rejects receipts that claim those stages ran.
+
 All are recomputed by `derive-programme-verdict` from the reconstructed stage
 statuses plus the exact-set reconciliation — the same pure function the runner
 uses — so an aggregate claim cannot diverge from its leaves. A tampered

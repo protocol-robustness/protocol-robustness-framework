@@ -10,6 +10,12 @@
 
 ## Unreleased
 
+- Pro-rata programme receipt verification now reconstructs the receipt from the
+  source plan and execution artifacts, checking plan/root binding, stage IDs,
+  evidence, and the receipt hash. The current runner rejects requests for
+  statement, proof, verification, or admission stages until their adapters are
+  implemented; such stages can no longer appear complete without execution.
+
 - Adopted the 36-entry canonical artifact identity and ownership inventory as a
   non-runtime PRF review baseline; existing artifact meanings and roots remain
   unchanged, and implementation gaps remain explicit.
