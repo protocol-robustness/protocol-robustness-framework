@@ -3,7 +3,9 @@
    and the SP-A + SP-B invariant that execution settings cannot change any
    semantic programme field."
   (:require [clojure.test :refer [deftest is testing]]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.application :as application]
+            [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation]
             [resolver-sim.pro-rata.programme :as prog]
             [resolver-sim.pro-rata.exact-verifier :as exact-verifier]
             [resolver-sim.pro-rata.progress :as progress]))
@@ -21,6 +23,18 @@
              :policy {:rounding :floor-with-largest-remainder
                       :cap-treatment :redistribute
                       :tie-break :input-order}}})
+
+(defn- receipt-artifacts
+  [plan result]
+  {:plan plan
+   :request (:request plan)
+   :evaluation (:evaluation result)
+   :evidence-artifact (:evidence-artifact result)})
+
+(defn- rehash-receipt
+  [receipt]
+  (assoc receipt :receipt-hash
+         (hc/domain-hash :programme-receipt-v1 (dissoc receipt :receipt-hash))))
 
 ;; ---------------------------------------------------------------------------
 ;; SP-C.1 — plan identity
@@ -157,9 +171,7 @@
 (deftest tampered-receipt-fails-verification
   (let [result (prog/run-programme a-plan)
         receipt (:receipt result)
-        artifacts {:request (:request a-plan)
-                   :evaluation (:evaluation result)
-                   :evidence-artifact (:evidence-artifact result)}]
+        artifacts (receipt-artifacts a-plan result)]
     (is (= :passed (:status (prog/verify-programme-receipt artifacts receipt))))
     (doseq [field [:result-root :validation-status :evidence-root]]
       (let [tampered (assoc receipt field
@@ -168,14 +180,66 @@
         (is (= :failed (:status v)) (str field))
         (is (some #(= field (:field %)) (:mismatches v)) (str field " mismatch reported"))))))
 
+(deftest receipt-verification-binds-plan-stage-identities-and-hash
+  (let [result (prog/run-programme a-plan)
+        receipt (:receipt result)
+        artifacts (receipt-artifacts a-plan result)
+        bad-hash (assoc receipt :receipt-hash (apply str (repeat 64 "0")))
+        changed-plan-root (rehash-receipt
+                           (assoc receipt :programme-plan-root (apply str (repeat 64 "1"))))
+        changed-stage-ids (rehash-receipt
+                           (assoc-in receipt [:stage-ids :allocation] "substituted"))
+        claimed-proof (rehash-receipt
+                       (-> receipt
+                           (assoc-in [:stages :proof] :completed)
+                           (assoc-in [:stages :admission] :completed)))]
+    (is (= :passed (:status (prog/verify-programme-receipt artifacts receipt))))
+    (doseq [[candidate expected-field]
+            [[bad-hash :receipt-hash]
+             [changed-plan-root :programme-plan-root]
+             [changed-stage-ids :stage-ids]
+             [claimed-proof :stages]]]
+      (let [verification (prog/verify-programme-receipt artifacts candidate)]
+        (is (= :failed (:status verification)))
+        (is (some #(= expected-field (:field %)) (:mismatches verification)))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (prog/run-programme (assoc-in a-plan [:stages :proof] :requested)))
+        "the current runner rejects unimplemented optional stages before execution")))
+
+(deftest receipt-verification-requires-plan-request-to-match-execution-request
+  (let [result (prog/run-programme a-plan)
+        receipt (:receipt result)
+        artifacts (assoc (receipt-artifacts a-plan result)
+                         :plan (assoc-in a-plan [:request :amount] 11))
+        verification (prog/verify-programme-receipt artifacts receipt)]
+    (is (= :failed (:status verification)))
+    (is (some #(= :plan/request-root (:field %)) (:mismatches verification)))))
+
+(deftest receipt-verification-binds-evaluation-to-plan-request
+  (let [result (prog/run-programme a-plan)
+        receipt (:receipt result)
+        changed-request (assoc (:request a-plan) :amount 11)
+        changed-evaluation (pro-rata-evaluation/evaluate-pro-rata-allocation changed-request)
+        changed-verdict (prog/programme-validation-result changed-evaluation)
+        changed-evidence (prog/programme-evidence-artifact
+                          {:programme/id (:programme/id a-plan)
+                           :request (:request a-plan)
+                           :evaluation changed-evaluation
+                           :validation-status (:status changed-verdict)
+                           :validation-details (:details changed-verdict)})
+        artifacts (assoc (receipt-artifacts a-plan result)
+                         :evaluation changed-evaluation
+                         :evidence-artifact changed-evidence)
+        verification (prog/verify-programme-receipt artifacts receipt)]
+    (is (= :failed (:status verification)))
+    (is (some #(= :evaluation/request-root (:field %)) (:mismatches verification)))))
+
 (deftest each-derived-aggregate-verdict-field-is-the-verifier-derives
   "The receipt's aggregate verdict is independently re-derived, so a tampered
    aggregate cannot pass even when the constituent roots are unchanged."
   (let [result (prog/run-programme a-plan)
         receipt (:receipt result)
-        artifacts {:request (:request a-plan)
-                   :evaluation (:evaluation result)
-                   :evidence-artifact (:evidence-artifact result)}]
+        artifacts (receipt-artifacts a-plan result)]
     (is (= :passed (:status (prog/verify-programme-receipt artifacts receipt)))
         "baseline receipt verifies, including all derived aggregate fields")
     (let [deltas [{:field :semantic/status :value :fail}
@@ -207,6 +271,25 @@
     (is (= 1 (:unsupported (:summary verdict))))
     (is (= :passed (:status (:reconciliation reconciliation))))
     (is (not= :pass (:semantic/status verdict)) "an unsupported verdict is not a pass")))
+
+(deftest unexecuted-optional-stages-prevent-programme-completion
+  (let [base {:allocation :completed
+              :validation :passed
+              :evidence :completed
+              :statement :not-requested
+              :proof :not-requested
+              :verification :not-requested
+              :admission :not-requested}
+        reconciliation {:status :passed}
+        requested (prog/derive-programme-verdict
+                   {:stage-statuses (assoc base :proof :requested)
+                    :reconciliation reconciliation})
+        unsubstantiated-claim (prog/derive-programme-verdict
+                               {:stage-statuses (assoc base :proof :completed)
+                                :reconciliation reconciliation})]
+    (doseq [verdict [requested unsubstantiated-claim]]
+      (is (= :incomplete (:semantic/status verdict)))
+      (is (= :executing (:programme/status verdict))))))
 
 ;; ---------------------------------------------------------------------------
 ;; The SP-C invariant: programme validation = exact verifier result, and
