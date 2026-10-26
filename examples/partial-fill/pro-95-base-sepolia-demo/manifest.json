@@ -12,11 +12,11 @@
   "artifacts": {
     "readme": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/README.md",
-      "sha256": "aa4d3ecb325ca6610a076e5a8e9fce597bda424fd3cdacf876dac5f6bb91aa40"
+      "sha256": "8b7a680f707ec508471005d4de32108a222d080b37174e3778da7937dd11907b"
     },
     "testnetPreparation": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/TESTNET_PREPARATION.md",
-      "sha256": "91411da3bf54da7ebada8262becae1c2cd58696561a3d34a1c217478e0ffe1bf"
+      "sha256": "7851fc6d350faf917407f043ca2c57cebc2281e9c60539f643b28d9f00c49e0e"
     },
     "stageBDemoPackage": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-b-demo-package.edn",
@@ -28,7 +28,7 @@
     },
     "stageCStatus": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-c-evidence-status.edn",
-      "sha256": "e8d1d492e447a1fc07aef8a362dd379a3374d195c7622163f56e07ff9a327f24"
+      "sha256": "1238c98c94796b2856a5e77e36fb3c2e443bfaada705eaeb43c286ec14ca0bd7"
     },
     "stageBVerifier": {
       "path": "scripts/forensic/verify-pro95-base-sepolia-demo-package.clj",
@@ -57,14 +57,32 @@
     "canonicalRootDerivation": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/configuration-root-derivation.json",
       "sha256": "895316624eb7fc7f9470097c72ee99b742fb46b1d16b12ffffbddc10bca128ea"
+    },
+    "finalityQualification": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/FINALITY_QUALIFICATION.md",
+      "sha256": "963d978dceb9430519810ccf760c47668733029eeb7925e7135ac2460987d452"
     }
   },
   "scopeLimitations": [
     "synthetic source, reserve, policy, beneficiary, and funding data in the Stage B fixture",
     "generated demo signing keys and bundled trust policy",
-    "Circle Base Sepolia testnet USDC is selected as the intended external asset, but no current token query, funding, allowance, transfer, or deployment is evidenced",
-    "no public transaction; Stage B does not establish external USDC balance or transfer behavior",
-    "no independently selected header trust context or freshness/reorg policy; no Base finality evidence",
+    "Circle Base Sepolia testnet USDC is selected as the intended external asset; matching proxy/implementation metadata was observed read-only at block 50091313, but source authentication and transfer behavior were not tested",
+    "at block 50204763, the signer had zero ETH, zero USDC, and nonce zero at both queried endpoints; allowance was not observed. No public transaction, deployment, funding, or run-block state is evidenced",
+    "recipient native-ETH balances were zero only in single-provider unpinned latest queries on 2026-10-23; the 2026-10-25 block-pinned signer preflight did not recheck recipients, so current recipient balances are unknown",
+    "the signer and payer had zero ETH and USDC, respectively, at block 50204763, but current balances are unknown and require rechecking before a run; allowance was not observed",
+    "the block-pinned preflight was below both endpoint heads at capture; it is not a latest-head or trust-anchor claim",
+    "no independently reviewed header trust pin or freshness/reorg policy; no receipt inclusion result and no Base safe/finalized evidence",
+    "no L1 withdrawal-output finalization evidence; this separate claim is out of scope",
     "not a pre-mainnet release qualification"
-  ]
+  ],
+  "externalEvidence": {
+    "baseSepoliaBalancePreflight": {
+      "repository": "protocol-deployments",
+      "path": "config/pro-95-base-sepolia-demo/observations/usdc-funding-preflight-20261025-50204763.json",
+      "sha256": "b9889d3d187a9a0d09d0a358261d76089138e698d0e611b1a4b76d1e825b90fc",
+      "blockNumber": 50204763,
+      "blockHash": "0x0472d6d8d50c6e5b6f9370340ec2c0a197c154df69165a0238a97bd387e2d4c8",
+      "qualification": "matching read-only RPC observations; not independently reviewed trust or finality evidence"
+    }
+  }
 }

@@ -8,6 +8,17 @@
  {:status :not-run
   :reason :no-reviewed-base-sepolia-demo-deployment-package
   :template-status :owner-approval-required}
+ :artifact-bundle
+ {:status :local-review-candidate-not-pinned-release
+  :package "@protocol-robustness/prf-evm-deployables"
+  :version "0.4.3"
+  :bundle-root "d416816527400fcc7bc7455a1486c1bc20cb94ed556473d0c695a83ea09e2dba"
+  :source-revision "f23fcfc2d0f58e2be5732c0c37ddb179c323d513"
+  :source-commit-source :env
+  :source-commit-override? true
+  :source-published? false
+  :contains-v3-reserve-artifact? true
+  :nonlocal-deployment-eligible? false}
  :canonical-roots
  {:status :candidate-roots-derived
   :qualification :derived-only-not-approved
@@ -22,28 +33,52 @@
   :decimals 6
   :demo-minting? false
   :historical-source-parity-artifact "protocol-deployments/config/pro-rata-v2-entitlement/circle-base-sepolia-usdc-source-parity.v1.json"
-  :current-implementation-observation :required-before-run
-  :payer-balance-and-allowance :not-observed}
+  :implementation-observation
+  {:status :matching-cross-provider-read-only-observation-not-qualified
+   :block 50091313
+   :block-hash "0x6f025c552b5df58108ae1bd753a511d3f87c0804005abcf948a2e0541816334c"
+   :proxy-code-keccak256 "0xedc5281a85c0efecd49999a1ef668390c59b88702f2d4a07029d7f5d63059d6c"
+   :implementation "0xd74cc5d436923b8ba2c179b4bca2841d8a52c5b5"
+   :implementation-code-keccak256 "0x1254951e5483b882fd5def9452f58fe786eb3380c0bf9bb2744fa21a0a97a16c"
+   :name "USDC"
+   :symbol "USDC"
+   :decimals 6
+   :paused? false
+   :transfer-behavior :not-tested
+   :source-authentication :not-performed
+   :artifact "protocol-deployments/config/pro-95-base-sepolia-demo/observations/usdc-read-only-20261025.json"}
+  :payer-balance-and-allowance
+  {:usdc-balance-base-units "0"
+   :eth-balance-wei "0"
+   :balance-block 50204763
+   :nonce 0
+   :observation-artifact "protocol-deployments/config/pro-95-base-sepolia-demo/observations/usdc-funding-preflight-20261025-50204763.json"
+   :observation-sha256 "b9889d3d187a9a0d09d0a358261d76089138e698d0e611b1a4b76d1e825b90fc"
+   :observation-block-hash "0x0472d6d8d50c6e5b6f9370340ec2c0a197c154df69165a0238a97bd387e2d4c8"
+   :allowance :not-observed}}
  :signer
- {:status :generated-test-only-unfunded
+ {:status :generated-test-only
   :address "0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4"
   :key-storage :encrypted-foundry-keystore-outside-repository
   :passphrase-storage :local-system-keyring
   :run-approval? false
-  :eth-funding-status :unfunded
+  :eth-funding-status :zero-at-observation
+  :funding-currentness :unknown
   :observed-balance-wei 0
-  :balance-observation-block 49260186
-  :balance-observation-source "https://sepolia.base.org"}
+  :balance-observation-block 50204763
+  :balance-observation-source "Base public RPC and PublicNode; matching read-only observations, not independent trust anchors"}
  :rpc
- {:candidate-endpoint "https://sepolia.base.org"
-  :status :single-provider-read-only-observed
+ {:candidate-endpoints ["https://sepolia.base.org" "https://base-sepolia-rpc.publicnode.com"]
+  :status :matching-cross-provider-read-only-observed-not-independently-reviewed
   :chain-id 84532
-  :head-number 49259922
-  :head-hash "0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e"
-  :client-version "reth/v2.5.2-7134be3/x86_64-unknown-linux-gnu/base/v1.5.0"
-  :capture-artifact "rpc-preflight-20261023.json"
+  :head-numbers {:base-rpc 50210714 :publicnode 50210721}
+  :observation-block-number 50204763
+  :observation-block-hash "0x0472d6d8d50c6e5b6f9370340ec2c0a197c154df69165a0238a97bd387e2d4c8"
+  :capture-artifacts ["protocol-deployments/config/pro-95-base-sepolia-demo/observations/usdc-read-only-20261025.json"
+                      "protocol-deployments/config/pro-95-base-sepolia-demo/observations/usdc-funding-preflight-20261025-50204763.json"]
+  :selected-block-is-below-capture-heads? true
   :independent-trust? false
-  :second-source-candidate :blockscout-matching-header-not-selected
+  :provider-independence-reviewed? false
   :finality-established? false}
  :beneficiaries
  {:status :owner-approved-test-only-pseudonyms-pending-package-binding
@@ -51,7 +86,13 @@
    :alice "0x8bDd01C7DEad0AbE3e855b458B820D9d727bCCBF"
    :bob "0x867Caab852f942Ff80B6409109F1DB76D4ecB36B"
    :carol "0xA57F019D83d1fbbc48500047bA27d21523fE55A8"}
-  :balances :zero-at-latest-single-provider-query
+  :balance-observation
+  {:status :zero-native-eth-at-unpinned-latest-single-provider-query
+   :captured-at "2026-10-23T19:19:58Z"
+   :endpoint "https://sepolia.base.org"
+   :artifact "rpc-preflight-20261023.json"
+   :token-balances :not-observed
+   :current-balance :unknown}
   :identity-authentication :not-performed}
  :receipt-inclusion
  {:status :not-run
@@ -61,7 +102,12 @@
   :reason :source-independence-genesis-ancestry-and-freshness-reorg-policy-unreviewed}
  :finality
  {:status :unverified
-  :reason :safe-finalized-claim-out-of-scope-for-demo-and-no-l1-derivation-verifier}
+  :qualification-plan "FINALITY_QUALIFICATION.md"
+  :maximum-intended-demo-claim :receipt-inclusion-under-external-header-pin
+  :base-safe-l2 :not-implemented-or-qualified
+  :base-finalized-l2 :not-implemented-or-qualified
+  :l1-withdrawal-output-finalization :out-of-scope
+  :reason :no-public-transaction-no-independent-header-pin-no-base-l1-derivation-verifier}
  :remaining-evidence
  [:reviewed-base-sepolia-demo-deployment-and-verifier-identities
   :approved-transaction-count-and-numeric-eth-spend-cap

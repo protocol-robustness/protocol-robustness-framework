@@ -1,0 +1,32 @@
+{
+  "schema": "prf/onchain-shortfall-v2-assurance-fixture.v1",
+  "prepared-operation": {
+    "operation-id": "0x0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+    "initiator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "chain-id": "31337",
+    "reserve": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
+    "token": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+    "allocator": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
+    "configuration-root": "0x3333333333333333333333333333333333333333333333333333333333333333",
+    "configuration-epoch": "0",
+    "source-verifier-id": "0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    "execution-verifier-id": "0x0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+    "source-program-vkey": "0x001a02db58bcdc32d8990f88e83f41a9ab561629c125719744904a5f3836c6d8",
+    "source-program-elf-sha256": "0x808ffa976076b588c22981218413452e91f6cc97a72c16b4e6657118c5e3c2e5",
+    "source-statement-schema": "0x1a6a1f7b90e40b7c254aba8cadbb8f4a7d4fec232b783c39cd648f10896b097a",
+    "source-public-values-schema": "0xa069c379e311996c73ea1f69edb070bfddbb573b770b3c5aec52bad4b255aa87",
+    "execution-statement-schema": "0x0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+    "execution-public-values-schema": "0x0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e",
+    "policy-root": "0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+    "residual-recipient": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  },
+  "economic-reserve-state": {
+    "gross-balance": "100",
+    "reserved-before": "0",
+    "protected-capital": "10",
+    "available-amount": "90",
+    "availability-revision": "0"
+  },
+  "allocation-binding-root": "0x1010101010101010101010101010101010101010101010101010101010101010",
+  "realized-statement-root": "0x1111111111111111111111111111111111111111111111111111111111111111"
+}

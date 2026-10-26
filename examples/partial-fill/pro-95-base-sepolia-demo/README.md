@@ -41,6 +41,9 @@ fixture arithmetic. It does not trust the embedded verification summary.
 See [`TESTNET_PREPARATION.md`](./TESTNET_PREPARATION.md) for the owner inputs,
 configuration fields, safe setup, transaction evidence, Base finality gates,
 and completion checklist required before any testnet run.
+[`FINALITY_QUALIFICATION.md`](./FINALITY_QUALIFICATION.md) defines the
+demonstration's evidence classes and expressly separates receipt inclusion,
+Base safe/finalized L2 status, and L1 withdrawal-output finalization.
 
 `stage-c-evidence-status.edn` records that public-chain qualification has not
 run. The Base Sepolia deployment templates under `etc/deployments/prf-base-sepolia/`
@@ -52,22 +55,31 @@ A dedicated encrypted test-only deployer and three encrypted recipient wallets
 have been generated outside the repository at the owner-approved secure
 location. Their public addresses are recorded in
 [`demo-recipient-wallets.json`](./demo-recipient-wallets.json); their mapping is
-approved for this demonstration, but they are unfunded and not yet bound into
-the Base Sepolia witness/proof. The approval and its exclusions are recorded in
+approved for this demonstration, but they are not yet bound into the Base
+Sepolia witness/proof. The recipients returned zero native ETH in a
+single-provider, unpinned `latest` observation on 2026-10-23; current recipient
+balances are unknown. The signer and payer returned zero ETH and USDC,
+respectively, at the block-pinned 2026-10-25 preflight; their current balances
+also require rechecking. The approval and its exclusions are recorded in
 [`owner-decisions-20261023.edn`](./owner-decisions-20261023.edn); it does not
 set a transaction count, gas cap, or funding amount. No testnet transaction has
 been signed or broadcast. One test-only EOA is
 approved to act as deployer, USDC payer/funder, configuration authority, and
 withdrawal relayer; this is centralized demonstration control, not independent
-authority separation. A read-only preflight
-from `https://sepolia.base.org` returned chain ID `84532` and head
-`49259922` (`0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e`); see
-[`rpc-preflight-20261023.json`](./rpc-preflight-20261023.json). This is a
-single-provider observation, not independent header or finality evidence.
-Blockscout reports the same hash for this block; it remains only a candidate
-second observer, not a selected trust anchor. At
-block 49260186, the deployer balance was reported as zero; the raw Foundry
-result is retained with the block-pinned balance query in the preflight artifact.
+authority separation. A read-only token/source observation at block
+`50091313`, hash
+`0x6f025c552b5df58108ae1bd753a511d3f87c0804005abcf948a2e0541816334c`,
+is retained in `protocol-deployments` at
+`config/pro-95-base-sepolia-demo/observations/usdc-read-only-20261025.json`.
+A separate balance preflight at block `50204763`, hash
+`0x0472d6d8d50c6e5b6f9370340ec2c0a197c154df69165a0238a97bd387e2d4c8`,
+found zero deployer ETH, zero payer USDC and nonce zero at both queried RPCs;
+allowance was not observed. Its raw request/response artifact is
+`config/pro-95-base-sepolia-demo/observations/usdc-funding-preflight-20261025-50204763.json`
+(SHA-256 `b9889d3d187a9a0d09d0a358261d76089138e698d0e611b1a4b76d1e825b90fc`).
+Both records are read-only observations, not independent trust or finality
+evidence. The older single-provider preflight remains available at
+[`rpc-preflight-20261023.json`](./rpc-preflight-20261023.json).
 
 Stage C still requires a demonstration deployment and verifier configuration,
 a numeric transaction and ETH spend cap, a Base Sepolia-bound source
