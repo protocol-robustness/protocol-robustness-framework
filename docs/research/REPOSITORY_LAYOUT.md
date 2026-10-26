@@ -36,14 +36,13 @@ four root trees.
 | `portable-pro-rata-contract/` | Historical mixed allocation/effect-transition contract bundle with a manifest-bound release root. | Preserve its path and bytes while consumers still verify that historical identity. The effect-transition candidate is not yet an admitted PRF dependency. |
 | `pro-rata-evm-v2-conformance/` | EVM V2 conformance inputs and rejection vectors for the PRF/EVM assurance boundary. | Keep with that boundary; it is not part of the portable allocator package. |
 
-The remaining extraction work is specific: reconcile the effect-transition
-pin recorded in `EXTRACTED_REPOSITORIES.md` with the actual root `deps.edn`
-classpath (which does not currently load that package); decide how the
-independent reference suite will be distributed; and only then move the
-historical mixed bundle behind an explicit compatibility path. Until the pin
-and classpath agree, do not describe the effect-transition candidate as an
-active PRF dependency. Do not rename canonical identities, namespaces,
-schemas, or roots as part of filesystem cleanup.
+The remaining extraction work is specific: keep the effect-transition
+repository clearly marked as a candidate until its consumer pin and package
+qualification are settled; close the remaining cross-language fixture-drift
+check; and decide how the independent reference suite will be distributed.
+Only then consider moving the historical mixed bundle behind an explicit
+compatibility path. Do not rename canonical identities, namespaces, schemas,
+or roots as part of filesystem cleanup.
 
 ## Test keys and extensions
 
