@@ -1,0 +1,38 @@
+{
+  "schema": "ao-real-v2-source-state.v1",
+  "capturedAt": "2026-10-25T18:02:45Z",
+  "assuredOperations": {
+    "jjWorkingCopyChangeId": "rurpymswupvlzsxlylksstrrxpvnxvos",
+    "jjParentChangeId": "pkuzukpzvvzutvrtwsmunloluwspzsmz",
+    "relevantSourceInventorySha256": "e0dee2ea0faa4b804ee26ada261e81173203cf6986dcd7643546350782d11969",
+    "coprocessorRoot": "@COPROCESSOR_ROOT",
+    "proverSha256": "6dea41e053796b456115cbfe96bdd1bc1147947ee6722a8e1bb838a5c0c0563d",
+    "rustcVersion": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "cargoVersion": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+    "identityFixtureSource": "@PRF_EVM_ROOT/fixtures/source-bound-v2-identity.json",
+    "identityFixtureSha256": "8fc121322b2ca6c36efc00a8738f496394df4afd46d164b67f7c3e8388939bf2"
+  },
+  "runnerConfiguration": {
+    "chainInstanceGenesisRoot": "0x5555555555555555555555555555555555555555555555555555555555555555"
+  },
+  "prfEvm": {
+    "gitHead": "fa91f060f8b286cedabaa0c758c90fbddb2fe6cd",
+    "gitStatusPorcelain": " A broadcast/PrepareBoundedConfigurationW6.s.sol/31337/run-1792770769138.json\n A broadcast/PrepareBoundedConfigurationW6.s.sol/31337/run-latest.json\n A fixtures/.ao-real-v2-real-v2-sp1-extracted-final-20261020/gate-e-deployment-manifest.json\n A fixtures/.ao-real-v2-real-v2-sp1-extracted-final-20261020/source-bound-v2-proof-fixture.json\n A fixtures/.ao-real-v2-real-v2-sp1-extracted-rerun-20261020/gate-e-deployment-manifest.json\n A fixtures/.prf-coprocessor-qualification-20261020/gate-e-deployment-manifest.json\n A fixtures/.prf-coprocessor-qualification-20261020/source-bound-v2-proof-fixture.json\n A script/PrepareBoundedConfigurationW6.s.sol",
+    "gitSubmoduleStatus": " e3386f2f9cc5ebf16ec5370869d5a49cdb85a0cb lib/forge-std (v1.14.0-1-ge3386f2)\n cab19933c33c2ad1d4c7a84864a3601dddfd16f3 lib/openzeppelin-contracts (v4.8.0-1217-gcab19933)\n-232ff9ba8194e406967f52ecc5cb52ed764209e9 lib/openzeppelin-contracts/lib/erc4626-tests\n-1801b0541f4fda118a10798fd3486bb7051c5dd6 lib/openzeppelin-contracts/lib/forge-std\n-7328abe100445fc53885c21d0e713b95293cf14c lib/openzeppelin-contracts/lib/halmos-cheatcodes\n d3629729c3216eb51bd4859d027a8eb729399fa4 lib/sp1-contracts (v6.1.1)\n 978ac6fadb62f5f0b723c996f64be52eddba6801 lib/sp1-contracts/contracts/lib/forge-std (v1.8.2)\n dbb6104ce834628e473d2173bbc9d47f81a9eec3 lib/sp1-contracts/contracts/lib/openzeppelin-contracts (v5.0.0-12-gdbb6104ce)\n 8b1d7c2ac248c33c3506b1bff8321758943c5e11 lib/sp1-contracts/contracts/lib/openzeppelin-contracts/lib/erc4626-tests (v0.1.0)\n eb980e1d4f0e8173ec27da77297ae411840c8ccb lib/sp1-contracts/contracts/lib/openzeppelin-contracts/lib/forge-std (v1.2.0)\n cd98eff28324bfac652e63a239a60632a761790b lib/sp1-contracts/contracts/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test (remotes/origin/windows-compat-17-gcd98eff)",
+    "trackedDiffSha256": "075342e7be9a9c69b2a89948f2b57c2d2ab11918694ad0c338ecb4d86b3089fc",
+    "relevantSourceInventorySha256": "00ef8083b85ede86b871230587b451a583061dfb880603fa8fe05fb577a8f253",
+    "forgeVersion": "forge Version: 1.7.1"
+  },
+  "portableExport": {
+    "schema": "ao-source-state-portable-export.v1",
+    "pathRoots": {
+      "@AO_ROOT/": "Assured Operations repository root",
+      "@COPROCESSOR_ROOT/": "pinned coprocessor checkout root",
+      "@PRF_EVM_ROOT/": "PRF-EVM checkout root"
+    },
+    "sourceContentHashesUnchanged": true,
+    "originalCapturedSourceStateSha256": "f8d1439d967edfa017aa397c5bd056623d463819f49c4960fedd05b390672a64",
+    "originalAoInventorySha256": "6c96e34f4c477c5a2108ba4a07dbeb56cda54d7e882d69ed8f83d7cdc4e7ec75",
+    "originalPrfInventorySha256": "e09730343160bb70a5c35ac64e8074a132c3f28da7816afa43f4c17f197153ea"
+  }
+}

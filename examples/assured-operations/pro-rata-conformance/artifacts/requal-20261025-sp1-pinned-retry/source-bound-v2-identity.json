@@ -1,0 +1,31 @@
+{
+  "schema_version": "source-bound-v2-identity.v1",
+  "status": "source-built-proof-generated-local-qualification",
+  "sp1_version": "6.3.1",
+  "sp1_source_commit": "8252c2905ce32964df68248117015c61ebb854db",
+  "sp1_circuit_version": "v6.1.0",
+  "verifier_contract_family": "sp1-contracts/v6.1.0",
+  "verifier_contract_source_commit": "d362972",
+  "verifier_hash": "0x4388a21c687fdd5f218d7e3d13190cac4c5355818d3605fd5fb811df468ee696",
+  "verifier_vk_root": "0x002f850ee998974d6cc00e50cd0814b098c05bfade466d28573240d057f25352",
+  "groth16_verifier_source_sha256": "0x48e1db5baca3b102242ebd88280b3689a088076688146cd0d98876f5dacb76d0",
+  "groth16_library_source_sha256": "0x01ab92508b9d56556ee247c7cb6b2ebd9c17835a4618896462b2a3a8708a50bf",
+  "sp1_generator_provenance": "local-source-build-from-prf-coprocessor",
+  "sp1_verifier_validation": "passed:GateEDeploymentDerivedRealProofTest:local-anvil",
+  "proof_system": "groth16",
+  "program_id": "source-bound-v2-sp1-program.v2",
+  "vkey": "0x001a02db58bcdc32d8990f88e83f41a9ab561629c125719744904a5f3836c6d8",
+  "elf_sha256": "0x808ffa976076b588c22981218413452e91f6cc97a72c16b4e6657118c5e3c2e5",
+  "statement_schema": "prf/onchain-shortfall-allocation-binding.v2",
+  "public_values_schema": "prf/onchain-shortfall-allocation-binding-public-values.v2",
+  "public_values_length_bytes": 192,
+  "canonical_public_values_sha256": "0xe5d90531ca8aeff403723fc095f789c338153efeab28fc587d01fee34dcb5dac",
+  "proof_fixture": {
+    "path": "source-bound-v2-proof-fixture.json",
+    "status": "source-built-proof-generated-local-qualification",
+    "vkey": "0x001a02db58bcdc32d8990f88e83f41a9ab561629c125719744904a5f3836c6d8",
+    "elf_sha256": "0x808ffa976076b588c22981218413452e91f6cc97a72c16b4e6657118c5e3c2e5",
+    "proof_sha256": "0x82a38e65d9430c99759bb2f375763621c66ae3d702ea3ad36edf6fb570fb32ed",
+    "public_values_sha256": "0xe5d90531ca8aeff403723fc095f789c338153efeab28fc587d01fee34dcb5dac"
+  }
+}
