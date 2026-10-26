@@ -14,7 +14,7 @@ dependency pins are recorded in
 | `protocols_src/` and `protocols/` | Protocol-specific models, tests, and protocol definitions. |
 | `extensions/` | Separately packaged capabilities. Current packages include `force-authorisation` and `held-custody`. |
 | `packages/` | Package metadata, local package boundaries, and linkage to extracted dependencies. |
-| `coprocessor/` | Compatibility entry point for the extracted Rust/SP1 proving repository. |
+| `data/prf/external-repositories.json` and `scripts/setup-prf-coprocessor.sh` | Pin and explicitly prepare the extracted Rust/SP1 proving repository. |
 | `test/` and `protocols_src/test/` | Framework and protocol regression tests. |
 | `scenarios/`, `data/`, `resources/`, and `schemas/` | Scenario inputs, fixtures, canonical resources, and schema definitions. |
 | `examples/`, `notebooks/`, and `docs/` | Demonstrations, research notebooks, architecture, and operator guidance. |
