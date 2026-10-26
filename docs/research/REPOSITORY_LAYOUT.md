@@ -46,12 +46,11 @@ or roots as part of filesystem cleanup.
 
 ## Test keys and extensions
 
-`test-keys/` is active test and local-demo material. The researcher signing key
-is read by protocol and benchmark tests and by the ratification demo generator;
-release-signing key paths are used by the assurance-lab scripts. It should not
-be deleted as unused. A later path-only move into a clearly named test-fixture
-location is possible after the scripts and test working-directory assumptions
-are updated together.
+`test/fixtures/signing-keys/` contains active test and local-demo signing
+fixtures. The researcher key pair is read by protocol and benchmark tests and
+by the ratification demo generator. The release-signing pair and policy files
+are retained unchanged; no in-repository code refers to those specific files.
+They should be removed only after their external/manual use has been ruled out.
 
 The two directories under `extensions/` are already separately packaged. More
 code should move there only when a capability has a stable public boundary,

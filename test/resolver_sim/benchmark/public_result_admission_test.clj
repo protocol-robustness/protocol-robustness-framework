@@ -6,8 +6,8 @@
             [resolver-sim.benchmark.researcher-run-report :as rrr]
             [resolver-sim.hash.canonical :as hc]))
 
-(def ^:private test-priv-key "test-keys/test-researcher-signing-key")
-(def ^:private test-pub-key "test-keys/test-researcher-signing-key.pub")
+(def ^:private test-priv-key "test/fixtures/signing-keys/test-researcher-signing-key")
+(def ^:private test-pub-key "test/fixtures/signing-keys/test-researcher-signing-key.pub")
 
 (defn- root [c]
   (str "sha256:" (apply str (repeat 64 (first c)))))
@@ -161,7 +161,7 @@
         adm (sut/build sr m (pub-key))]
     (is (string? (:verifying-key (get-in adm [:admission/authenticity]))))
     (is (not (str/includes? (:verifying-key (get-in adm [:admission/authenticity]))
-                            "test-keys")))))
+                            "test/fixtures/signing-keys")))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Tamper resistance

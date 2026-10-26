@@ -6,8 +6,8 @@
             [resolver-sim.hash.reference :as ref]
             [resolver-sim.research.ratification :as ratification]))
 
-(def ^:private private-key "test-keys/test-researcher-signing-key")
-(def ^:private public-key "test-keys/test-researcher-signing-key.pub")
+(def ^:private private-key "test/fixtures/signing-keys/test-researcher-signing-key")
+(def ^:private public-key "test/fixtures/signing-keys/test-researcher-signing-key.pub")
 (def ^:private signed-at "2026-01-01T00:00:00Z")
 
 (defn- root [value]
