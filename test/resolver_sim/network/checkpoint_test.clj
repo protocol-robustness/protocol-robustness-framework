@@ -205,6 +205,21 @@
               (:errors (checkpoint/verify-certificate (:checkpoint f) wrong-network-cert
                                                       (:policy f) (:membership f)))))))
 
+(deftest malformed-endorsement-envelope-is-a-typed-invalid-result
+  (let [f (fixture)
+        dir (Files/createTempDirectory "checkpoint-malformed-signature-test"
+                                       (make-array java.nio.file.attribute.FileAttribute 0))
+        valid-certificate (signed-certificate f [0 1] dir)
+        body (assoc-in (dissoc valid-certificate :certificate/root)
+                       [:certificate/endorsements 0 :signature] nil)
+        malformed-certificate
+        (assoc body :certificate/root (checkpoint/certificate-root body))
+        result (checkpoint/verify-certificate (:checkpoint f) malformed-certificate
+                                              (:policy f) (:membership f))]
+    (is (= :invalid (:status result)))
+    (is (false? (:valid? result)))
+    (is (some #{:certificate/invalid-envelope-shape} (:errors result)))))
+
 (deftest durable-witness-lock-survives-restart-and-blocks-equivocation
   (let [f (fixture)
         dir (Files/createTempDirectory "checkpoint-lock-test" (make-array java.nio.file.attribute.FileAttribute 0))
@@ -228,6 +243,73 @@
     (is (true? (:reused? restarted-signature)))
     (is (= (:signature first-signature) (:signature restarted-signature)))
     (is (= :witness/equivocation-lock error))))
+
+(deftest durable-witness-lock-recovers-across-fresh-processes
+  (let [f (fixture)
+        dir (Files/createTempDirectory "checkpoint-lock-process-test"
+                                       (make-array java.nio.file.attribute.FileAttribute 0))
+        store (.resolve dir "witness.edn")
+        package-file (.resolve dir "input.edn")
+        member (first (:members f))
+        private-key-base64 (.encodeToString (Base64/getEncoder)
+                                            (.getEncoded (.getPrivate ^KeyPair (first (:pairs f)))))
+        write-package! (fn [candidate]
+                         (spit (.toFile package-file)
+                               (pr-str {:checkpoint candidate
+                                        :predecessor (:genesis f)
+                                        :policy (:policy f)
+                                        :membership (:membership f)
+                                        :principal-id (:principal/id member)
+                                        :key-id (:key/id member)
+                                        :private-key-base64 private-key-base64
+                                        :store-path (.toString store)})))
+        run-process! (fn []
+                       (let [result (shell/sh "clojure" "-M:test" "-m"
+                                              "resolver-sim.network.checkpoint-witness-fresh-process"
+                                              (.toString package-file)
+                                              :dir (System/getProperty "user.dir"))]
+                         (is (= 0 (:exit result)) (:err result))
+                         (edn/read-string (:out result))))
+        competing (checkpoint/build-checkpoint
+                   (assoc (dissoc (:checkpoint f) :checkpoint/root)
+                          :checkpoint/proposer-id "other-publisher"))]
+    (write-package! (:checkpoint f))
+    (let [first-process (run-process!)
+          second-process (run-process!)]
+      (is (false? (:reused? first-process)))
+      (is (true? (:reused? second-process)))
+      (is (= (:signature first-process) (:signature second-process)))
+      (is (Files/exists store (make-array java.nio.file.LinkOption 0)))
+      (write-package! competing)
+      (is (= {:error :witness/equivocation-lock} (run-process!))))))
+
+(deftest witness-refuses-an-unenrolled-key-without-consuming-the-enrolled-lock
+  (let [f (fixture)
+        dir (Files/createTempDirectory "checkpoint-key-binding-test"
+                                       (make-array java.nio.file.attribute.FileAttribute 0))
+        store (.resolve dir "witness.edn")
+        member (first (:members f))
+        attacker (.generateKeyPair (KeyPairGenerator/getInstance "Ed25519"))
+        error (try
+                (checkpoint/endorse-checkpoint!
+                 (:checkpoint f) (:context f)
+                 {:principal/id (:principal/id member)
+                  :key/id (:key/id member)
+                  :private-key (.getPrivate attacker)
+                  :public-key (.getPublic attacker)
+                  :store-path store})
+                nil
+                (catch clojure.lang.ExceptionInfo e (:reason (ex-data e))))
+        store-created-after-rejection? (Files/exists store (make-array java.nio.file.LinkOption 0))
+        first-valid (endorsement f 0 store)
+        second-valid (endorsement f 1 (.resolve dir "witness-1.edn"))
+        certificate (checkpoint/build-certificate (:checkpoint f) [first-valid second-valid])
+        verification (checkpoint/verify-certificate (:checkpoint f) certificate
+                                                     (:policy f) (:membership f))]
+    (is (= :witness/signing-key-mismatch error))
+    (is (false? store-created-after-rejection?))
+    (is (:valid? verification))
+    (is (= :certified (:status verification)))))
 
 (deftest persistence-failure-never-returns-a-signature
   (let [f (fixture)

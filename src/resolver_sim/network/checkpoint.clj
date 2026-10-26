@@ -569,14 +569,22 @@
        (exact-fields? (:subject (:payload envelope)) #{:kind :hash})
        (exact-fields? (:signature envelope) #{:algorithm :key-id :value})))
 
+(defn- same-public-key? [left right]
+  (and (instance? java.security.PublicKey left)
+       (instance? java.security.PublicKey right)
+       (java.util.Arrays/equals ^bytes (.getEncoded ^java.security.PublicKey left)
+                                ^bytes (.getEncoded ^java.security.PublicKey right))))
+
 (defn- verify-endorsement [checkpoint membership endorsement]
   (let [member (some #(when (and (= (:principal/id %) (:principal/id endorsement))
                                  (= (:key/id %) (:key/id endorsement))) %) (:membership/members membership))
         envelope (:signature endorsement)
         public-key (when member (try (signing/parse-public-key-content (:key/public-key member))
                                      (catch Exception _ nil)))
-        verified (when public-key
-                   (signatures/verify-envelope* signature-profile envelope public-key))]
+        verified (when (and public-key (valid-signature-envelope? envelope))
+                   (try
+                     (signatures/verify-envelope* signature-profile envelope public-key)
+                     (catch Exception _ nil)))]
     (cond
       (nil? member) {:valid? false :reason :certificate/unknown-principal-or-key}
       (not (key-active-at? member (:checkpoint/epoch checkpoint)))
@@ -851,16 +859,26 @@
     (let [member (some #(when (and (= principal-id (:principal/id %))
                                    (= key-id (:key/id %))) %)
                        (get-in context [:membership :membership/members]))
-          epoch (:checkpoint/epoch checkpoint)]
+          epoch (:checkpoint/epoch checkpoint)
+          enrolled-public-key (when member
+                                (try
+                                  (signing/parse-public-key-content (:key/public-key member))
+                                  (catch Exception _ nil)))]
       (when-not (and member (key-active-at? member epoch))
         (throw (ex-info "Witness is not eligible under the checkpoint membership"
                         {:reason :witness/not-eligible-at-checkpoint-epoch})))
+      (when-not enrolled-public-key
+        (throw (ex-info "Witness membership has no valid enrolled public key"
+                        {:reason :witness/enrolled-public-key-invalid})))
       (when-not (and private-key public-key store-path)
         (throw (ex-info "Witness signing key and durable store are required"
                         {:reason :witness/missing-local-signing-material})))
+      (when-not (same-public-key? public-key enrolled-public-key)
+        (throw (ex-info "Witness signing key does not match its enrolled membership key"
+                        {:reason :witness/signing-key-mismatch})))
       (let [envelope (signatures/build-envelope* signature-profile
                                                  (:checkpoint/root checkpoint) key-id private-key)
-            checked (signatures/verify-envelope* signature-profile envelope public-key)
+            checked (signatures/verify-envelope* signature-profile envelope enrolled-public-key)
             _ (when-not (:valid? checked)
                 (throw (ex-info "Local key pair failed self-verification"
                                 {:reason :witness/local-signature-self-check-failed})))
