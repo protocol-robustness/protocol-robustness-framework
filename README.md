@@ -30,6 +30,8 @@ Extracted repository ownership and immutable source pins are recorded in
 [`docs/research/EXTRACTED_REPOSITORIES.md`](docs/research/EXTRACTED_REPOSITORIES.md).
 `make setup-coprocessor` explicitly prepares the pinned coprocessor checkout in
 the managed user cache; notebook and ordinary Clojure evaluation never clone it.
+For a quick map of the repository's top-level areas and the remaining extraction
+boundaries, see [`docs/research/REPOSITORY_LAYOUT.md`](docs/research/REPOSITORY_LAYOUT.md).
 
 Its strongest recent work focuses on **high-assurance execution boundaries**: exact-state authority, fenced finalization, deterministic reconstruction, cross-implementation conformance, portable evidence, and proof-backed protocol decisions.
 
