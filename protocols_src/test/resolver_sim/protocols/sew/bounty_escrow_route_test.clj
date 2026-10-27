@@ -60,7 +60,8 @@
 
 (deftest bulk-withdrawal-requires-complete-category-reconstruction
   (let [r (build)
-        base {:route r :workflow-id "workflow-17" :token :token/usdc
+        base {:route r :expected-obligation-root (:route/obligation-root r)
+              :workflow-id "workflow-17" :token :token/usdc
               :recipient (:route/beneficiary r) :withdrawn-amount 70
               :independently-reconstructed? true}]
     (is (= :unrelated-claim-categories
@@ -90,7 +91,8 @@
 
 (deftest attribution-binds-workflow-token-address-and-exact-amount
   (let [r (build)
-        base {:route r :workflow-id "workflow-17" :token :token/usdc
+        base {:route r :expected-obligation-root (:route/obligation-root r)
+              :workflow-id "workflow-17" :token :token/usdc
               :recipient (:route/beneficiary r) :withdrawn-amount 70
               :independently-reconstructed? true
               :category-deltas (categories 70)}]
@@ -127,6 +129,51 @@
            (route/append-event 42 {})))
     (is (= :invalid-route-set
            (:reason (route/verify-route r nil))))))
+
+(deftest payout-context-substitution-is-rejected
+  (let [r (build)
+        base {:route r :expected-obligation-root (:route/obligation-root r)
+              :workflow-id "workflow-17" :token :token/usdc
+              :recipient (:route/beneficiary r) :withdrawn-amount 70
+              :independently-reconstructed? true
+              :category-deltas (categories 70)}]
+    (testing "a route cannot be rebound to a different obligation or trust context"
+      (doseq [field [:route/obligation-root :route/payable-root
+                     :route/backing-root :route/chain-instance-root
+                     :route/funding-source-root]]
+        (let [mutated (assoc r field (root-ref \f))]
+          (is (= :invalid-route
+                 (:reason (route/verify-withdrawal-attribution
+                           (assoc base :route mutated))))
+              (str "reject substituted " field))))
+      (let [other-obligation (root-ref \f)]
+        (is (= :obligation-mismatch
+               (:reason (route/verify-withdrawal-attribution
+                         (assoc base :expected-obligation-root other-obligation))))
+            "payout attribution must use the route for the requested obligation")))
+    (testing "unknown or negative reconstructed categories fail closed"
+      (is (= :claim-categories-incomplete
+             (:reason (route/verify-withdrawal-attribution
+                       (assoc base :category-deltas
+                              (assoc (categories 70) :unclassified/credit 0))))))
+      (is (= :invalid-claim-category-amount
+             (:reason (route/verify-withdrawal-attribution
+                       (assoc base :category-deltas
+                              (categories 70 :settlement/yield -1)))))))))
+
+(deftest substituted-event-reference-is-not-receipt-authentication
+  (let [r (build)
+        deposited (:route (append-event r (event-data :deposit \a)))
+        substituted-event (assoc (first (:route/events deposited))
+                                 :event/evidence-root (root-ref \f))
+        substituted (assoc deposited :route/events [substituted-event])
+        substituted (assoc substituted :route/root (route/route-root substituted))
+        result (route/verify-route substituted [substituted])]
+    ;; The route only validates that this is a well-formed referenced root.
+    ;; It has no receipt verifier or trusted source binding, so the pointer
+    ;; substitution must not be described as detected/authenticated here.
+    (is (:valid? result))
+    (is (= :model-only (:trust-class result)))))
 
 (deftest escrow-input-events-are-bound-and-transitions-fail-closed
   (let [r (build)
@@ -181,7 +228,8 @@
         "a second withdrawal submission cannot be recorded before the first resolves")
     (is (= :withdrawal-amount-mismatch
            (:reason (route/verify-withdrawal-attribution
-                     {:route r :workflow-id "workflow-17" :token :token/usdc
+                     {:route r :expected-obligation-root (:route/obligation-root r)
+                      :workflow-id "workflow-17" :token :token/usdc
                       :recipient (:route/beneficiary r) :withdrawn-amount 69
                       :independently-reconstructed? true
                       :category-deltas (categories 70)})))
