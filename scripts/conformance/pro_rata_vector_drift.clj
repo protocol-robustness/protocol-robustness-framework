@@ -114,10 +114,33 @@
                         (.getBytes (str s) "UTF-8"))]
     (apply str (map #(format "%02x" (bit-and 0xff %)) digest))))
 
-(defn- tree-fingerprint [root relative-paths]
-  (let [entries (for [relative (sort relative-paths)
-                      :let [file (io/file root relative)]
-                      :when (.isFile file)]
+(defn- rust-source-paths [root]
+  (let [source-dirs (map #(io/file root %) ["rust/src" "rust/tests"])
+        present-dirs (filter #(.isDirectory ^java.io.File %) source-dirs)
+        source-files (for [dir present-dirs
+                           file (file-seq dir)
+                           :when (and (.isFile file) (str/ends-with? (.getName file) ".rs"))]
+                       (subs (.getCanonicalPath file)
+                             (inc (count (.getCanonicalPath (io/file root))))))]
+    (vec source-files)))
+
+(defn tree-fingerprint
+  "Fingerprint required files plus all Rust source/test files. Missing required inputs fail closed."
+  [root required-paths]
+  (let [required-paths (vec required-paths)
+        required-files (for [relative required-paths
+                             :let [file (io/file root relative)]]
+                         (do
+                           (when-not (.isFile file)
+                             (fail! "Fingerprint input is missing" {:root (str root) :path relative}))
+                           relative))
+        rust-files (rust-source-paths root)
+        _ (when (and (some #(str/starts-with? % "rust/") required-paths)
+                     (not-any? #(str/starts-with? % "rust/src/") rust-files))
+            (fail! "Required Rust source tree is missing or empty" {:root (str root)}))
+        paths (sort (distinct (concat required-files rust-files)))
+        entries (for [relative paths
+                      :let [file (io/file root relative)]]
                   (str relative "\u0000" (sha256 (slurp file)) "\n"))]
     (sha256 (apply str entries))))
 
@@ -162,14 +185,24 @@
       (fail! "Rust allocation rejection results differ from frozen EDN vectors"
              {:expected expected-negative :actual negative}))))
 
-(defn- check-transition-output! [records vectors]
+(defn check-transition-output! [records vectors]
   (let [v (get vectors "canonical-transition-001.edn")
         roots (:roots (:expected v))
         expected [(roots :state-before/root) (roots :effects/root)
                   (roots :state-after/root) (roots :transition/root)]
+        transition-results (record-map records "transition")
+        expected-transition-ids #{"canonical-transition-001"}
+        _ (when-not (= expected-transition-ids (set (keys transition-results)))
+            (fail! "Rust transition result record set differs from frozen vectors"
+                   {:expected-ids (sort expected-transition-ids)
+                    :actual-ids (sort (keys transition-results))}))
         actual (required-record records "transition" "canonical-transition-001" 4)
         expected-negative (expected-rejections (get vectors "negative-transition-001.edn"))
         negative (record-map records "transition-rejection")]
+    (when-not (= (set (keys expected-negative)) (set (keys negative)))
+      (fail! "Rust transition rejection record set differs from frozen vectors"
+             {:expected-ids (sort (keys expected-negative))
+              :actual-ids (sort (keys negative))}))
     (when-not (= expected actual)
       (fail! "Rust transition roots differ from frozen EDN vector"
              {:expected expected :actual actual}))
@@ -209,12 +242,16 @@
                             (tree-fingerprint prf-root
                                               (concat ["portable-pro-rata-contract/manifest.edn"]
                                                       (map #(str "portable-pro-rata-contract/vectors/" %)
-                                                           (keys (files-by-name reference-dir)))))
+                                                           (keys (files-by-name reference-dir)))) )
                             :vectors (sort (keys (files-by-name reference-dir)))}
                 :allocation {:revision (revision allocation-root)
                              :working-tree-content-sha256
                              (tree-fingerprint allocation-root
-                                               (concat ["rust/Cargo.toml" "rust/Cargo.lock" "rust/src/result.rs"]
+                                               (concat ["Cargo.toml" "Cargo.lock"
+                                                        "rust/Cargo.toml"
+                                                        "rust/src/result.rs"]
+                                                       (when (.isFile (io/file allocation-root "rust/build.rs"))
+                                                         ["rust/build.rs"])
                                                        (map #(str "clj/test/fixtures/portable-pro-rata-contract/vectors/" %)
                                                             (keys allocation))))
                              :rust-tests-exit (:exit allocation-run)
@@ -223,7 +260,10 @@
                 :transition {:revision (revision transition-root)
                              :working-tree-content-sha256
                              (tree-fingerprint transition-root
-                                               (concat ["rust/Cargo.toml" "rust/Cargo.lock" "rust/src/lib.rs"]
+                                               (concat ["rust/Cargo.toml" "rust/Cargo.lock"
+                                                        "rust/src/lib.rs"]
+                                                       (when (.isFile (io/file transition-root "rust/build.rs"))
+                                                         ["rust/build.rs"])
                                                        (map #(str "provenance/portable-pro-rata-contract.v1/vectors/" %)
                                                             (keys transition-ref))
                                                        (map #(str "resources/prf/effect_transition_contract/v1/vectors/" %)

@@ -13,7 +13,9 @@
 - Added `bb pro-rata-vectors:check` to compare the PRF frozen allocation and
   transition vectors with extracted package mirrors and Rust conformance-test
   roots and rejection outcomes. The command reports source revisions and tool
-  versions; it does not constitute admission or deployment qualification.
+  versions; it rejects extra transition records and fingerprints Rust source
+  and test inputs, failing closed when required fingerprint inputs are missing.
+  It does not constitute admission or deployment qualification.
 
 - Added model-only `sew-bounty-escrow-route.v1` routing metadata and a
   fail-closed check for independently reconstructed Sew withdrawal categories.
