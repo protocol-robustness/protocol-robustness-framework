@@ -47,26 +47,60 @@ fixture. A separate Sew checkout was inspected read-only: its `BaseEscrow`
 withdrawal reads and clears the full workflow/recipient claimable balance and
 emits `EscrowWithdrawn` without a bounty-category allocation. That checkout's
 `.git` worktree target is missing, but the local Sew Git object database
-contains revision `be00f52684893b468a4f4fa584893711e536e95e`. At that revision,
+contains revision `be00f52684893b468a4f4fa584893711e` in the
+`hardhat-deploy-hybrid` Git object store. At that revision,
 `contracts/core/BaseEscrow.sol` is blob
 `b451174aade17707c458e2c00d9de2b30a98f454` and
 `test/foundry/core/WithdrawEscrow.t.sol` is blob
 `7358f38c12b9c8462cf82a052b080a412aafb6a3`; both blobs match the inspected
-checkout files. The source and test files are revision-pinned, while the broken
-worktree and external `forge-std` symlink prevent pinning the complete
-dependency tree. A test run from a clean archive of that revision was
-attempted with
-`forge test --root <archive> --offline --match-path test/foundry/core/WithdrawEscrow.t.sol --out <archive>/out --cache-path <archive>/cache-foundry -vv`
-and exited 1 before compilation because `solc` 0.8.37 is unavailable offline
-(installed CLI solc is 0.8.25 and linked solcjs is 0.8.26). The file SHA-256
-observations were `4c7162991be853052a737857c789a2904a00ae00b9e7a9bb08206922f37486cb`
+checkout files. An isolated archive of that revision compiled offline with
+Solidity 0.8.37 and Foundry 1.7.1. The pinned `WithdrawEscrow.t.sol` suite
+passed all 6 tests. The replay used OpenZeppelin Contracts 5.4.0, as specified
+in that revision's `pnpm-lock.yaml`, and the available external `forge-std`
+checkout at commit `e3386f2f9cc5ebf16ec5370869d5a49cdb85a0cb`; the Sew source
+itself still uses an unpinned external symlink for `forge-std`. Source
+SHA-256 observations are `4c7162991be853052a737857c789a2904a00ae00b9e7a9bb08206922f37486cb`
 for `BaseEscrow.sol` and
 `6bb860473524a98e88a1d9a05acdad5da21276c15b33bafbf7753141b70e3c55` for
 `WithdrawEscrow.t.sol`.
 
+At this pinned source revision, `withdrawEscrow` reads only
+`claimableBalances[workflowId][recipient]`, clears it, decrements
+`totalClaimableAssets`, performs the token transfer, then emits
+`EscrowWithdrawn`. Bond protocol fees and excess ETH refunds use separate
+claim functions. However, the contract does not label a balance as a bounty,
+and the claimable balance may combine principal and yield when yield is
+enabled. Attribution therefore requires a source-bound workflow decision and
+reconstruction of the relevant state; an isolated workflow ID alone is not a
+bounty fact. The passing suite is existing Sew withdrawal evidence, not a
+PRO-88 bounty-to-settlement integration or an independent replay.
+
+The isolated test command was:
+
+```sh
+forge test \
+  --root /tmp/pro88-local-qualification \
+  --offline \
+  --use /home/user/.local/share/svm/0.8.37/solc-0.8.37 \
+  --match-path test/foundry/pro88/WithdrawEscrow.t.sol \
+  --out /tmp/pro88-local-qualification/out-pro88 \
+  --cache-path /tmp/pro88-local-qualification/cache-pro88 \
+  -vv
+```
+
+That temporary tree was assembled from the pinned Sew Git archive, the
+unchanged test file above, `forge-std` archived from commit
+`e3386f2f9cc5ebf16ec5370869d5a49cdb85a0cb`, and OpenZeppelin Contracts 5.4.0.
+Its isolated Foundry config compiled `contracts/core` and the selected test
+only. The run reports 6 passed, 0 failed, 0 skipped. It is local Foundry EVM
+execution; it does not create retained transaction receipts or public-chain
+evidence.
+
 The route adapter tests establish only model mapping, transition, and
-category-attribution behavior. They do not satisfy the controlled Sew deposit
-→ release → withdraw acceptance path. Canonical
+category-attribution behavior. The local Sew suite establishes the generic
+create/release/withdraw lifecycle, but it does not exercise a PRF bounty route,
+the required attribution negatives, or an independent payout replay.
+Canonical
 `obligation-settlement.v1` in this checkout is limited to the direct native
 transfer route and its `BountyPaid` observation. Sew withdrawal evidence needs
 a reviewed versioned settlement-interface decision before it can be replayed
