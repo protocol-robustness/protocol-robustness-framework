@@ -36,6 +36,75 @@
   (assoc receipt :receipt-hash
          (hc/domain-hash :programme-receipt-v1 (dissoc receipt :receipt-hash))))
 
+(defn- substitute-projection-source
+  "Create a self-consistently rehashed evaluation whose projection claims a
+   different source while preserving the original request and allocation."
+  [evaluation source-id]
+  (let [projection (get-in evaluation [:projection :artifact/value])
+        source (assoc (:source projection) :forensic/source-id source-id)
+        source (assoc source :source-hash
+                      (hc/hash-with-intent
+                       {:hash/intent :projection-artifact}
+                       {:intent-id (get-in projection [:intent :id])
+                        :projection-definition-id (:projection-definition-id projection)
+                        :source (dissoc source :source-hash)
+                        :projection (:projection projection)}))
+        projection (assoc projection :source source)
+        projection (assoc projection :projection-hash
+                          (hc/hash-with-intent {:hash/intent :projection-artifact}
+                                               (dissoc projection :projection-hash)))
+        evaluation (-> evaluation
+                       (assoc-in [:projection :artifact/value] projection)
+                       (assoc-in [:projection :artifact/hash] (:projection-hash projection))
+                       (assoc-in [:result :artifact/value :projection-hash]
+                                 (:projection-hash projection)))]
+    (assoc-in evaluation [:result :artifact/hash]
+              (hc/domain-hash :pro-rata-evaluation-v1
+                              (get-in evaluation [:result :artifact/value])))))
+
+(defn- rebuilt-receipt
+  "Rebuild every hash-linked wrapper around an evaluation, as an attacker
+   could, so verifier tests do not rely on stale evidence or receipt hashes."
+  [plan evaluation]
+  (let [validation (prog/programme-validation-result evaluation)
+        evidence (prog/programme-evidence-artifact
+                  {:programme/id (:programme/id plan)
+                   :request (:request plan)
+                   :evaluation evaluation
+                   :validation-status (:status validation)
+                   :validation-details (:details validation)})
+        request-root (prog/allocation-request-root (:request plan))
+        stage-ids {:allocation request-root
+                   :validation request-root
+                   :evidence (:evidence/id evidence)}
+        stages {:allocation :completed
+                :validation (:status validation)
+                :evidence :completed
+                :statement :not-requested
+                :proof :not-requested
+                :verification :not-requested
+                :admission :not-requested}
+        reconciliation (prog/reconcile-programme-ids
+                        {:planned stage-ids
+                         :executed stage-ids
+                         :recorded stage-ids})]
+    {:artifacts {:plan plan
+                 :request (:request plan)
+                 :evaluation evaluation
+                 :evidence-artifact evidence}
+     :receipt (prog/build-programme-receipt
+               {:programme/id (:programme/id plan)
+                :programme-plan-root
+                (prog/programme-plan-root (prog/canonical-programme-plan plan))
+                :request (:request plan)
+                :evaluation evaluation
+                :stages stages
+                :stage-ids stage-ids
+                :validation-status (:status validation)
+                :validation-details (:details validation)
+                :evidence-artifact evidence
+                :reconciliation reconciliation})}))
+
 ;; ---------------------------------------------------------------------------
 ;; SP-C.1 — plan identity
 ;; ---------------------------------------------------------------------------
@@ -233,6 +302,43 @@
         verification (prog/verify-programme-receipt artifacts receipt)]
     (is (= :failed (:status verification)))
     (is (some #(= :evaluation/request-root (:field %)) (:mismatches verification)))))
+
+(deftest receipt-verification-reconstructs-projection-from-original-request
+  (let [result (prog/run-programme a-plan)
+        original-evaluation (:evaluation result)
+        substituted-evaluation (substitute-projection-source
+                                original-evaluation "attacker-selected-source")
+        rebuilt (rebuilt-receipt a-plan substituted-evaluation)
+        verification (prog/verify-programme-receipt
+                      (:artifacts rebuilt) (:receipt rebuilt))
+        altered-allocation (assoc (:allocation original-evaluation)
+                                  :forensic/forged true)
+        altered-result-evaluation
+        (-> original-evaluation
+            (assoc :allocation altered-allocation)
+            (assoc-in [:result :artifact/value :allocation] altered-allocation))
+        altered-result-evaluation
+        (assoc-in altered-result-evaluation [:result :artifact/hash]
+                  (hc/domain-hash :pro-rata-evaluation-v1
+                                  (get-in altered-result-evaluation
+                                          [:result :artifact/value])))
+        altered-result (rebuilt-receipt a-plan altered-result-evaluation)
+        altered-result-verification
+        (prog/verify-programme-receipt (:artifacts altered-result)
+                                       (:receipt altered-result))]
+    (is (= :passed (:status (:verification result))) "original receipt remains valid")
+    (is (= (:allocation original-evaluation) (:allocation substituted-evaluation))
+        "the substitution does not change the independently checked allocation")
+    (is (not= (get-in original-evaluation [:projection :artifact/hash])
+              (get-in substituted-evaluation [:projection :artifact/hash]))
+        "the attacker supplies a different, internally rehashed projection")
+    (is (= :failed (:status verification))
+        "rehashed evaluation, evidence, and receipt cannot authenticate a substituted projection")
+    (is (some #(= :evaluation/projection (:field %)) (:mismatches verification)))
+    (is (= :failed (:status altered-result-verification))
+        "a rehashed result-body/allocation substitution also fails")
+    (is (some #(= :evaluation/result (:field %))
+              (:mismatches altered-result-verification)))))
 
 (deftest each-derived-aggregate-verdict-field-is-the-verifier-derives
   "The receipt's aggregate verdict is independently re-derived, so a tampered
