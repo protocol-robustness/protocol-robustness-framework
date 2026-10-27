@@ -440,11 +440,22 @@
                                   :evaluation evaluation
                                   :validation-status validation-status
                                   :validation-details validation-details})
+              expected-evaluation
+              (pro-rata-evaluation/evaluate-pro-rata-allocation request)
               expected-evaluation-request
-              (get-in (pro-rata-evaluation/evaluate-pro-rata-allocation request)
-                      [:result :artifact/value :canonical-request])
+              (get-in expected-evaluation [:result :artifact/value :canonical-request])
               evaluation-request
               (get-in evaluation [:result :artifact/value :canonical-request])
+              expected-projection (get expected-evaluation :projection)
+              evaluation-projection (get evaluation :projection)
+              expected-result-value
+              (get-in expected-evaluation [:result :artifact/value])
+              evaluation-result-value
+              (get-in evaluation [:result :artifact/value])
+              expected-result-projection-hash
+              (get-in expected-evaluation [:result :artifact/value :projection-hash])
+              evaluation-result-projection-hash
+              (get-in evaluation [:result :artifact/value :projection-hash])
               evaluation-allocation
               (get-in evaluation [:result :artifact/value :allocation])
               expected-stage-ids {:allocation request-root
@@ -495,6 +506,21 @@
                 (conj {:field :evaluation/request-root
                        :expected expected-evaluation-request
                        :actual evaluation-request})
+
+                (not= expected-projection evaluation-projection)
+                (conj {:field :evaluation/projection
+                       :expected expected-projection
+                       :actual evaluation-projection})
+
+                (not= expected-result-value evaluation-result-value)
+                (conj {:field :evaluation/result
+                       :expected expected-result-value
+                       :actual evaluation-result-value})
+
+                (not= expected-result-projection-hash evaluation-result-projection-hash)
+                (conj {:field :evaluation/result-projection-hash
+                       :expected expected-result-projection-hash
+                       :actual evaluation-result-projection-hash})
 
                 (not= evaluation-allocation (:allocation evaluation))
                 (conj {:field :evaluation/allocation
