@@ -81,10 +81,34 @@ claim functions. However, the contract does not label a balance as a bounty,
 and the claimable balance may combine principal and yield when yield is
 enabled. Attribution therefore requires a source-bound workflow decision and
 reconstruction of the relevant state; an isolated workflow ID alone is not a
-bounty fact. The passing suite is existing Sew withdrawal evidence, not a
-PRO-88 bounty-to-settlement integration or an independent replay.
+bounty fact. The supplemented passing suite is pinned local Sew withdrawal
+evidence, not a PRO-88 bounty-to-settlement integration or an independent
+replay.
 
-The isolated test command was:
+The pinned Sew test file has SHA-256
+`6bb860473524a98e88a1d9a05acdad5da21276c15b33bafbf7753141b70e3c55`.
+The retained supplemental test patch is
+[`withdrawal-negative-tests.patch`](../qualifications/pro88/withdrawal-negative-tests.patch)
+(SHA-256 of the patched test file:
+`c26fb20c1e3013cb2f6214bc05d149884b3bfbda009ea5c1b8de7e028407051b`). It
+adds two local contract checks: a non-beneficiary cannot claim; and a failed
+ERC-20 transfer preserves both the per-recipient claim and aggregate liability,
+which can be retried once after refill but not paid twice. These exercise the
+pinned Sew contract in local Foundry, not Base Sepolia or authenticated public
+chain receipts.
+
+To reconstruct the local test tree from the pinned Sew source archive, copy the
+original test into the isolated test directory and apply the retained patch:
+
+```sh
+mkdir -p /tmp/pro88-local-qualification/test/foundry/pro88
+cp /tmp/pro88-local-qualification/test/foundry/core/WithdrawEscrow.t.sol \
+  /tmp/pro88-local-qualification/test/foundry/pro88/WithdrawEscrow.t.sol
+cd /tmp/pro88-local-qualification
+patch -p1 < /home/user/Code/.workspaces/agent-c-3/docs/qualifications/pro88/withdrawal-negative-tests.patch
+```
+
+The isolated test command is:
 
 ```sh
 forge test \
@@ -98,18 +122,20 @@ forge test \
 ```
 
 That temporary tree was assembled from the pinned Sew Git archive, the
-unchanged test file above, `forge-std` archived from commit
+source test file plus retained supplemental patch, `forge-std` archived from commit
 `e3386f2f9cc5ebf16ec5370869d5a49cdb85a0cb`, and OpenZeppelin Contracts 5.4.0.
 Its isolated Foundry config compiled `contracts/core` and the selected test
-only. The run reports 6 passed, 0 failed, 0 skipped. It is local Foundry EVM
+only. The run reports 8 passed, 0 failed, 0 skipped. It is local Foundry EVM
 execution; it does not create retained transaction receipts or public-chain
 evidence.
 
 The route adapter tests establish only model mapping, transition, and
-category-attribution behavior. The local Sew suite establishes the generic
-create/release/withdraw lifecycle, but it does not exercise a PRF bounty route,
-the attribution negatives against actual Sew receipt/state data, or an
-independent payout replay. A substituted evidence-root pointer can remain
+category-attribution behavior. The supplemented local Sew suite additionally
+checks wrong-caller rejection, failed-transfer state rollback, retry after
+refill, and duplicate-withdrawal rejection against the pinned contract. Neither
+suite exercises a PRF bounty route against real Sew receipt/state data, proves
+category attribution for the bulk claimable balance, or provides independent
+payout reconstruction. A substituted evidence-root pointer can remain
 well-formed in the model adapter: authentication and receipt-substitution
 detection require the still-missing reviewed settlement interface and trusted
 chain-observation verifier. No such detection is claimed here.

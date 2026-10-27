@@ -1,0 +1,69 @@
+diff --git a/test/foundry/pro88/WithdrawEscrow.t.sol b/test/foundry/pro88/WithdrawEscrow.t.sol
+index 6bb860473524a98e88a1d9a05acdad5da21276c15b33bafbf7753141b70e3c55..c26fb20c1e3013cb2f6214bc05d149884b3bfbda009ea5c1b8de7e028407051b 100644
+--- a/test/foundry/pro88/WithdrawEscrow.t.sol
++++ b/test/foundry/pro88/WithdrawEscrow.t.sol
+@@ -272,4 +272,64 @@
+         assertEq(balAfter - balBefore, expected, 'Withdraw should transfer claimable amount');
+         assertEq(vault.claimableBalances(wid, recipient), 0, 'Claimable should be cleared after withdraw');
+     }
++
++    function test_withdrawEscrow_wrong_beneficiary_cannot_claim() public {
++        vm.prank(sender);
++        token.approve(address(vault), AMOUNT);
++        EscrowSettings memory settings = SettingsValidationLibrary.getDefaultSettings();
++        vm.prank(sender);
++        uint256 wid = vault.createEscrow(address(token), recipient, AMOUNT, settings);
++        vm.prank(sender);
++        vault.release(wid);
++
++        uint256 expected = AMOUNT - (AMOUNT * ESCROW_FEE) / 10000;
++        address attacker = address(0xdead);
++        vm.prank(attacker);
++        vm.expectRevert(abi.encodeWithSignature(
++            "NoClaimableBalance(uint256,address,address)", wid, attacker, address(token)
++        ));
++        vault.withdrawEscrow(wid);
++
++        assertEq(vault.claimableBalances(wid, recipient), expected);
++        assertEq(token.balanceOf(attacker), 0);
++    }
++
++    function test_withdrawEscrow_failed_transfer_preserves_claim_and_retry_is_single_use() public {
++        vm.prank(sender);
++        token.approve(address(vault), AMOUNT);
++        EscrowSettings memory settings = SettingsValidationLibrary.getDefaultSettings();
++        vm.prank(sender);
++        uint256 wid = vault.createEscrow(address(token), recipient, AMOUNT, settings);
++        vm.prank(sender);
++        vault.release(wid);
++
++        uint256 expected = AMOUNT - (AMOUNT * ESCROW_FEE) / 10000;
++        vm.prank(address(vault));
++        token.transfer(address(0xbeef), expected);
++
++        uint256 recipientBefore = token.balanceOf(recipient);
++        vm.prank(recipient);
++        vm.expectRevert();
++        vault.withdrawEscrow(wid);
++        assertEq(vault.claimableBalances(wid, recipient), expected,
++            "reverted ERC20 transfer must roll back claim consumption");
++        assertEq(vault.totalClaimableAssets(address(token)), expected,
++            "failed transfer must leave aggregate liability outstanding");
++        assertEq(token.balanceOf(recipient), recipientBefore);
++
++        token.transfer(address(vault), expected);
++        vm.prank(recipient);
++        assertEq(vault.withdrawEscrow(wid), expected);
++        assertEq(vault.claimableBalances(wid, recipient), 0);
++        assertEq(vault.totalClaimableAssets(address(token)), 0);
++        assertEq(token.balanceOf(recipient) - recipientBefore, expected);
++
++        vm.prank(recipient);
++        vm.expectRevert(abi.encodeWithSignature(
++            "NoClaimableBalance(uint256,address,address)", wid, recipient, address(token)
++        ));
++        vault.withdrawEscrow(wid);
++        assertEq(token.balanceOf(recipient) - recipientBefore, expected,
++            "duplicate withdrawal cannot pay twice");
++    }
+ }
