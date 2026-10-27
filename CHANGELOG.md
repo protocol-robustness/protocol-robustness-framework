@@ -10,6 +10,11 @@
 
 ## Unreleased
 
+- Added model-only `sew-bounty-escrow-route.v1` routing metadata and a
+  fail-closed check for independently reconstructed Sew withdrawal categories.
+  Workflow attribution remains unqualified pending a controlled Sew contract
+  path and a reviewed settlement-interface binding.
+
 - Replaced the hardcoded Y05 `gen-yield` script with seeded multi-scenario
   generation and read-only verification commands (`bb yield:generate` and
   `bb yield:verify`) that emit materialized and generation-provenance roots.
