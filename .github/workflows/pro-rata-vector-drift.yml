@@ -1,0 +1,63 @@
+name: Pro-rata EDN ↔ Rust frozen-vector drift
+
+on:
+  pull_request:
+    paths:
+      - "portable-pro-rata-contract/**"
+      - "scripts/conformance/pro_rata_vector_drift.clj"
+      - "test/resolver_sim/pro_rata/vector_drift_test.clj"
+      - "bb.edn"
+      - ".github/workflows/pro-rata-vector-drift.yml"
+  push:
+    paths:
+      - "portable-pro-rata-contract/**"
+      - "scripts/conformance/pro_rata_vector_drift.clj"
+      - "test/resolver_sim/pro_rata/vector_drift_test.clj"
+      - "bb.edn"
+      - ".github/workflows/pro-rata-vector-drift.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frozen-vector-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: protocol-robustness/prf-pro-rata-allocation
+          ref: 1932c11ec674a6b4b5180291df46714516e104a5
+          path: .vector-drift/prf-pro-rata-allocation
+
+      - uses: actions/checkout@v4
+        with:
+          repository: protocol-robustness/prf-effect-transition-contract
+          ref: cf0aa1e562c559e3a868be8b3d7ab119a5476e08
+          path: .vector-drift/prf-effect-transition-contract
+
+      - uses: dtolnay/rust-toolchain@1.98.1
+        with:
+          components: rustfmt
+
+      - uses: DeLaGuardo/setup-clojure@12.5
+        with:
+          cli: 1.11.1.1435
+
+      - name: Check package formatting and tests
+        run: |
+          cargo fmt --manifest-path .vector-drift/prf-pro-rata-allocation/rust/Cargo.toml --all -- --check
+          cargo fmt --manifest-path .vector-drift/prf-effect-transition-contract/rust/Cargo.toml --all -- --check
+
+      - name: Verify frozen EDN mirrors and Rust outputs
+        run: |
+          clojure -M:test -m scripts.conformance.pro-rata-vector-drift \
+            --prf-root . \
+            --allocation-root .vector-drift/prf-pro-rata-allocation \
+            --transition-root .vector-drift/prf-effect-transition-contract
+
+      - name: Test drift checker adversarial cases
+        run: |
+          clojure -M:test -e "(require 'clojure.test 'resolver-sim.pro-rata.vector-drift-test) (let [r (clojure.test/run-tests 'resolver-sim.pro-rata.vector-drift-test)] (when (pos? (+ (:fail r) (:error r))) (System/exit 1)))"
