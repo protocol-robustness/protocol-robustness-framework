@@ -1,46 +1,17 @@
 {
-  "scenario-id": "s117-challenge-resolution-dedupe",
-  "schema-version": "1.0",
-  "initial-block-time": 1000,
-  "agents": [
-    {
-      "id": "buyer",
-      "address": "0xbuyer",
-      "strategy": "honest"
-    },
-    {
-      "id": "seller",
-      "address": "0xseller",
-      "strategy": "honest"
-    },
-    {
-      "id": "resolver0",
-      "address": "0xresolver0",
-      "role": "resolver"
-    },
-    {
-      "id": "resolver1",
-      "address": "0xresolver1",
-      "role": "resolver"
-    },
-    {
-      "id": "challenger",
-      "address": "0xchallenger",
-      "strategy": "honest"
-    }
-  ],
   "protocol-params": {
+    "challenge-bond-bps": 200,
+    "challenge-window-duration": 120,
+    "resolver-bond-bps": 0,
     "resolver-fee-bps": 50,
-    "appeal-window-duration": 120,
-    "max-dispute-duration": 600,
-    "dispute-resolver": "0xresolver0",
     "escalation-resolvers": {
+      "0": "0xresolver0",
       "1": "0xresolver1"
     },
-    "max-escalation-level": 1,
-    "challenge-window-duration": 120,
-    "challenge-bond-bps": 200,
-    "resolver-bond-bps": 0
+    "resolution-module": "0xkleros-proxy",
+    "appeal-window-duration": 120,
+    "max-dispute-duration": 600,
+    "max-escalation-level": 1
   },
   "events": [
     {
@@ -51,8 +22,7 @@
       "params": {
         "token": "USDC",
         "to": "0xseller",
-        "amount": 5000,
-        "custom-resolver": "0xresolver0"
+        "amount": 5000
       }
     },
     {
@@ -118,9 +88,43 @@
       }
     }
   ],
+  "schema-version": "1.0",
   "scenario-author": "@kilo-automation",
+  "scenario-id": "s117-challenge-resolution-dedupe",
+  "strict-expected-errors?": true,
+  "expected-errors": [],
   "provenance": {
     "author-id": "@kilo-automation",
     "author": "Kilo automation \u2014 checklist item 15: challenge dedupe fixture with escalation config"
-  }
+  },
+  "agents": [
+    {
+      "id": "buyer",
+      "address": "0xbuyer",
+      "strategy": "honest"
+    },
+    {
+      "id": "seller",
+      "address": "0xseller",
+      "strategy": "honest"
+    },
+    {
+      "id": "resolver0",
+      "address": "0xresolver0",
+      "strategy": "resolver",
+      "role": "resolver"
+    },
+    {
+      "id": "resolver1",
+      "address": "0xresolver1",
+      "strategy": "resolver",
+      "role": "resolver"
+    },
+    {
+      "id": "challenger",
+      "address": "0xchallenger",
+      "strategy": "honest"
+    }
+  ],
+  "initial-block-time": 1000
 }
