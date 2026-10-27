@@ -11,8 +11,16 @@
                    "zero-weight-001.edn"
                    "floor-residual-001.edn"])
 
+(def fixture-resource-root
+  "prf/pro_rata/fixtures/portable-pro-rata-contract/vectors/")
+
 (defn- vector-data [name]
-  (edn/read-string (slurp (io/file "portable-pro-rata-contract" "vectors" name))))
+  (let [resource (io/resource (str fixture-resource-root name))]
+    (when-not resource
+      (throw (ex-info "Pinned allocator fixture resource is missing"
+                      {:fixture name
+                       :resource (str fixture-resource-root name)})))
+    (edn/read-string (slurp resource))))
 
 (deftest production-allocation-matches-portable-vectors
   (doseq [name vector-files]

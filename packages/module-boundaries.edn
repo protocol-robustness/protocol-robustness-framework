@@ -2,6 +2,8 @@
  :status :in-tree-enforced
  :source-location-convention {:resolver-sim "src/resolver_sim/<namespace path>.clj"
                               :prf-canonical "https://github.com/protocol-robustness/prf-canonical.git at immutable :git/sha; deps root clj"
+                              :prf-pro-rata-allocation "https://github.com/protocol-robustness/prf-pro-rata-allocation.git at immutable :git/sha; deps root clj"
+                              :prf-coprocessor "https://github.com/protocol-robustness/prf-coprocessor.git at immutable revision in data/prf/external-repositories.json"
                               :accounting-reductions "packages/accounting-reductions/clj/src/resolver_sim/accounting/<namespace path>.clj"}
  :consumer-index {:direct :computed-from-namespace-requires
                   :transitive :computed-by-graph-closure
@@ -14,6 +16,39 @@
    :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
    :api [:canonical-hash-scheme.v1 :root-reference.v1]
    :depends-on #{}}
+  :prf-pro-rata-allocation
+  {:owner :prf-allocation
+   :status :source-qualified-candidate-unpublished-to-package-registry
+   :git/url "https://github.com/protocol-robustness/prf-pro-rata-allocation.git"
+   :git/sha "e0788f911e4fba3a27544cbccbb95d59d7daf2f7"
+   :public-namespace prf.pro-rata.api
+   :api [:allocate :verify-result :portable-pro-rata-allocation-v1]
+   :qualification {:overall-conformance :partial
+                   :sp1-verifier-qualified? false
+                   :production-solidity-qualified? false}
+   :depends-on #{:prf-canonical}}
+  :prf-coprocessor
+  {:owner :prf-coprocessor
+   :status :extracted-unqualified
+   :git/url "https://github.com/protocol-robustness/prf-coprocessor.git"
+   :git/sha "e2e4e9b25622c52eb028fc373a66e81b3982e933"
+   :source-manifest "data/prf/external-repositories.json"
+   :api [:allocation-kernel :sp1-guests :sp1-hosts :proof-scripts]
+   :qualification {:native-kernel-only? true
+                   :sp1-qualified? false
+                   :solidity-proof-qualified? false}
+   :depends-on #{:prf-canonical :prf-pro-rata-allocation}}
+  :prf-effect-transition-contract
+  {:owner :prf-effect-transition
+   :status :exploratory-public-git-candidate-unpinned-by-prf
+   :git/url "https://github.com/protocol-robustness/prf-effect-transition-contract.git"
+   :git/sha "123836c296943665c08d8dc8341ec7f220750086"
+   :candidate-release-root "53cb151f2253ba0444f2a7fdd52960b29c3a24dc928469eb808646303d351621"
+   :api [:prf-effect-transition-contract.v1]
+   :qualification {:consumer-qualified? false
+                   :release-qualified? false
+                   :rust-fixture-inputs-mirrored? true}
+   :depends-on #{:prf-canonical}}
   :prf-research-contracts
   {:owner :prf-research
    :status :in-tree-only
@@ -187,7 +222,8 @@
   :test-only-utility #{}}
  :canonical-api-requests
  {:owner :c2
-  :status :requested-not-implemented-by-c1
+  :status :implemented-at-pinned-revision
+  :pinned-revision "5e2b520feca812b049ba397b7b3681963c66a48c"
   :legacy-consumers
   #{resolver-sim.hash.canonical resolver-sim.hash.reference}
   :required-functions

@@ -166,7 +166,7 @@ core-deps-str (pr-str
                                               :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
                                               :deps/root "clj"}
                                prf/pro-rata-allocation {:git/url "https://github.com/protocol-robustness/prf-pro-rata-allocation.git"
-                                                        :git/sha "48e0b362748cd39d09994a8aa1496c668199aa74"
+                                                        :git/sha "e0788f911e4fba3a27544cbccbb95d59d7daf2f7"
                                                         :deps/root "clj"}
                                org.clojure/tools.logging {:mvn/version "1.2.4"}
                                org.slf4j/slf4j-api {:mvn/version "1.7.36"}

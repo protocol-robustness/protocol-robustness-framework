@@ -95,8 +95,12 @@
                         (fn [[amt dt token]]
                           (gen/return {:op op :amount amt :dt dt :token token}))))))
 
+(def yield-event-sequences
+  "The finite, replay-supported scenario spines used by the yield generator."
+  [(deposit-accrue-withdraw-seq)
+   (shortfall-affected-seq)
+   (shortfall-affected-seq :recover? true)
+   (liquidity-shortage-seq)])
+
 (def gen-yield-event-sequence
-  (gen/elements [(deposit-accrue-withdraw-seq)
-                 (shortfall-affected-seq)
-                 (shortfall-affected-seq :recover? true)
-                 (liquidity-shortage-seq)]))
+  (gen/elements yield-event-sequences))
