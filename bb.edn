@@ -284,6 +284,10 @@ check:ownership
    {:doc "Validate the adopted non-runtime canonical artifact baseline. Usage: bb canonical-artifacts:validate <manifest.edn> <prf-root> <prf-evm-root> <pinned-prf-canonical-root> <pinned-prf-pro-rata-allocation-root> <pinned-prf-coprocessor-root>"
     :task (apply shell "bb" "scripts/validate/canonical_artifacts.clj" *command-line-args*)}
 
+  pro-rata-vectors:check
+   {:doc "Compare PRF frozen pro-rata EDN vectors and package mirrors with Rust test results. Usage: bb pro-rata-vectors:check --prf-root PATH --allocation-root PATH --transition-root PATH"
+    :task (apply shell "clojure" "-M:test" "-m" "scripts.conformance.pro-rata-vector-drift" *command-line-args*)}
+
   canonical-artifacts
   {:doc "Inspect, derive, bundle, compose or narrowly verify supported canonical artifacts. Usage: bb canonical-artifacts show | derive pro-rata-allocation-request.v1 --input FILE [--output FILE] | bundle --input FILE [--output FILE] | compose realized-allocation-statement.v1 --input FILE [--output FILE] | verify <profile> --input FILE [--output FILE]"
    :task (apply shell "clojure" "-M" "-m" "resolver-sim.commands.canonical-artifacts" *command-line-args*)}

@@ -305,7 +305,7 @@
         second-valid (endorsement f 1 (.resolve dir "witness-1.edn"))
         certificate (checkpoint/build-certificate (:checkpoint f) [first-valid second-valid])
         verification (checkpoint/verify-certificate (:checkpoint f) certificate
-                                                     (:policy f) (:membership f))]
+                                                    (:policy f) (:membership f))]
     (is (= :witness/signing-key-mismatch error))
     (is (false? store-created-after-rejection?))
     (is (:valid? verification))
