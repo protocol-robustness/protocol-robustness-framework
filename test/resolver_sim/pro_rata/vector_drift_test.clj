@@ -55,3 +55,61 @@
           (fn [reference mirror]
             (is (thrown? clojure.lang.ExceptionInfo
                          (drift/compare-vector-directories reference mirror (set (keys duplicate)))))))))))
+
+(deftest transition-output-requires-exact-frozen-record-identities
+  (let [vectors {"canonical-transition-001.edn"
+                 {:expected {:roots {:state-before/root "before"
+                                     :effects/root "effects"
+                                     :state-after/root "after"
+                                     :transition/root "transition"}}}
+                 "negative-transition-001.edn"
+                 {:mutations [{:mutation/id :underflow
+                               :expected/reason :underflow}]}}
+        canonical ["PRF_VECTOR_DRIFT_V1" "transition" "canonical-transition-001"
+                   "before" "effects" "after" "transition"]
+        rejection ["PRF_VECTOR_DRIFT_V1" "transition-rejection" "underflow" "underflow"]]
+    (testing "the frozen positive and rejection records pass"
+      (is (nil? (drift/check-transition-output! [canonical rejection] vectors)))
+      (testing "an extra positive transition record is rejected"
+        (is (thrown? clojure.lang.ExceptionInfo
+                     (drift/check-transition-output!
+                      [canonical rejection
+                       ["PRF_VECTOR_DRIFT_V1" "transition" "unexpected" "a" "b" "c" "d"]]
+                      vectors))))
+      (testing "an extra rejection record is rejected"
+        (is (thrown? clojure.lang.ExceptionInfo
+                     (drift/check-transition-output!
+                      [canonical rejection
+                       ["PRF_VECTOR_DRIFT_V1" "transition-rejection" "unexpected"
+                        "portable-contract/other"]]
+                      vectors)))))))
+
+(deftest tree-fingerprint-covers-rust-sources-and-requires-inputs
+  (let [root (temp-dir)
+        src-dir (doto (io/file root "rust/src") .mkdirs)
+        tests-dir (doto (io/file root "rust/tests") .mkdirs)
+        source (io/file src-dir "lib.rs")
+        other-source (io/file src-dir "other.rs")
+        test-source (io/file tests-dir "vectors.rs")
+        required (io/file root "manifest.edn")]
+    (try
+      (spit source "pub fn result() -> u8 { 1 }")
+      (spit other-source "pub fn unrelated() -> u8 { 0 }")
+      (spit test-source "#[test] fn emits_vector() {}")
+      (spit required "{}")
+      (let [required-paths ["manifest.edn" "rust/src/lib.rs"]
+            initial (drift/tree-fingerprint root required-paths)]
+        (spit test-source "#[test] fn emits_vector() { assert!(true); }")
+        (is (not= initial (drift/tree-fingerprint root required-paths))
+            "Rust test source that emits checked records contributes to the fingerprint")
+        (is (thrown? clojure.lang.ExceptionInfo
+                     (drift/tree-fingerprint root ["manifest.edn" "rust/src/missing.rs"]))
+            "missing required Rust source files fail closed")
+        (io/delete-file source)
+        (is (thrown? clojure.lang.ExceptionInfo
+                     (drift/tree-fingerprint root required-paths))
+            "deleting a specifically required Rust source fails even if other sources remain")
+        (is (thrown? clojure.lang.ExceptionInfo
+                     (drift/tree-fingerprint root ["missing-manifest.edn"]))
+            "missing required files fail closed"))
+      (finally (delete-tree! root)))))
