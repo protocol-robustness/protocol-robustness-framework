@@ -92,8 +92,8 @@ The API is `resolver-sim.yield.scenario-commitment`:
 ## Frozen vector
 
 `resources/test-vectors/gen-yield/materialized-v1.edn` freezes a real
-materialized scenario from the existing generator, its canonical bytes and
-its root. The root was independently checked as:
+materialized scenario, its canonical bytes and its root. The root was
+independently checked as:
 
 ```python
 hashlib.sha256(
@@ -108,6 +108,39 @@ python3 scripts/verify_gen_yield_vector.py
 ```
 
 That check independently hashes the retained canonical bytes, but it does not
-re-encode the scenario. The fixture is a canonical commitment vector, not an
-assertion that its seed was used by a deterministic PRNG. Seeded generation
-and generator-source qualification are separate work.
+re-encode the scenario.
+
+## Seeded generation and verification
+
+The `gen-yield` CLI uses the existing yield profile, preset, token, failure,
+liquidity, and event-sequence generators. It materializes complete EDN scenario
+files and a `manifest.edn` containing each materialized scenario root and its
+generation-provenance artifact:
+
+```bash
+bb yield:generate --seed 42 --count 3 --max-events 5 --out /tmp/yield-run-42
+bb yield:verify --input /tmp/yield-run-42
+```
+
+Optional bounded selectors are `--profile`, `--preset`, `--token`,
+`--failure-mode` (repeatable), and `--liquidity-mode`. Profile and preset are
+mutually exclusive. Unsupported values and incompatible event limits fail
+closed. Generation refuses to overwrite an existing output directory; it
+writes the manifest last so an interrupted run is not mistaken for complete.
+
+The frozen RNG identity is
+`test.check-1.1.1/JavaUtilSplittableRandom-split-v1`. Samples are derived by
+repeatedly splitting the seeded test.check RNG, then calling the existing
+scenario generator at the declared maximum event size. The source commitment
+hashes the generator, commitment, and test.check RNG implementation source
+resources, together with the test.check and Clojure runtime versions.
+Repeating the same seed and normalized options with the same pinned
+implementation yields identical scenario and provenance roots.
+
+`yield:verify` is read-only. It loads each EDN file, runs the existing yield
+scenario input validator through `scenario-commitment`, recomputes the
+materialized root and generation-provenance commitment, and checks that the
+provenance names the verifier's current generator source. It does not execute
+the scenario, establish expected economic outcomes, authenticate the
+generator's source through an external trust anchor, admit the scenario, or
+authorize an operation. A matching root establishes content integrity only.

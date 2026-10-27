@@ -10,6 +10,17 @@
 
 ## Unreleased
 
+- Replaced the hardcoded Y05 `gen-yield` script with seeded multi-scenario
+  generation and read-only verification commands (`bb yield:generate` and
+  `bb yield:verify`) that emit materialized and generation-provenance roots.
+  Generated scenarios declare `yield-v1` so the standard runner selects the
+  yield replay path.
+
+- Updated the PRF allocator dependency pin to the immutable revision that
+  exposes the package-owned allocation fixtures as classpath resources; PRF
+  adapter parity now reads those pinned fixtures instead of the local mixed
+  contract bundle.
+
 - Pro-rata programme receipt verification now reconstructs the receipt from the
   source plan and execution artifacts, checking plan/root binding, stage IDs,
   evidence, and the receipt hash. The current runner rejects requests for

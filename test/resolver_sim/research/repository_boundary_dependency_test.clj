@@ -2,6 +2,7 @@
   "A small extraction guard over the current direct namespace requires."
   (:require [clojure.test :refer [deftest is]]
             [clojure.set :as set]
+            [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]))
 
@@ -113,6 +114,33 @@
 (defn- read-edn-file [path]
   (with-open [reader (java.io.PushbackReader. (io/reader path))]
     (binding [*read-eval* false] (read reader))))
+
+(deftest extracted-package-catalog-matches-authoritative-pins
+  (let [contract (module-contract)
+        deps (read-edn-file "deps.edn")
+        external-repositories (json/read-str (slurp "data/prf/external-repositories.json")
+                                             :key-fn keyword)
+        build-source (slurp "scripts/build.clj")
+        canonical (get-in contract [:package-contracts :prf-canonical])
+        allocation (get-in contract [:package-contracts :prf-pro-rata-allocation])
+        coprocessor (get-in contract [:package-contracts :prf-coprocessor])
+        canonical-dep (get-in deps [:deps 'prf/canonical])
+        allocation-dep (get-in deps [:deps 'prf/pro-rata-allocation])]
+    (is (= (:git/sha canonical) (:git/sha canonical-dep)))
+    (is (= (:git/sha allocation) (:git/sha allocation-dep)))
+    (is (= (:git/url allocation) (:git/url allocation-dep)))
+    (is (= (:git/sha allocation-dep)
+           (second (re-find #"(?s)prf/pro-rata-allocation \{.*?:git/sha \"([0-9a-f]{40})\""
+                            build-source))))
+    (is (= (:git/sha coprocessor)
+           (get-in external-repositories [:prf-coprocessor :revision])))
+    (is (= :exploratory-public-git-candidate-unpinned-by-prf
+           (get-in contract [:package-contracts :prf-effect-transition-contract :status])))
+    (is (nil? (get-in deps [:deps 'prf/effect-transition-contract])))
+    (is (= :implemented-at-pinned-revision
+           (get-in contract [:canonical-api-requests :status])))
+    (is (= (:git/sha canonical)
+           (get-in contract [:canonical-api-requests :pinned-revision])))))
 
 (defn- module-owners [contract]
   (into {'resolver-sim.accounting.reductions :accounting

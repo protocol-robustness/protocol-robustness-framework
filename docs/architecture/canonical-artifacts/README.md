@@ -41,10 +41,12 @@ Its source checkout now has a described Jujutsu change and local bookmark that u
 `0d0af1b9e7e487f334c11f6a7029a6026caa75af9383e899db03747eb4a6c71a` to the
 adopted baseline
 `e0e33c5ab0f976df2be635124dbc7c0a0bea1619b31af6f3a8d787a3da3c366e`. PRF's
-immutable dependency still points to the prior package revision; update that pin
-only after the metadata change is committed and exported as a package revision.
+immutable dependency now points to
+`e0788f911e4fba3a27544cbccbb95d59d7daf2f7`, which exposes the frozen
+allocation fixtures as Clojure classpath resources. This is a source pin, not
+package-registry publication or release qualification.
 
-See the [pinned allocation repository](https://github.com/protocol-robustness/prf-pro-rata-allocation/tree/48e0b362748cd39d09994a8aa1496c668199aa74)
+See the [pinned allocation repository](https://github.com/protocol-robustness/prf-pro-rata-allocation/tree/e0788f911e4fba3a27544cbccbb95d59d7daf2f7)
 for the portable package boundary, adapter contracts, conformance ownership,
 and remaining release gates. Its source qualification does not promote release,
 SP1, or Solidity proof qualification.

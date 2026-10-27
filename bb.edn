@@ -304,6 +304,14 @@ check:ownership
   {:doc "Recompute a supported commitment or classify an opaque commitment. Usage: bb canonical-artifacts:verify <profile> --input FILE [--expected-root HEX] [--output FILE]"
    :task (apply shell "clojure" "-M" "-m" "resolver-sim.commands.canonical-artifacts" "verify" *command-line-args*)}
 
+  yield:generate
+  {:doc "Generate deterministic, committed yield scenarios. Usage: bb yield:generate --seed N --count N --out NEW-DIRECTORY [--profile PROFILE|--preset PRESET]"
+   :task (apply shell "clojure" "-M:test" "-m" "scripts.scenarios.gen-yield" "generate" *command-line-args*)}
+
+  yield:verify
+  {:doc "Read-only recomputation of generated yield scenario and provenance roots. Usage: bb yield:verify --input DIRECTORY|manifest.edn"
+   :task (apply shell "clojure" "-M:test" "-m" "scripts.scenarios.gen-yield" "verify" *command-line-args*)}
+
   assurance:verify-checkpoint
   {:doc "Verify a hash-bound assurance checkpoint from its bound historical revisions"
    :task (apply shell "bb" "scripts/assurance/verify_checkpoint.clj" "verify-checkpoint" *command-line-args*)}
