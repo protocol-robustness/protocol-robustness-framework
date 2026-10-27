@@ -46,6 +46,9 @@ jobs:
         with:
           cli: 1.11.1.1435
 
+      - name: Verify the frozen PRF corpus release manifest
+        run: clojure -M:pro-rata-contract/test
+
       - name: Check package formatting and tests
         run: |
           cargo fmt --manifest-path .vector-drift/prf-pro-rata-allocation/rust/Cargo.toml --all -- --check
