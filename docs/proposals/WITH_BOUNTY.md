@@ -278,6 +278,12 @@ Sew can require and retain this artifact for an observed direct payout; its
 existing receipt-only entry point remains an authority-attested local
 accounting path and is not chain-settlement evidence.
 
+The policy-bound shared-reserve shortfall model is described in
+[`bounty-shortfall-allocation-v1.md`](../architecture/bounty-shortfall-allocation-v1.md).
+It preserves approved liabilities across funding rounds and delegates realized
+payments to `obligation-settlement.v1`. Current shortfall tests use local
+fixtures; they do not qualify an EVM allocation or payout.
+
 ## 9. Verification
 
 - **Structural verification is delivered per phase** with the artifact it checks

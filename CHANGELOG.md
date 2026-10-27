@@ -15,6 +15,12 @@
   Workflow attribution remains unqualified pending a controlled Sew contract
   path and a reviewed settlement-interface binding.
 
+- Added model-only `bounty-shortfall-policy.v1` and
+  `bounty-shortfall-allocation.v1`. Shortfall evidence separates approved
+  liability, backed unpaid claims, unfunded liability and verified payment,
+  preserves funded claim history across recovery, and delegates payout
+  verification to `obligation-settlement.v1`.
+
 - Replaced the hardcoded Y05 `gen-yield` script with seeded multi-scenario
   generation and read-only verification commands (`bb yield:generate` and
   `bb yield:verify`) that emit materialized and generation-provenance roots.
