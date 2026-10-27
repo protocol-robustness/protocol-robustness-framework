@@ -12,15 +12,24 @@ and Sew workflow ID. A route set must have one mapping per obligation and one
 per workflow. The route hash commits to this mapping and its ordered event
 journal. A pseudonymous address is sufficient; legal identity is not inferred.
 
-`verify-withdrawal-attribution` requires a complete reconstruction of all
-known claimable categories. It accepts the withdrawal as bounty-attributable
-only when all non-bounty categories are zero and both the bounty category and
-withdrawal amounts equal the route amount. Missing categories, unknown
-categories, mixed claims, and mismatched workflow, asset, or beneficiary fail
-closed. Each ordered event also binds its source sequence and predecessor route
-root; stale and duplicate events fail closed. Isolation of a workflow alone is
-not evidence of attribution. Each event also binds the route's chain-instance
-root, asset, workflow, and funding-source root.
+`verify-withdrawal-attribution` requires the caller to supply the expected
+obligation root and a complete reconstruction of all known claimable
+categories. It accepts the withdrawal as bounty-attributable only when the
+expected obligation, route, workflow, asset, beneficiary and exact amount
+match, all non-bounty categories are zero, and both the bounty category and
+withdrawal amounts equal the route amount. Missing or unknown categories,
+negative or malformed category amounts, mixed claims, and mismatched context
+fail closed. Each ordered event also binds its source sequence and predecessor
+route root; stale and duplicate events fail closed. Isolation of a workflow
+alone is not evidence of attribution. Each event also binds the route's
+chain-instance root, asset, workflow, and funding-source root.
+
+The regression suite now exercises substituted obligation context, altered
+route roots and fields, beneficiary/token/workflow/amount mismatches, incomplete
+and unknown category sets, negative and malformed category amounts, mixed
+claims, duplicate/stale events, invalid transitions, and partial payout
+amounts. These are model-adapter checks against caller-supplied reconstruction
+data. They do not prove that a real Sew withdrawal is bounty-attributable.
 
 ## Evidence boundary
 
@@ -99,7 +108,11 @@ evidence.
 The route adapter tests establish only model mapping, transition, and
 category-attribution behavior. The local Sew suite establishes the generic
 create/release/withdraw lifecycle, but it does not exercise a PRF bounty route,
-the required attribution negatives, or an independent payout replay.
+the attribution negatives against actual Sew receipt/state data, or an
+independent payout replay. A substituted evidence-root pointer can remain
+well-formed in the model adapter: authentication and receipt-substitution
+detection require the still-missing reviewed settlement interface and trusted
+chain-observation verifier. No such detection is claimed here.
 Canonical
 `obligation-settlement.v1` in this checkout is limited to the direct native
 transfer route and its `BountyPaid` observation. Sew withdrawal evidence needs
@@ -127,3 +140,11 @@ of the planned size-limit change has not been confirmed. Role addresses,
 profile approval, fresh external-code observations, and independent review are
 also outstanding. The model adapter therefore remains separate from any live
 deployed workflow or payout evidence.
+
+A fresh read-only Base Sepolia creation probe on 2026-10-27 at block
+51,069,238 again accepted a 24,576-byte control and rejected the pinned
+38,983-byte Sew vault runtime with `CreateContractSizeLimit` (chain ID 84532;
+`eth_call`; unsigned; no broadcast). The supplied deployer key and reported
+test balances do not remove this network-level blocker or qualify unresolved
+Timelock, guardian, resolver, fee-recipient, and independent-reviewer roles.
+No deployment transaction was prepared or signed.
