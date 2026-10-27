@@ -71,3 +71,25 @@ category-attribution behavior. They do not satisfy the controlled Sew deposit
 transfer route and its `BountyPaid` observation. Sew withdrawal evidence needs
 a reviewed versioned settlement-interface decision before it can be replayed
 as a bounty payout. No Sew core contract behavior is added here.
+
+## Testnet dependency handoff
+
+The deployment repository's existing, uncommitted Sew profile candidate now
+records Circle Base Sepolia testnet USDC as an observed external dependency in
+`config/sew-core/standalone-profile.v1.json`. Its source is
+`config/pro-95-base-sepolia-demo/observations/usdc-read-only-20261025.json`:
+token `0x036CbD53842c5426634e7929541eC2318f3dCF7e`, six decimals, observed at
+block `50091313` with the proxy and implementation code hashes retained.
+This is a historical, unqualified read-only observation; refresh the code and
+implementation pointer before use. It does not establish transfer behavior,
+source authentication, finality, available future balance, or permission to
+transact. The profile keeps deployment and broadcast disabled.
+
+This supplies only a test-asset dependency. The Sew escrow contracts needed for
+the PRO-88 contract path are not yet deployed in that profile. Its seven-entry
+Sew core graph is still blocked: the selected `EscrowVault` runtime is 38,983
+bytes, above the current 24,576-byte EIP-170 limit, and Base Sepolia activation
+of the planned size-limit change has not been confirmed. Role addresses,
+profile approval, fresh external-code observations, and independent review are
+also outstanding. The model adapter therefore remains separate from any live
+deployed workflow or payout evidence.
