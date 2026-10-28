@@ -8,7 +8,7 @@
 |---|---|---|
 | PRF framework model/tests | `d21d222fba9e18d3533e5b91315fddf6e2730f77` (`agent-c-staging`; review workspace is an empty child) | Clean at inspection |
 | Sew contracts | `7549265eb1f0b15dc62c64594fee18bb5b77c778` | Sew working tree has unrelated deployment/configuration edits; the inspected `contracts/core/BaseEscrow.sol`, `contracts/modules/decentralized-resolution-module/DecentralizedResolutionModule.sol`, and `contracts/arbitration/KlerosArbitrableProxy.sol` were not among the modified paths |
-| PRF/EVM | `3322aa87` (`@`; parent `c17b4798`) | Read-only path search found governance adapters, but no Sew adjudication/ruling adapter in the inspected tree |
+| PRF/EVM | `3322aa870106d8403f2bd9e5faf30015f519e0d0` (`@`; parent `c17b4798`) | Clean. Read-only path search found governance adapters, but no Sew adjudication/ruling adapter in the inspected tree |
 
 The Sew checkout is local and its current source has not been independently reviewed or published as a clean source revision. The PRF/EVM adapter scan is a path/symbol search, not a full repository audit.
 
