@@ -172,15 +172,10 @@
     (is (some #(= ::rac/not-three-members (:kind %)) (:violations result)))))
 
 (deftest three-member-standard-rejects-non-distinct-identities
-  (let [round (rr/build-review-round
-               {:benchmark/content-root "sha256:abc"
-                :review-round/purpose :model-admission
-                :review-round/members
-                [{:researcher/id "researcher-a" :role :model-steward}
-                 {:researcher/id "researcher-a" :role :independent-reproducer}
-                 {:researcher/id "researcher-c" :role :adversarial-reviewer}]
-                :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
-                :review-round/policy-root "sha256:policy"})
+  (let [round {:review-round/members
+               [{:researcher/id "researcher-a" :role :model-steward}
+                {:researcher/id "researcher-a" :role :independent-reproducer}
+                {:researcher/id "researcher-c" :role :adversarial-reviewer}]}
         result (rac/check-aggregate-three-member-standard round)]
     (is (not (:holds? result)))
     (is (some #(= ::rac/non-distinct-member-identities (:kind %)) (:violations result)))
