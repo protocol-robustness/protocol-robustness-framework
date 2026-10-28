@@ -210,7 +210,13 @@
                     :actual-ids (sort (keys transition-results))}))
         actual (required-record records "transition" "canonical-transition-001" 4)
         expected-negative (expected-rejections (get vectors "negative-transition-001.edn"))
-        negative (record-map records "transition-rejection")]
+        negative (record-map records "transition-rejection")
+        malformed-negative (into (sorted-map)
+                                 (filter (fn [[_ fields]] (not= 1 (count fields))))
+                                 negative)]
+    (when (seq malformed-negative)
+      (fail! "Rust transition rejection records must contain exactly one reason field"
+             {:records malformed-negative}))
     (when-not (= (set (keys expected-negative)) (set (keys negative)))
       (fail! "Rust transition rejection record set differs from frozen vectors"
              {:expected-ids (sort (keys expected-negative))
