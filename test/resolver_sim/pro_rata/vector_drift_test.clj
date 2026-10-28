@@ -101,6 +101,11 @@
                       [canonical rejection
                        ["PRF_VECTOR_DRIFT_V1" "transition-rejection" "unexpected"
                         "portable-contract/other"]]
+                      vectors))))
+      (testing "extra fields in a rejection record are rejected"
+        (is (thrown? clojure.lang.ExceptionInfo
+                     (drift/check-transition-output!
+                      [canonical (conj rejection "unexpected")]
                       vectors)))))))
 
 (deftest tree-fingerprint-covers-rust-sources-and-requires-inputs
