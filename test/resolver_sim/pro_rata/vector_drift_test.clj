@@ -56,6 +56,25 @@
             (is (thrown? clojure.lang.ExceptionInfo
                          (drift/compare-vector-directories reference mirror (set (keys duplicate)))))))))))
 
+(deftest allocation-output-requires-exact-record-arity
+  (let [vectors {"allocation-001.edn"
+                 {:vector/id :allocation-001
+                  :expected {:request/hash "request-root" :allocation/hash "result-root"}}
+                 "negative-allocation-001.edn"
+                 {:mutations [{:mutation/id :underflow
+                               :expected/reason :underflow}]}}
+        records [["PRF_VECTOR_DRIFT_V1" "allocation" "allocation-001"
+                  "request-root" "result-root"]
+                 ["PRF_VECTOR_DRIFT_V1" "allocation-rejection" "underflow" "underflow"]]
+        check (ns-resolve 'scripts.conformance.pro-rata-vector-drift 'check-allocation-output!)]
+    (testing "the frozen positive and rejection records pass"
+      (is (nil? (check records vectors))))
+    (testing "extra fields in positive and rejection records fail"
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (check (update records 0 conj "unexpected") vectors)))
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (check (update records 1 conj "unexpected") vectors))))))
+
 (deftest transition-output-requires-exact-frozen-record-identities
   (let [vectors {"canonical-transition-001.edn"
                  {:expected {:roots {:state-before/root "before"

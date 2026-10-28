@@ -132,6 +132,7 @@
     resolver-sim.protocols.sew.slashing-test
     resolver-sim.protocols.sew.evidence.slashing-test
     resolver-sim.pro-rata.semantic-admission-test
+    resolver-sim.pro-rata.vector-drift-test
     resolver-sim.validation.validator-descriptor-test
     resolver-sim.validation.strategic-registry-test
     resolver-sim.validation.game-theory-profile-test
