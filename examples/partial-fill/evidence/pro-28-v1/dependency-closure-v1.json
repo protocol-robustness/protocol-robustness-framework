@@ -1,0 +1,385 @@
+{
+  "chain": {
+    "chainId": 31337,
+    "environmentId": "pro-28-local-replay-efab1160f429748d",
+    "genesisBlockHash": "0x9dbbf4dd8e68e615c3ba0b1f36eb2a0c63c1a4b2f03edcd68ce93611d085dd77",
+    "localOnly": true,
+    "receiptObservation": "receipt cross-links passed",
+    "trustStatus": "out_of_band_reconstruction_digest_matched; local provider observation only"
+  },
+  "dependencies": [
+    {
+      "approvalStatus": "unknown",
+      "dependencyId": "chain-instance",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "capture-metadata.json",
+        "broadcast/"
+      ],
+      "identity": {
+        "chainId": 31337,
+        "environmentId": "pro-28-local-replay-efab1160f429748d",
+        "genesisBlockHash": "0x9dbbf4dd8e68e615c3ba0b1f36eb2a0c63c1a4b2f03edcd68ce93611d085dd77",
+        "localOnly": true,
+        "receiptObservation": "receipt cross-links passed",
+        "trustStatus": "out_of_band_reconstruction_digest_matched; local provider observation only"
+      },
+      "observationStatus": "observed_local_only"
+    },
+    {
+      "address": "0x1c85638e118b37167e9298c2268758e058ddfda0",
+      "approvedIdentityStatus": "unknown",
+      "dependencyId": "contract:admission",
+      "deploymentReceiptBindingStatus": "unknown_per_contract",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "runtime-code-observations.json"
+      ],
+      "libraryAndImmutableReferenceStatus": "runtime_bytes_observed; build-link provenance unknown",
+      "observationStatus": "observed_and_hash_checked",
+      "proxyImplementationStatus": "unknown",
+      "runtimeIdentity": {
+        "address": "0x1c85638e118b37167e9298c2268758e058DdfDA0",
+        "keccak256": "0x09dd2525e2e31a5e247c8a3bacb10d9e436b9d023d9693e1fc3148a3f98f10c4",
+        "runtimeCodeBytes": 4655,
+        "sha256": "0x3af81a731d396338ac85b9232bb7c7b4bb1f9ccf885279f28699626f455513e8"
+      },
+      "upgradeAuthorityStatus": "unknown"
+    },
+    {
+      "address": "0x4c2f7092c2ae51d986befee378e50bd4db99c901",
+      "approvedIdentityStatus": "unknown",
+      "dependencyId": "contract:allocator",
+      "deploymentReceiptBindingStatus": "unknown_per_contract",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "runtime-code-observations.json"
+      ],
+      "libraryAndImmutableReferenceStatus": "runtime_bytes_observed; build-link provenance unknown",
+      "observationStatus": "observed_and_hash_checked",
+      "proxyImplementationStatus": "unknown",
+      "runtimeIdentity": {
+        "address": "0x4C2F7092C2aE51D986bEFEe378e50BD4dB99C901",
+        "keccak256": "0xf2dcfdc1ab1f9095db257b1abd8bd521513adaab46f252b53c247973f256d8b8",
+        "runtimeCodeBytes": 10399,
+        "sha256": "0x84434f2e1a3bba7aadea48402e2e8df944c0877ee9e31e0236b5f4692c2cbbe0"
+      },
+      "upgradeAuthorityStatus": "unknown"
+    },
+    {
+      "address": "0x4631bcabd6df18d94796344963cb60d44a4136b6",
+      "approvedIdentityStatus": "unknown",
+      "dependencyId": "contract:assurance",
+      "deploymentReceiptBindingStatus": "unknown_per_contract",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "runtime-code-observations.json"
+      ],
+      "libraryAndImmutableReferenceStatus": "runtime_bytes_observed; build-link provenance unknown",
+      "observationStatus": "observed_and_hash_checked",
+      "proxyImplementationStatus": "unknown",
+      "runtimeIdentity": {
+        "address": "0x4631BCAbD6dF18D94796344963cB60d44a4136b6",
+        "keccak256": "0xea55e627a6493ecc70114b12ea4029d9918c7e5677cce2d694b16712adde196d",
+        "runtimeCodeBytes": 6998,
+        "sha256": "0x2625b497cb639f95ee4e744889a2cea7f018ed090a791b44758faab0d3f868ee"
+      },
+      "upgradeAuthorityStatus": "unknown"
+    },
+    {
+      "address": "0xc9a43158891282a2b1475592d5719c001986aaec",
+      "approvedIdentityStatus": "unknown",
+      "dependencyId": "contract:executor",
+      "deploymentReceiptBindingStatus": "unknown_per_contract",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "runtime-code-observations.json"
+      ],
+      "libraryAndImmutableReferenceStatus": "runtime_bytes_observed; build-link provenance unknown",
+      "observationStatus": "observed_and_hash_checked",
+      "proxyImplementationStatus": "unknown",
+      "runtimeIdentity": {
+        "address": "0xC9a43158891282A2B1475592D5719c001986Aaec",
+        "keccak256": "0x5708046c7c98c9537ab27585a73d0e218c5eba04273ad6fdd09627173cf6e46a",
+        "runtimeCodeBytes": 3602,
+        "sha256": "0x9447072a13bc841a8767cb1fc9aa7d546222bd5b6c87a90eac1348320bcc4494"
+      },
+      "upgradeAuthorityStatus": "unknown"
+    },
+    {
+      "address": "0xf4b146fba71f41e0592668ffbf264f1d186b2ca8",
+      "approvedIdentityStatus": "unknown",
+      "dependencyId": "contract:genesis",
+      "deploymentReceiptBindingStatus": "unknown_per_contract",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "runtime-code-observations.json"
+      ],
+      "libraryAndImmutableReferenceStatus": "runtime_bytes_observed; build-link provenance unknown",
+      "observationStatus": "observed_and_hash_checked",
+      "proxyImplementationStatus": "unknown",
+      "runtimeIdentity": {
+        "address": "0xf4B146FbA71F41E0592668ffbF264F1D186b2Ca8",
+        "keccak256": "0xcb56cb6f179da0efa1ae084d47af6dd459c19d9d50d71798f9fdf8b4a708a5ae",
+        "runtimeCodeBytes": 1771,
+        "sha256": "0x530944c49d6627a192aa9fe376ec0c689e8c3e1eab26cc34490c4c6160a24071"
+      },
+      "upgradeAuthorityStatus": "unknown"
+    },
+    {
+      "address": "0x49fd2be640db2910c2fab69bb8531ab6e76127ff",
+      "approvedIdentityStatus": "unknown",
+      "dependencyId": "contract:preparedController",
+      "deploymentReceiptBindingStatus": "unknown_per_contract",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "runtime-code-observations.json"
+      ],
+      "libraryAndImmutableReferenceStatus": "runtime_bytes_observed; build-link provenance unknown",
+      "observationStatus": "observed_and_hash_checked",
+      "proxyImplementationStatus": "unknown",
+      "runtimeIdentity": {
+        "address": "0x49fd2BE640DB2910c2fAb69bB8531Ab6E76127ff",
+        "keccak256": "0x9601445da5516b5391ffd0b70d67a152871fc383a3b5139f1eb9cb19a8bea443",
+        "runtimeCodeBytes": 4558,
+        "sha256": "0xc9685d65d24bbd9d0bdcb9ef93e3d594986dc81d3e1f054d60216e9835154c29"
+      },
+      "upgradeAuthorityStatus": "unknown"
+    },
+    {
+      "address": "0x86a2ee8faf9a840f7a2c64ca3d51209f9a02081d",
+      "approvedIdentityStatus": "unknown",
+      "dependencyId": "contract:ratificationController",
+      "deploymentReceiptBindingStatus": "unknown_per_contract",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "runtime-code-observations.json"
+      ],
+      "libraryAndImmutableReferenceStatus": "runtime_bytes_observed; build-link provenance unknown",
+      "observationStatus": "observed_and_hash_checked",
+      "proxyImplementationStatus": "unknown",
+      "runtimeIdentity": {
+        "address": "0x86A2EE8FAf9A840F7a2c64CA3d51209F9A02081D",
+        "keccak256": "0xca5df174dff8afdab2f2f036ccabd2dd216e93fd205306b9730656f0cdfd102f",
+        "runtimeCodeBytes": 7009,
+        "sha256": "0xc674d1846cc59dc01b45b373463998ce34e2615839ce20450c2717b81b8234a5"
+      },
+      "upgradeAuthorityStatus": "unknown"
+    },
+    {
+      "address": "0xd84379ceae14aa33c123af12424a37803f885889",
+      "approvedIdentityStatus": "unknown",
+      "dependencyId": "contract:registry",
+      "deploymentReceiptBindingStatus": "unknown_per_contract",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "runtime-code-observations.json"
+      ],
+      "libraryAndImmutableReferenceStatus": "runtime_bytes_observed; build-link provenance unknown",
+      "observationStatus": "observed_and_hash_checked",
+      "proxyImplementationStatus": "unknown",
+      "runtimeIdentity": {
+        "address": "0xD84379CEae14AA33C123Af12424A37803F885889",
+        "keccak256": "0xbd2774aa76d536a871c280d086bda3f8ef4cd9527c8d5c9f85be827cc0a2b6a5",
+        "runtimeCodeBytes": 5552,
+        "sha256": "0xcbd6c33d753dadb78357c7e143b64a058724d91160ef9d56fa150d7c711d3619"
+      },
+      "upgradeAuthorityStatus": "unknown"
+    },
+    {
+      "address": "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9",
+      "approvedIdentityStatus": "unknown",
+      "dependencyId": "contract:reserve",
+      "deploymentReceiptBindingStatus": "unknown_per_contract",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "runtime-code-observations.json"
+      ],
+      "libraryAndImmutableReferenceStatus": "runtime_bytes_observed; build-link provenance unknown",
+      "observationStatus": "observed_and_hash_checked",
+      "proxyImplementationStatus": "unknown",
+      "runtimeIdentity": {
+        "address": "0x7A9Ec1d04904907De0ED7b6839CcdD59c3716AC9",
+        "keccak256": "0x5e8126a6e6eed7ce45ce859e8ba0d01b461988c1a6dbde9f02aeeb7ab33c1e69",
+        "runtimeCodeBytes": 13360,
+        "sha256": "0x63ad0e1aef5995df06db28d12226f132d9dee4ad8542f2716130366bfedca728"
+      },
+      "upgradeAuthorityStatus": "unknown"
+    },
+    {
+      "address": "0xbec49fa140acaa83533fb00a2bb19bddd0290f25",
+      "approvedIdentityStatus": "unknown",
+      "dependencyId": "contract:sourceAdapter",
+      "deploymentReceiptBindingStatus": "unknown_per_contract",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "runtime-code-observations.json"
+      ],
+      "libraryAndImmutableReferenceStatus": "runtime_bytes_observed; build-link provenance unknown",
+      "observationStatus": "observed_and_hash_checked",
+      "proxyImplementationStatus": "unknown",
+      "runtimeIdentity": {
+        "address": "0xBEc49fA140aCaA83533fB00A2BB19bDdd0290f25",
+        "keccak256": "0xb74e9c2370c6a95a62e7e5a94d00d6f78bb7bc5fa1a0fe4dbd17d8bc9128708c",
+        "runtimeCodeBytes": 1644,
+        "sha256": "0x3c57964293310a6d41a8c49b92d4b9d89456d47041965cb87261505c6cd72290"
+      },
+      "upgradeAuthorityStatus": "unknown"
+    },
+    {
+      "address": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+      "approvedIdentityStatus": "unknown",
+      "dependencyId": "contract:token",
+      "deploymentReceiptBindingStatus": "unknown_per_contract",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "runtime-code-observations.json"
+      ],
+      "libraryAndImmutableReferenceStatus": "runtime_bytes_observed; build-link provenance unknown",
+      "observationStatus": "observed_and_hash_checked",
+      "proxyImplementationStatus": "unknown",
+      "runtimeIdentity": {
+        "address": "0x367761085BF3C12e5DA2Df99AC6E1a824612b8fb",
+        "keccak256": "0xf8c8f223a691f9d2eeba5be51bdf5f06efeeee7c48734bfcbee16eddf5e923ec",
+        "runtimeCodeBytes": 1222,
+        "sha256": "0x24249b2e76ccf9dee61cf1274b4ed3f5150c5463ab8a7794631e929a12b33b68"
+      },
+      "upgradeAuthorityStatus": "unknown"
+    },
+    {
+      "address": "0x4ee6ecad1c2dae9f525404de8555724e3c35d07b",
+      "approvedIdentityStatus": "unknown",
+      "dependencyId": "contract:verifier",
+      "deploymentReceiptBindingStatus": "unknown_per_contract",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "runtime-code-observations.json"
+      ],
+      "libraryAndImmutableReferenceStatus": "runtime_bytes_observed; build-link provenance unknown",
+      "observationStatus": "observed_and_hash_checked",
+      "proxyImplementationStatus": "unknown",
+      "runtimeIdentity": {
+        "address": "0x4EE6eCAD1c2Dae9f525404De8555724e3c35d07B",
+        "keccak256": "0x728b036f7dbc79d6186237350e02c61bcc1cbe4ff0681ba75b8df14546d0fd71",
+        "runtimeCodeBytes": 5709,
+        "sha256": "0x772b8ecd7314cb4318b0197a27dbab7212a097c2222248c6c30f01a16e1eee53"
+      },
+      "upgradeAuthorityStatus": "unknown"
+    },
+    {
+      "approvalStatus": "unknown",
+      "cryptographicVerification": "not_independently_verified",
+      "dependencyId": "proof-profile",
+      "evidenceRefs": [
+        "proof-fixture.json",
+        "witness.json",
+        "deployment-manifest.json"
+      ],
+      "identity": {
+        "elfSha256": "0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8",
+        "programId": "source-bound-entitlement-sp1-program.v1",
+        "proofSha256": "0xe05b68dbeeae20194c0664946c304ed006c42a818e371b1d6466c7a1d57d725b",
+        "publicValuesBytes": 288,
+        "publicValuesSchema": "prf/source-bound-entitlement-public-values.v1",
+        "vkey": "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9"
+      },
+      "observationStatus": "bound_between_manifest_witness_and_fixture"
+    },
+    {
+      "approvalStatus": "unknown",
+      "dependencyId": "configuration-and-registry",
+      "evidenceRefs": [
+        "deployment-manifest.json",
+        "proof-fixture.json"
+      ],
+      "identity": {
+        "configurationEpoch": 0,
+        "configurationRoot": "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "policyRoot": "0x0909090909090909090909090909090909090909090909090909090909090909",
+        "registryRoot": "0x6a0384196ca2f4903036221ed326000afdc041e3d2fa5e111c4efa485caf30b2"
+      },
+      "liveObservation": null,
+      "liveStateStatus": "not_rechecked",
+      "observationStatus": "manifest_bound_only"
+    },
+    {
+      "approvalStatus": "unknown",
+      "dependencyId": "authority-and-upgrade-controls",
+      "evidenceRefs": [
+        "deployment-manifest.json"
+      ],
+      "identity": {
+        "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+      },
+      "observationStatus": "unknown",
+      "reason": "The retained bundle does not independently establish effective role holders, proxy/admin paths, or external upgrade controls."
+    },
+    {
+      "dependencyId": "asset-token",
+      "evidenceRefs": [
+        "broadcast/",
+        "deployment-manifest.json"
+      ],
+      "failedTransferBehavior": "unknown",
+      "identity": {
+        "address": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+      },
+      "issuerAndPauseControls": "unknown_external_assumptions",
+      "observationStatus": "transfer_events_cross_linked",
+      "observedTransferEvidence": "exact transfer events are cross-linked for this local execution"
+    }
+  ],
+  "deploymentManifestDigest": "sha256:e9ab2ed1ba0494d9e457ace966b789fcae9332cc42a2dd6c62f3339eeee356f8",
+  "detectedOnly": [
+    "The receipt verifier can detect substituted chain, receipt, proof, and captured runtime evidence; those checks are retrospective and do not prevent a transaction."
+  ],
+  "executionSummary": {
+    "claimPayouts": {
+      "claim-a": 35,
+      "claim-b": 21,
+      "claim-c": 14
+    },
+    "economicReconciliationStatus": "receipt transfers cross-linked; terminal balances and liability remain unverified",
+    "receiptReconstructionStatus": "receipt cross-links passed",
+    "successfulReceiptCount": 41
+  },
+  "limitations": [
+    "The reconstruction digest is an integrity pin only; it does not authorize the profile or establish chain truth.",
+    "No new canonical root is introduced by this report."
+  ],
+  "liveRevalidation": {
+    "meaning": "No current-state or canonicality claim is made from retained artifacts alone.",
+    "status": "not_requested"
+  },
+  "operation": {
+    "configurationEpoch": 0,
+    "configurationRoot": "0x0101010101010101010101010101010101010101010101010101010101010101",
+    "operationId": "0x809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+    "preparedOperationRoot": "0xe0c2dc5821ca3b6ec330d8af7bcb407400b19bff4d8ee08f727970494dd85eb2"
+  },
+  "profile": {
+    "approvalStatus": "unknown",
+    "id": "pro28-local-reconstruction-pin-v1",
+    "trustAnchor": {
+      "kind": "operator-supplied-report-sha256",
+      "sha256": "9ba1ffccdc9acb94fe525dde1ea93e78d3fc986448ae0ccdc5884625cdc14982",
+      "source": "independent of the evidence bundle; caller must obtain through a trusted revision or authenticated channel"
+    }
+  },
+  "result": "not_qualified",
+  "schema": "prf.deployment-dependency-closure.v1",
+  "source": {
+    "replay": "Fresh local Anvil replay of the 41 retained signed transaction envelopes. Each reconstructed envelope matched its retained transaction hash; receipts and runtime code were fetched from the same loopback RPC after recording the genesis identity. No public transaction was submitted.",
+    "repository": "protocol-robustness/prf-evm",
+    "revision": "4cfa2f96a4938d23abda609dfff9052b177ef8af"
+  },
+  "sourceBindingStatus": "declared_by_existing_reconstruction; checkout identity requires separate verification",
+  "unknowns": [
+    "No owner-approved dependency profile is pinned; matching the reconstruction digest is integrity evidence, not approval.",
+    "Proxy/effective implementation relationships and upgrade authorities are not established by this bundle.",
+    "Configuration and registry state are bound by manifest claims but not re-observed from a live chain here.",
+    "The proof is structurally bound, but cryptographic verification is not independently performed by the receipt verifier.",
+    "Local Anvil execution does not establish public-chain inclusion, consensus, safe/finalized status, or finality.",
+    "ERC-20 transfer behavior is observed for these transfers only; issuer pause/freeze/blacklist/upgrade rights remain unknown."
+  ]
+}
