@@ -10,6 +10,12 @@
 
 ## Unreleased
 
+- Added a diagnostic dependency-closure report for retained local
+  pro-rata execution evidence. It reuses the existing receipt reconstruction,
+  requires an out-of-band report digest, and reports missing approval/current
+  state as unknown; it does not qualify a deployment or establish public-chain
+  finality.
+
 - Added `bb pro-rata-vectors:check` to compare the PRF frozen allocation and
   transition vectors with extracted package mirrors and Rust conformance-test
   roots and rejection outcomes. The command reports source revisions and tool
