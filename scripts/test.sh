@@ -357,6 +357,7 @@ run_unit() {
     resolver-sim.allocation.vectors-test \
     resolver-sim.pro-rata.allocation-test \
     resolver-sim.pro-rata.dependency-boundary-test \
+    resolver-sim.pro-rata.vector-drift-test \
     resolver-sim.test-vectors.pro-rata-test \
     resolver-sim.benchmark.packs.partial-fill.pro-rata-evidence-test \
     resolver-sim.yield.pro-rata-claims-test \
