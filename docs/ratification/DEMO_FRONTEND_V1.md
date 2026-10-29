@@ -1,90 +1,83 @@
-# User-owned research ratification demonstration
+# Local researcher ratification API demo
 
-This document describes a draft HTTP contract for a demonstration frontend in
-a separate repository controlled and deployed by its author. The frontend is
-not part of PRF, and its hosting, identity provider, storage, branding, and
-configuration are controlled by that repository's owner.
+PRF now includes a fixture-backed, loopback-only HTTP adapter for trying the
+existing researcher ratification functions. It is an integration prototype,
+not a production identity, policy, evidence, or storage service. The adapter
+keeps `demoOnly: true`, reports policy approval as `not-approved`, and always
+reports `operationalAuthority: false`.
 
-The demonstration label must remain visible on every workspace and result:
-**demonstration only**. A research ratification is not a SEW ruling, legal
-decision, governance authorization, reward, or permission to execute an
-operation. The current PRF ratification result sets
-`operationalAuthority` to `false`.
+## Start the local service
 
-## What the frontend consumes
+From the repository root, run:
 
-The user-owned frontend should generate its HTTP client and TypeScript types
-from [`../../schemas/research-ratification-demo-api.v1.json`](../../schemas/research-ratification-demo-api.v1.json).
-It should not import PRF's internal Clojure namespaces or reimplement PRF's
-canonical hashing. The API serves the roots computed by its verifier.
+```sh
+clojure -M -m resolver-sim.research.ratification-http \
+  examples/research-ratification-demo.edn
+```
 
-A backend adapter implements the contract and calls the existing PRF
-ratification functions. In this repository that means
-`resolver-sim.research.ratification` for target, policy, contribution, and
-result reconstruction, plus
-`resolver-sim.benchmark.research-ratification-artifact` when creating or
-verifying retained research artifacts. The backend also owns authentication,
-the principal-to-key registry, evidence retrieval, and immutable storage.
-Those adapter services do not exist yet; the OpenAPI file is a draft contract,
-not a claim that the routes are currently available.
+The fixture binds only to `127.0.0.1`. It uses an illustrative target, a
+test-only researcher identity and bearer token, the repository's test public
+key, and `/tmp/prf-research-ratification-demo.edn` for its append state. The
+matching private key is a repository test fixture and must never be used for
+real research. The persisted state file can be removed to reset the example.
 
-## Interaction sequence
+The fixture intentionally reports its analysis as `not-established` with
+`methodVerification: unavailable`. This is a fixture declaration, not a
+verification result: the adapter does not run an analytical verifier. A
+successful researcher ratification must not upgrade that separate claim
+assessment.
 
-1. Load a workspace by its immutable target root. Display its subject,
-   evidence, round, policy, predecessor, and root before enabling a response.
-2. Request a contribution intent. The service binds the authenticated
-   principal, researcher ID, registered signing-key ID, contribution kind,
-   evidence root, target root, and round, and returns the exact
-   `researcher-decision.v2` fields to sign. In this demo contract,
-   `authorisationId` and `requestRoot` are both the immutable target root. The
-   service checks every returned identity and scope field against the
-   submitted decision. This step does not record a contribution.
-3. Sign the returned payload using a supported user-controlled signer. Submit
-   the signed decision. The service checks eligibility, reconstructs the
-   contribution subject root, verifies the Ed25519 signature and target/round
-   binding, and rejects a second contribution from the same researcher or
-   principal for that target.
-4. Reload the workspace and independently reconstruct the ratification from
-   the retained target, policy, contributions, and trusted key bindings.
-5. If evidence, question, round, or policy changes, publish a successor
-   target with a predecessor root. Earlier contributions remain attached to
-   their original target and do not authorize the successor.
+## Read and contribute
 
-`challenge` and `reproduction` contributions require an evidence root. Under
-the current PRF model they are signed as dissent decisions whose contribution
-kind and evidence root are included in the signed outcome root. A challenge
-can keep the result `contested-unresolved` when policy says challenges block.
-The UI should render dissent and challenge evidence as retained positions,
-not discard them when the threshold is reached.
+The OpenAPI draft is
+[`../../schemas/research-ratification-demo-api.v1.json`](../../schemas/research-ratification-demo-api.v1.json).
+Read endpoints are public on loopback; contribution endpoints require the
+fixture bearer token. For example:
 
-## User-owned repository boundary
+The server prints the computed target root at startup. The illustrative roots
+in the config are inputs to canonical PRF hashing, not the target root. Use
+the printed root in the examples below (shown as `$TARGET_ROOT`):
 
-The separate frontend repository should import only a generated client and
-types from this contract (or a released package generated from it). It may
-include a demo gateway that calls a PRF verifier, but must pin the PRF source
-revision or released library version and keep its own identity and storage
-configuration. The current PRF repository is not published as a standalone
-ratification library, so an initial gateway can pin this repository revision
-and call the existing Clojure namespaces. Do not make the browser depend on
-the PRF source tree.
+```sh
+curl "http://127.0.0.1:8787/v1/targets/$TARGET_ROOT"
+curl -X POST "http://127.0.0.1:8787/v1/targets/$TARGET_ROOT/contribution-intents" \
+  -H 'Authorization: Bearer demo-researcher-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"kind":"approve"}'
+```
 
-The current researcher CLI signs with local Ed25519 key files. The browser
-signing method is not specified by the existing implementation. The demo must
-choose an explicit signer adapter, keep private-key custody outside ordinary
-page JavaScript, and show the exact target root and decision fields at signing
-time. Test keys and fixture identities must be visibly marked as test-only.
+The interaction sequence is:
 
-## Draft limitations
+1. `GET /v1/targets/{targetRoot}` to inspect the frozen target and policy.
+2. `POST /v1/targets/{targetRoot}/contribution-intents` with
+   `{"kind":"approve"}` and `Authorization: Bearer demo-researcher-token`.
+   The response provides the exact decision fields to sign.
+3. Sign those fields with the researcher's own Ed25519 signer, then submit
+   `{"kind":"approve","decision":{...signed researcher-decision.v2...}}`
+   to `/contributions`. The server verifies the signature and reconstructs
+   the contribution and ratification using the existing PRF functions.
+4. Read `/ratification` or reload the workspace to inspect the reconstructed
+   result. Repeating the identical signed decision returns an idempotent
+   receipt; a different second contribution by the same researcher is
+   rejected.
 
-The OpenAPI document defines read, contribution-intent, contribution-submit,
-and reconstruction operations. It intentionally leaves account creation,
-membership administration, policy publication, target publication, evidence
-upload, notifications, and production key custody to the user-owned service.
-The current ratification library receives eligible principals and key
-bindings from its caller; it does not establish an identity provider or
-membership registry.
+The service accepts dissent, challenge, and reproduction contributions too.
+They need a signed dissent reason; challenge and reproduction also need an
+evidence root. These records remain positions and evidence references. The
+adapter does not fetch or scientifically validate evidence.
 
-The contract needs a golden JSON fixture and cross-language root tests before
-it is treated as a stable integration surface. Until then, version it as a
-draft and expect the API adapter to reject unknown schema versions and
-unrecognized fields.
+## Boundaries and remaining work
+
+This adapter persists a local EDN fixture store and trusts the researcher/key
+bindings in its config. It is single-process demo storage, has no account
+administration, and does not establish that distinct keys represent
+independent people. The signature intent and submission use the existing PRF
+`researcher-decision.v2` implementation; the adapter adds transport and
+receipt persistence, not another ratification engine.
+
+The Research Resolution notebook in the pinned `prf/notebooks` dependency now
+has an optional live workspace and intent preview. It displays claim status,
+method verification, ratification, policy approval, and operational authority
+as separate fields. A stable external integration still needs a golden JSON
+fixture, independent client reconstruction, policy approval, and an actual
+method-verification path.
