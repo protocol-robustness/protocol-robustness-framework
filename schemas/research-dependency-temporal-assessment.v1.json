@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://protocol-robustness-framework/schemas/research-dependency-temporal-assessment.v1.json",
+  "title": "Research dependency temporal applicability assessment v1",
+  "description": "A read-only assessment of observer reference roots against an externally trusted and independently replayable certified checkpoint history. It does not establish wall-clock freshness, future-head availability, observer authentication, independence, or operational authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact/schema",
+    "temporal/comparison-root",
+    "temporal/observer-status",
+    "temporal/checkpoint-verification-status",
+    "temporal/trusted-genesis-root",
+    "temporal/checkpoint-roots",
+    "temporal/head-root",
+    "temporal/head-sequence",
+    "temporal/reference-positions",
+    "temporal/applicability",
+    "temporal/wall-clock-freshness",
+    "temporal/observer-authentication",
+    "temporal/observer-independence",
+    "temporal/latestness",
+    "temporal/operational-authority?",
+    "research-dependency-temporal-assessment/root"
+  ],
+  "properties": {
+    "artifact/schema": { "const": "research-dependency-temporal-assessment.v1" },
+    "temporal/comparison-root": { "$ref": "#/$defs/root" },
+    "temporal/observer-status": {
+      "enum": ["not-comparable", "conflicting", "single-observation", "observers-agree"]
+    },
+    "temporal/checkpoint-verification-status": { "enum": ["certified", "unverified"] },
+    "temporal/trusted-genesis-root": { "$ref": "#/$defs/root" },
+    "temporal/checkpoint-roots": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/root" }
+    },
+    "temporal/head-root": { "oneOf": [{ "$ref": "#/$defs/root" }, { "type": "null" }] },
+    "temporal/head-sequence": {
+      "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
+    },
+    "temporal/reference-positions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reference/root", "checkpoint/sequence", "position"],
+        "properties": {
+          "reference/root": { "$ref": "#/$defs/root" },
+          "checkpoint/sequence": {
+            "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
+          },
+          "position": { "enum": ["head", "ancestor", "unknown"] }
+        }
+      }
+    },
+    "temporal/applicability": {
+      "enum": ["at-certified-head", "conflicting-at-certified-head",
+               "historical-reference", "mixed-reference-ages", "unknown"]
+    },
+    "temporal/wall-clock-freshness": { "const": "not-assessed" },
+    "temporal/observer-authentication": { "const": "not-assessed" },
+    "temporal/observer-independence": { "const": "not-established" },
+    "temporal/latestness": { "const": "not-established" },
+    "temporal/operational-authority?": { "const": false },
+    "research-dependency-temporal-assessment/root": { "$ref": "#/$defs/root" }
+  },
+  "$defs": {
+    "root": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

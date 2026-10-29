@@ -159,7 +159,7 @@
                "decision" (if (= :approve kind) "approve" "dissent")
                "dissentReasonRequired" (not= :approve kind)}
         evidence-root (assoc "evidenceRoot" evidence-root)
-        dissent-reason (assoc "dissentReason" dissent-reason))))
+        dissent-reason (assoc "dissentReason" dissent-reason)))))
 
 (defn- decision-from-json [value]
   (let [signature (:signature value)
@@ -332,7 +332,7 @@
                   (reset! store-atom next-store)
                   {:entry entry :ratification (ratification-view result) :retry? false})
                 (catch clojure.lang.ExceptionInfo error
-                  (fail! 409 "RECONSTRUCTION_FAILED" (.getMessage error))))))))))
+                  (fail! 409 "RECONSTRUCTION_FAILED" (.getMessage error)))))))))))
 
 (defn- respond! [^HttpExchange exchange status value]
   (let [bytes (.getBytes (json/write-str value :escape-unicode false) StandardCharsets/UTF_8)]
@@ -401,6 +401,7 @@
                                                    "message" "Request could not be reconstructed"}))))))
     (.start server)
     {:server server :executor executor :fixture fixture
+     :host (:host fixture) :port (:port fixture)
      :stop (fn [] (.stop server 0) (.shutdown executor))}))
 
 (defn -main [& args]
