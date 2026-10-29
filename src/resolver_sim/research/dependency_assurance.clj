@@ -524,6 +524,7 @@
               :observation/historical-assessment-root (:assessment-root baseline)
               :observation/baseline-resolved-root
               (:assessment-dependency-set-root baseline)
+              :observation/trusted-baseline-root trusted-baseline-root
               :observation/records records
               :observation/impact-report-roots report-roots
               :observation/reference-roots reference-roots
@@ -572,7 +573,9 @@
                          (and (= (:observation/baseline-resolved-root comparison)
                                  (:impact/baseline-resolved-root impact))
                               (= (:observation/historical-assessment-root comparison)
-                                 (:impact/historical-assessment-root impact)))))
+                                  (:impact/historical-assessment-root impact))
+                              (= (:observation/trusted-baseline-root comparison)
+                                 (:impact/trusted-baseline-root impact)))))
                      records))
         expected-status (when valid-records? (observation-status records))
         errors (cond-> []
@@ -580,6 +583,7 @@
                  (conj :unsupported-observation-comparison-schema)
                  (not= #{:artifact/schema :observation/historical-assessment-root
                          :observation/baseline-resolved-root :observation/records
+                         :observation/trusted-baseline-root
                          :observation/impact-report-roots :observation/reference-roots
                          :observation/resolved-state-roots :observation/status
                          :observation/observer-authentication
@@ -610,6 +614,9 @@
                  (not (every? root? [(:observation/historical-assessment-root comparison)
                                      (:observation/baseline-resolved-root comparison)]))
                  (conj :invalid-historical-assessment-reference)
+                 (not (or (nil? (:observation/trusted-baseline-root comparison))
+                          (root? (:observation/trusted-baseline-root comparison))))
+                 (conj :invalid-trusted-baseline-reference)
                  (not= (:impact/baseline-resolved-root
                         (get-in comparison [:observation/records 0 :observation/impact-report]))
                        (:observation/baseline-resolved-root comparison))
