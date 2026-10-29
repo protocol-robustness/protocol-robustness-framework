@@ -5,6 +5,7 @@
    this namespace owns no schemas, hashing rules, or lifecycle semantics. It is
    a package boundary candidate, not yet an independently released package."
   (:require [resolver-sim.benchmark.incentive-model :as incentive-model]
+            [resolver-sim.benchmark.research-conclusion :as conclusion]
             [resolver-sim.benchmark.research-analysis :as analysis]
             [resolver-sim.benchmark.research-claim-acceptance :as acceptance]
             [resolver-sim.benchmark.research-claim-lifecycle :as lifecycle]
@@ -15,6 +16,9 @@
 (def analysis-verification-valid? analysis/verification-valid?)
 (def derive-analytical-claim analysis/derive-claim)
 (def validate-analytical-claim analysis/validate-claim)
+
+;; Research-conclusion qualification is explanatory and leaves V1 roots intact.
+(def qualify-research-conclusion conclusion/qualify-conclusion)
 
 ;; Authoritative acceptance and lifecycle operations.
 (def build-claim-acceptance-policy acceptance/build-policy)
