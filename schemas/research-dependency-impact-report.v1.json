@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://protocol-robustness-framework/schemas/research-dependency-impact-report.v1.json",
+  "title": "Research Dependency Impact Report v1",
+  "description": "Read-only comparison of two reconstructed dependency states. It cannot establish currentness, latestness, correctness, or authority.",
+  "type": "object",
+  "required": [
+    "artifact/schema",
+    "impact/baseline-manifest-root",
+    "impact/baseline-policy-root",
+    "impact/baseline-resolved-root",
+    "impact/observed-manifest-root",
+    "impact/observed-policy-root",
+    "impact/observed-resolved-root",
+    "impact/trusted-baseline-root",
+    "impact/baseline-anchor-status",
+    "impact/changed-dependencies",
+    "impact/drift-observed?",
+    "impact/historical-evidence-status",
+    "impact/current-assessment-status",
+    "impact/latestness",
+    "impact/authority-issued?",
+    "research-dependency-impact-report/root"
+  ],
+  "properties": {
+    "artifact/schema": { "const": "research-dependency-impact-report.v1" },
+    "impact/baseline-manifest-root": { "$ref": "#/$defs/root" },
+    "impact/baseline-policy-root": { "$ref": "#/$defs/root" },
+    "impact/baseline-resolved-root": { "$ref": "#/$defs/root" },
+    "impact/observed-manifest-root": { "$ref": "#/$defs/root" },
+    "impact/observed-policy-root": { "$ref": "#/$defs/root" },
+    "impact/observed-resolved-root": { "$ref": "#/$defs/root" },
+    "impact/trusted-baseline-root": { "oneOf": [{ "$ref": "#/$defs/root" }, { "type": "null" }] },
+    "impact/baseline-anchor-status": { "enum": ["matched", "missing", "mismatch"] },
+    "impact/changed-dependencies": { "type": "array", "items": { "$ref": "#/$defs/change" } },
+    "impact/drift-observed?": { "type": "boolean" },
+    "impact/historical-evidence-status": { "const": "preserved-by-reference" },
+    "impact/current-assessment-status": {
+      "enum": ["requalification-required", "unknown-unanchored-baseline", "no-observed-drift-freshness-unverified"]
+    },
+    "impact/latestness": { "const": "not-established" },
+    "impact/authority-issued?": { "const": false },
+    "research-dependency-impact-report/root": { "$ref": "#/$defs/root" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "root": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "projection": {
+      "type": "object",
+      "required": ["dependency/id", "dependency/class", "dependency/visibility", "dependency/artifact-root", "dependency/provenance-roots", "dependency/metadata-root", "resolution/evidence-root", "resolution/acquisition-mode"],
+      "properties": {
+        "dependency/id": { "type": "string" },
+        "dependency/class": { "type": "string" },
+        "dependency/visibility": { "type": "string" },
+        "dependency/artifact-root": { "$ref": "#/$defs/root" },
+        "dependency/provenance-roots": { "type": "array", "items": { "$ref": "#/$defs/root" } },
+        "dependency/metadata-root": { "$ref": "#/$defs/root" },
+        "resolution/evidence-root": { "$ref": "#/$defs/root" },
+        "resolution/acquisition-mode": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "change": {
+      "type": "object",
+      "required": ["dependency/id", "before", "after"],
+      "properties": {
+        "dependency/id": { "type": "string" },
+        "before": { "oneOf": [{ "$ref": "#/$defs/projection" }, { "type": "null" }] },
+        "after": { "oneOf": [{ "$ref": "#/$defs/projection" }, { "type": "null" }] }
+      },
+      "additionalProperties": false
+    }
+  }
+}

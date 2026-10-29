@@ -10,6 +10,7 @@
             [resolver-sim.benchmark.research-claim-acceptance :as acceptance]
             [resolver-sim.benchmark.research-claim-lifecycle :as lifecycle]
             [resolver-sim.research.resolution-view :as resolution-view]
+            [resolver-sim.research.dependency-assurance :as dependency]
             [resolver-sim.hash.reference :as canonical-reference]))
 
 ;; Research-result verification and analytical-claim derivation.
@@ -22,6 +23,10 @@
 (def qualify-research-conclusion conclusion/qualify-conclusion)
 (def build-research-resolution-view resolution-view/build-view)
 (def validate-research-resolution-view resolution-view/validate-view)
+
+;; Research dependency drift is an explanatory report, not a freshness oracle.
+(def compare-research-dependency-state dependency/compare-dependency-state)
+(def validate-research-dependency-impact-report dependency/validate-impact-report)
 
 ;; Authoritative acceptance and lifecycle operations.
 (def build-claim-acceptance-policy acceptance/build-policy)
