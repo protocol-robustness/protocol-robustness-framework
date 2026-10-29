@@ -212,6 +212,73 @@ clojure -M -m resolver-sim.research.researcher-challenges-cli \
   summary configuration.edn history.edn sha256:RESEARCHER_REFERENCE
 ```
 
+The packaged researcher CLI exposes the common participation steps without
+constructing request files or separately signing/applying them:
+
+```sh
+bin/prf researcher challenge list --config configuration.edn --history history.edn
+bin/prf researcher challenge show --config configuration.edn \
+  --challenge-root sha256:CHALLENGE_ROOT --history history.edn
+bin/prf researcher challenge enroll --config configuration.edn \
+  --history history.edn --public-key researcher.pub --key researcher-private.pem
+bin/prf researcher challenge key-check --config configuration.edn \
+  --public-key researcher.pub --key researcher-private.pem
+bin/prf researcher challenge claim --config configuration.edn \
+  --history history.edn --challenge-root sha256:CHALLENGE_ROOT \
+  --public-key researcher.pub --key researcher-private.pem
+bin/prf researcher challenge submit --config configuration.edn \
+  --history history.edn --challenge-root sha256:CHALLENGE_ROOT \
+  --public-key researcher.pub \
+  --research-input research-verification-input.edn --key researcher-private.pem
+bin/prf researcher challenge status --config configuration.edn \
+  --history history.edn --public-key researcher.pub
+```
+
+Pass `--history` to `list` or `show` to include the number of claimed slots,
+remaining capacity and whether the challenge is full. This is a snapshot of that
+history; the claim command rechecks capacity while holding the history lock.
+`claim` prints the task-claim root and frozen quote terms. `submit` can resolve
+the task-claim root automatically when exactly one open claim matches the
+researcher's public key and selected challenge. If there are multiple matching
+claims, supply `--task-claim-root` explicitly.
+`submit` accepts either `--research-input`, containing the existing research
+verification context, or `--evidence-context`, containing just the challenge
+evidence fields. The research-input form projects only those fields and
+re-verifies them for challenge admission; it does not create a separate
+`research submit` admission or reviewer decision. `research submit` admits a
+research execution artifact but does not append a challenge action. Submission output reports
+`:review/status :not-reviewed` and `:reward/authorization :not-created`.
+
+Enrollment, claim, submit, and status accept an optional `--checkpoint` from the operator. When
+supplied, it must match the current local history before the command signs or
+reports status. Without it, output says `:history/checkpoint-status
+:not-checked`. Matching a checkpoint confirms the supplied history prefix; it
+does not authenticate who published that checkpoint. After each appended action,
+the prior checkpoint is stale and the operator must publish its successor.
+The status result includes `:researcher/next-actions` entries for open claims
+that can be submitted and submissions awaiting review.
+
+### Researcher UX follow-up plan
+
+1. **Implemented: reduce claim errors.** History-aware catalog output shows
+   claimed and remaining slots; submit resolves a sole matching open claim, and
+   status points to submission or waiting steps.
+2. **Implemented: key preflight.** `researcher challenge key-check` signs a
+   fresh local probe and verifies it against the supplied public key. It prints
+   the derived researcher reference without writing to history or exposing the
+   probe signature.
+3. **Implemented: offline history exchange check.** Transfer the full updated
+   history back to the operator, who can run `researcher challenge history-check`
+   against the previously trusted checkpoint. The command verifies the old
+   prefix and all newly appended actions, then reports a candidate successor
+   checkpoint. The operator still publishes that checkpoint through the trusted
+   channel; the command does not establish latestness by itself.
+4. **Implemented: research handoff guidance.** The quickstart shows
+   `--research-input`, explains the evidence projection and states explicitly
+   that `research submit` does not append a challenge action. Status identifies
+   whether the next step is submission or waiting for review. A future guided
+   wizard could still locate the verification input automatically.
+
 The operator exchanges signed files with participants using its chosen transport.
 There is no public server. The CLI locks the history file, replays it completely,
 validates the next signed action, then replaces the history atomically after
@@ -221,6 +288,26 @@ are not qualified. Retain signed actions and publish the resulting history root.
 Independent replay can take that trusted root as its third argument to detect
 prefix omission or substitution. Signatures alone cannot establish that an
 unpublished history prefix is the latest authoritative state.
+
+For an offline researcher exchange, distribute the pinned configuration,
+current history and trusted checkpoint together. The researcher appends one
+action against that prefix and returns the updated full history through the
+operator's chosen private transport. Before adopting it, the operator runs:
+
+```sh
+bin/prf researcher challenge history-check --config configuration.edn \
+  --history received-history.edn --checkpoint prior-trusted-checkpoint.edn
+```
+
+This verifies that the received history contains the exact checkpointed prefix
+and that every appended action replays successfully. The result includes a
+candidate successor checkpoint. The operator should publish that checkpoint
+with the accepted history through the trusted channel, then distribute both for
+the next action. Do not merge histories that were independently extended from
+the same prefix; one extension must be adopted and published before another
+researcher signs. `history-check` proves extension from the supplied checkpoint,
+not that the received extension is the latest one. Keep the full history within
+the intended participant/operator disclosure boundary.
 
 ### Publish and check an exact history checkpoint
 
