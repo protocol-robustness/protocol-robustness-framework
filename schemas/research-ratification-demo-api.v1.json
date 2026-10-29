@@ -8,7 +8,6 @@
   "servers": [
     { "url": "http://localhost:8787", "description": "Local demonstration service" }
   ],
-  "security": [{ "bearerAuth": [] }],
   "paths": {
     "/v1/targets/{targetRoot}": {
       "get": {
@@ -30,6 +29,7 @@
         "operationId": "prepareContributionSignature",
         "summary": "Prepare the exact PRF decision fields a researcher must sign",
         "description": "The service derives the contribution outcome root from the target, authenticated principal, contribution kind, and optional evidence root. The client must display these exact fields and have the researcher sign them with an approved key. Preparing an intent does not count as a contribution.",
+        "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/TargetRoot" }],
         "requestBody": {
           "required": true,
@@ -51,6 +51,7 @@
       "post": {
         "operationId": "submitSignedContribution",
         "summary": "Submit a signed researcher decision for independent verification",
+        "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/TargetRoot" }],
         "requestBody": {
           "required": true,
@@ -86,7 +87,7 @@
   },
   "components": {
     "securitySchemes": {
-      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT", "description": "Demo service identity only. The service must map the authenticated subject to a policy principal; client-supplied principal IDs are never trusted." }
+      "bearerAuth": { "type": "http", "scheme": "bearer", "description": "Fixture token for local demonstration only. The service maps it to a configured policy principal; client-supplied principal IDs are never trusted." }
     },
     "parameters": {
       "TargetRoot": {
@@ -136,8 +137,9 @@
       },
       "SignedDecisionV2": {
         "type": "object",
+        "additionalProperties": false,
         "description": "JSON projection of the existing researcher-decision.v2 artifact. The server verifies the complete decision hash and Ed25519 signature against its trusted key registry.",
-        "required": ["schemaVersion", "researcherId", "authorisationId", "requestRoot", "reviewRoundRoot", "outcomeRoot", "decision", "decisionHash", "signature"],
+        "required": ["schemaVersion", "researcherId", "authorisationId", "requestRoot", "reviewRoundRoot", "outcomeRoot", "decision", "decisionHash", "signingKeyId", "signature"],
         "properties": {
           "schemaVersion": { "const": "researcher-decision.v2" },
           "researcherId": { "type": "string" },
@@ -151,6 +153,7 @@
           "dissentReason": { "type": "string" },
           "signature": {
             "type": "object",
+            "additionalProperties": false,
             "required": ["algorithm", "value", "signedAt"],
             "properties": {
               "algorithm": { "const": "ed25519" },
@@ -171,17 +174,21 @@
         "required": ["kind"],
         "properties": {
           "kind": { "$ref": "#/components/schemas/ContributionKind" },
-          "evidenceRoot": { "$ref": "#/components/schemas/Sha256Root" }
+          "evidenceRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "dissentReason": { "type": "string", "minLength": 1 }
         },
         "allOf": [{
           "if": { "properties": { "kind": { "enum": ["challenge", "reproduction"] } }, "required": ["kind"] },
           "then": { "required": ["evidenceRoot"] }
+        }, {
+          "if": { "properties": { "kind": { "enum": ["dissent", "challenge", "reproduction"] } }, "required": ["kind"] },
+          "then": { "required": ["dissentReason"] }
         }]
       },
       "ContributionIntent": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["targetRoot", "principalId", "researcherId", "signingKeyId", "kind", "evidenceRoot", "outcomeRoot", "authorisationId", "requestRoot", "reviewRoundRoot", "decision"],
+        "required": ["targetRoot", "principalId", "researcherId", "signingKeyId", "kind", "outcomeRoot", "authorisationId", "requestRoot", "reviewRoundRoot", "decision", "dissentReasonRequired"],
         "properties": {
           "targetRoot": { "$ref": "#/components/schemas/Sha256Root" },
           "principalId": { "type": "string" },
@@ -189,6 +196,7 @@
           "signingKeyId": { "type": "string" },
           "kind": { "$ref": "#/components/schemas/ContributionKind" },
           "evidenceRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "dissentReason": { "type": "string", "minLength": 1 },
           "outcomeRoot": { "$ref": "#/components/schemas/Sha256Root" },
           "authorisationId": { "type": "string" },
           "requestRoot": { "$ref": "#/components/schemas/Sha256Root" },
@@ -199,7 +207,7 @@
         "allOf": [{
           "if": { "properties": { "kind": { "const": "approve" } }, "required": ["kind"] },
           "then": { "properties": { "decision": { "const": "approve" } } },
-          "else": { "properties": { "decision": { "const": "dissent" } } }
+          "else": { "properties": { "decision": { "const": "dissent" }, "dissentReasonRequired": { "const": true } }, "required": ["dissentReason"] }
         }]
       },
       "ContributionSubmission": {
@@ -223,7 +231,8 @@
           "contributionRoot": { "$ref": "#/components/schemas/Sha256Root" },
           "targetRoot": { "$ref": "#/components/schemas/Sha256Root" },
           "signatureStatus": { "const": "verified" },
-          "ratification": { "$ref": "#/components/schemas/RatificationResult" }
+          "ratification": { "$ref": "#/components/schemas/RatificationResult" },
+          "idempotentRetry": { "type": "boolean" }
         }
       },
       "ContributionView": {
@@ -258,20 +267,33 @@
       },
       "RatificationWorkspace": {
         "type": "object",
-        "required": ["demoOnly", "target", "policy", "contributions", "ratification"],
+        "required": ["demoOnly", "policyApprovalStatus", "target", "policy", "contributions", "ratification", "claimAssessment"],
         "properties": {
           "demoOnly": { "const": true },
+          "policyApprovalStatus": { "const": "not-approved" },
           "target": { "$ref": "#/components/schemas/Target" },
           "policy": { "$ref": "#/components/schemas/Policy" },
           "contributions": { "type": "array", "items": { "$ref": "#/components/schemas/ContributionView" } },
-          "ratification": { "$ref": "#/components/schemas/RatificationResult" }
+          "ratification": { "$ref": "#/components/schemas/RatificationResult" },
+          "claimAssessment": { "$ref": "#/components/schemas/ClaimAssessment" }
+        }
+      },
+      "ClaimAssessment": {
+        "type": "object",
+        "description": "Demo fixture's separately reported analytical/method-verification assessment; it is not derived from or upgraded by researcher ratification.",
+        "required": ["assessmentSource", "status", "methodVerification", "explanation"],
+        "properties": {
+          "assessmentSource": { "const": "demo-fixture" },
+          "status": { "enum": ["not-established", "counterexample-found", "verified-on-declared-domain", "verified-general"] },
+          "methodVerification": { "enum": ["verified", "unverified", "unavailable"] },
+          "explanation": { "type": "string", "minLength": 1 }
         }
       },
       "ApiError": {
         "type": "object",
         "required": ["code", "message"],
         "properties": {
-          "code": { "enum": ["NOT_FOUND", "INELIGIBLE_PRINCIPAL", "DUPLICATE_CONTRIBUTION", "TARGET_MISMATCH", "STALE_TARGET", "INVALID_SIGNATURE", "INVALID_EVIDENCE_ROOT", "INVALID_POLICY", "RECONSTRUCTION_FAILED"] },
+          "code": { "enum": ["NOT_FOUND", "INELIGIBLE_PRINCIPAL", "DUPLICATE_CONTRIBUTION", "TARGET_MISMATCH", "STALE_TARGET", "INVALID_SIGNATURE", "INVALID_EVIDENCE_ROOT", "INVALID_INPUT", "INVALID_POLICY", "RECONSTRUCTION_FAILED"] },
           "message": { "type": "string" },
           "details": { "type": "object", "additionalProperties": true }
         }

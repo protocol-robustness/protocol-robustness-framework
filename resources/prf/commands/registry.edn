@@ -1421,4 +1421,135 @@
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
     :command/positional-args {:min 0 :max 0}
-    :command/description "Check whether a force-authorisation is usable, classifying the result as :usable, :forbidden, :forbidden-authorized, or :invalid-parameter-attribution."}]}
+    :command/description "Check whether a force-authorisation is usable, classifying the result as :usable, :forbidden, :forbidden-authorized, or :invalid-parameter-attribution."}
+
+   {:command/id :researcher-challenge-list
+    :command/path ["researcher" "challenge" "list"]
+    :command/title "List available research challenges"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--config" :type :string :doc "Published challenge configuration EDN" :required true}
+                      {:name "--history" :type :string :doc "Optional signed history; when supplied, reports current claimed and remaining capacity"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "List configured challenge criteria, subject roots, revision roots, capacity, and reward terms."}
+
+   {:command/id :researcher-challenge-show
+    :command/path ["researcher" "challenge" "show"]
+    :command/title "Inspect a research challenge"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--config" :type :string :doc "Published challenge configuration EDN" :required true}
+                      {:name "--challenge-root" :type :string :doc "Challenge artifact root (sha256:...)" :required true}
+                      {:name "--history" :type :string :doc "Optional signed history; when supplied, reports current claimed and remaining capacity"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Show the exact configured criteria and terms for one challenge."}
+
+   {:command/id :researcher-challenge-enroll
+    :command/path ["researcher" "challenge" "enroll"]
+    :command/title "Enroll in research challenges"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--config" :type :string :doc "Published challenge configuration EDN" :required true}
+                      {:name "--history" :type :string :doc "Signed challenge history file to update" :required true}
+                      {:name "--public-key" :type :string :doc "File containing the researcher's Ed25519 public key" :required true}
+                      {:name "--key" :type :string :doc "Researcher Ed25519 private-key path" :required true}
+                      {:name "--checkpoint" :type :string :doc "Optional trusted history checkpoint; recommended when supplied by the operator"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Sign and append pseudonymous enrollment under the history lock. A public key is used to derive the researcher identity."}
+
+   {:command/id :researcher-challenge-key-check
+    :command/path ["researcher" "challenge" "key-check"]
+    :command/title "Check researcher signing keys"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--config" :type :string :doc "Published challenge configuration EDN" :required true}
+                      {:name "--public-key" :type :string :doc "Researcher's Ed25519 public-key file" :required true}
+                      {:name "--key" :type :string :doc "Researcher's Ed25519 private-key file" :required true}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Read-only check that the public and private Ed25519 keys match; prints the pseudonymous researcher reference without changing history."}
+
+   {:command/id :researcher-challenge-history-check
+    :command/path ["researcher" "challenge" "history-check"]
+    :command/title "Verify an updated challenge history"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--config" :type :string :doc "Published challenge configuration EDN" :required true}
+                      {:name "--history" :type :string :doc "Received signed history file" :required true}
+                      {:name "--checkpoint" :type :string :doc "Previously trusted checkpoint whose prefix must match" :required true}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Verify that a received history extends the supplied trusted checkpoint and derive its candidate successor checkpoint. This does not establish that the extension is the latest published history."}
+
+   {:command/id :researcher-challenge-claim
+    :command/path ["researcher" "challenge" "claim"]
+    :command/title "Claim a research challenge"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--config" :type :string :doc "Published challenge configuration EDN" :required true}
+                      {:name "--history" :type :string :doc "Signed challenge history file to update" :required true}
+                      {:name "--challenge-root" :type :string :doc "Challenge artifact root (sha256:...)" :required true}
+                      {:name "--public-key" :type :string :doc "File containing the enrolled researcher's Ed25519 public key" :required true}
+                      {:name "--key" :type :string :doc "Researcher Ed25519 private-key path" :required true}
+                      {:name "--checkpoint" :type :string :doc "Optional trusted history checkpoint; recommended when supplied by the operator"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Sign and append a task claim under the history lock. Prints the task-claim root required for submission."}
+
+   {:command/id :researcher-challenge-submit
+    :command/path ["researcher" "challenge" "submit"]
+    :command/title "Submit research to a challenge"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--config" :type :string :doc "Challenge configuration EDN" :required true}
+                      {:name "--history" :type :string :doc "Signed challenge history file to update" :required true}
+                      {:name "--challenge-root" :type :string :doc "Challenge artifact root (sha256:...)" :required true}
+                      {:name "--task-claim-root" :type :string :doc "Optional task-claim root; omitted only when exactly one open claim matches the supplied researcher key and challenge"}
+                      {:name "--public-key" :type :string :doc "File containing the submitting researcher's enrolled Ed25519 public key" :required true}
+                      {:name "--evidence-context" :type :string :doc "Exact challenge evidence-context EDN; supply this or --research-input"}
+                      {:name "--research-input" :type :string :doc "Existing research verification context EDN; challenge evidence fields are projected from it instead of copied manually"}
+                      {:name "--key" :type :string :doc "Researcher Ed25519 private-key path" :required true}
+                      {:name "--checkpoint" :type :string :doc "Optional trusted history checkpoint; recommended when supplied by the operator"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Validate, sign, and append a challenge submission. Supply exactly one evidence input. If task-claim-root is omitted, resolves the sole open claim for the supplied researcher key and challenge. Reports checkpoint status; reviewer acceptance and reward authorization remain separate later signed actions."}
+
+   {:command/id :researcher-challenge-status
+    :command/path ["researcher" "challenge" "status"]
+    :command/title "Check researcher challenge status"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--config" :type :string :doc "Published challenge configuration EDN" :required true}
+                      {:name "--history" :type :string :doc "Signed challenge history file" :required true}
+                      {:name "--public-key" :type :string :doc "File containing the researcher's Ed25519 public key" :required true}
+                      {:name "--checkpoint" :type :string :doc "Optional trusted history checkpoint to match against"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Show enrollment, reviewed work, accepted work, reward obligations and payout records for the public key; reports whether a supplied checkpoint matches this history."}]
