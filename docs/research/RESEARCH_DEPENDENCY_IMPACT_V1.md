@@ -8,7 +8,9 @@ the observed state is globally current.
 Call `resolver-sim.research.api/compare-research-dependency-state` with:
 
 ```clojure
-{:baseline {:manifest baseline-manifest
+{:baseline {:assessment-root prior-assessment-root
+            :assessment-dependency-set-root prior-assessment-dependency-root
+            :manifest baseline-manifest
             :policy baseline-policy
             :resolved baseline-resolved-set}
  :observed {:manifest observed-manifest
@@ -18,18 +20,23 @@ Call `resolver-sim.research.api/compare-research-dependency-state` with:
 ```
 
 Both resolved sets are reconstructed from their inputs before comparison. The
-baseline root must come from an external trust context supplied by the caller.
-An absent or mismatching anchor leaves impact `:unknown-unanchored-baseline`.
+baseline assessment root identifies the historical finding being compared;
+its recorded dependency-set root, taken from an independently verified
+assessment, must equal the reconstructed baseline set.
+The resolved-set baseline root must come from an external trust context
+supplied by the caller. An absent or mismatching anchor leaves impact
+`:unknown-unanchored-baseline`.
 
 | Report status | Meaning |
 | --- | --- |
-| `:requalification-required` | A rooted dependency, manifest, or policy changed from the anchored baseline. The old assessment remains historical evidence; a new assessment is needed for current use. |
-| `:no-observed-drift-freshness-unverified` | The supplied roots match, but this comparison cannot show that the observation is fresh or latest. |
-| `:unknown-unanchored-baseline` | No trusted baseline root matched, so the report makes no drift conclusion. |
+| `:requalification-required` | The supplied dependency states differ. Requalify the historical assessment before applying it to the observed state. This compares content; it does not assert when the difference occurred. |
+| `:matching-roots-freshness-unverified` | The supplied roots match, but this comparison cannot show that the observation is fresh or latest. |
+| `:unknown-unanchored-baseline` | The states match but no trusted baseline root matched, so the comparison cannot anchor its historical point. |
 
-The report lists changed dependency identities and safe root projections. It
-hashes dependency metadata rather than copying it into the report. Historical
-assessment roots are preserved by reference. The report always says latestness
+The report lists changed dependency identities and safe root projections, with
+root-level reasons for manifest, policy, or resolved-set differences. It hashes
+dependency metadata rather than copying it into the report. The historical
+assessment root is preserved by reference. The report always says latestness
 is not established and operational authority is false. It does not classify a
 change as safe or unsafe, prove that a repair succeeded, or block an operation.
 Retain both input states alongside the report: validating the report root alone
@@ -38,3 +45,10 @@ does not reconstruct the source manifests or acquisition evidence.
 This is a researcher dependency comparison primitive. Protocol-specific
 deployment, signer, chain-finality, and enforcement checks remain with their
 existing domain verifiers.
+
+For researcher dependencies, a changed source, model, dataset, verifier, or
+runtime artifact root triggers requalification. A signer revocation or policy
+rotation is visible here only if it changes a dependency or policy root; this
+report does not determine signer eligibility. Matching roots cannot detect a
+stale source observation, delayed chain head, or conflicting observers. Those
+cases remain freshness-unknown and need a temporal/observation verifier.

@@ -232,6 +232,22 @@
                :resolution/acquisition-mode (:resolution/acquisition-mode resolution)}))
           (:dependencies manifest))))
 
+(defn- valid-impact-projection? [projection]
+  (and (map? projection)
+       (= #{:dependency/id :dependency/class :dependency/visibility
+            :dependency/artifact-root :dependency/provenance-roots
+            :dependency/metadata-root :resolution/evidence-root
+            :resolution/acquisition-mode}
+          (set (keys projection)))
+       (qualified-keyword? (:dependency/id projection))
+       (contains? dependency-classes (:dependency/class projection))
+       (contains? visibility-classes (:dependency/visibility projection))
+       (root? (:dependency/artifact-root projection))
+       (canonical-roots? (:dependency/provenance-roots projection))
+       (root? (:dependency/metadata-root projection))
+       (root? (:resolution/evidence-root projection))
+       (contains? acquisition-modes (:resolution/acquisition-mode projection))))
+
 (defn compare-dependency-state
   "Compare two independently reconstructed dependency states without changing
    either historical artifact. An externally supplied baseline root is
@@ -246,7 +262,7 @@
    Returns a content-addressed impact report with one of:
      :requalification-required
      :unknown-unanchored-baseline
-     :no-observed-drift-freshness-unverified."
+     :matching-roots-freshness-unverified."
   [{:keys [baseline observed trusted-baseline-root]}]
   (let [baseline-set (when (map? baseline)
                        (reconstruct-resolved-set (:manifest baseline)
@@ -256,7 +272,10 @@
                        (reconstruct-resolved-set (:manifest observed)
                                                  (:policy observed)
                                                  (:resolved observed)))]
-    (when-not (and baseline-set observed-set)
+    (when-not (and baseline-set observed-set
+                   (root? (:assessment-root baseline))
+                   (= (:assessment-dependency-set-root baseline)
+                      (:resolved-research-dependency-set/root baseline-set)))
       (throw (ex-info "Dependency impact inputs failed reconstruction"
                       {:reason :invalid-dependency-impact-input})))
     (let [baseline-root (:resolved-research-dependency-set/root baseline-set)
@@ -277,21 +296,33 @@
                                  (when (not= old new)
                                    {:dependency/id id :before old :after new}))))
                        vec)
-          drift? (or (not= (:research-dependency-manifest/root (:manifest baseline))
+          state-differs? (or (not= (:research-dependency-manifest/root (:manifest baseline))
                          (:research-dependency-manifest/root (:manifest observed)))
                      (not= (:research-dependency-policy/root (:policy baseline))
                            (:research-dependency-policy/root (:policy observed)))
                      (not= baseline-root observed-root))
+          change-reasons (cond-> []
+                           (not= (:research-dependency-manifest/root (:manifest baseline))
+                                 (:research-dependency-manifest/root (:manifest observed)))
+                           (conj :dependency-manifest-differs)
+                           (not= (:research-dependency-policy/root (:policy baseline))
+                                 (:research-dependency-policy/root (:policy observed)))
+                           (conj :dependency-policy-differs)
+                           (not= baseline-root observed-root)
+                           (conj :resolved-dependency-set-differs))
           impact-status (cond
+                          state-differs? :requalification-required
                           (not= :matched baseline-anchor-status) :unknown-unanchored-baseline
-                          drift? :requalification-required
-                          :else :no-observed-drift-freshness-unverified)
+                          :else :matching-roots-freshness-unverified)
           body {:artifact/schema impact-report-schema
                 :impact/baseline-manifest-root
                 (:research-dependency-manifest/root (:manifest baseline))
                 :impact/baseline-policy-root
                 (:research-dependency-policy/root (:policy baseline))
                 :impact/baseline-resolved-root baseline-root
+                :impact/historical-assessment-root (:assessment-root baseline)
+                :impact/historical-assessment-dependency-root
+                (:assessment-dependency-set-root baseline)
                 :impact/observed-manifest-root
                 (:research-dependency-manifest/root (:manifest observed))
                 :impact/observed-policy-root
@@ -300,7 +331,8 @@
                 :impact/trusted-baseline-root trusted-baseline-root
                 :impact/baseline-anchor-status baseline-anchor-status
                 :impact/changed-dependencies changes
-                :impact/drift-observed? drift?
+                :impact/change-reasons change-reasons
+                :impact/dependency-state-differs? state-differs?
                 :impact/historical-evidence-status :preserved-by-reference
                 :impact/current-assessment-status impact-status
                 :impact/latestness :not-established
@@ -315,16 +347,26 @@
                  (= (:impact/trusted-baseline-root report)
                     (:impact/baseline-resolved-root report)) :matched
                  :else :mismatch)
-        drift? (or (not= (:impact/baseline-manifest-root report)
+        state-differs? (or (not= (:impact/baseline-manifest-root report)
                          (:impact/observed-manifest-root report))
                    (not= (:impact/baseline-policy-root report)
                          (:impact/observed-policy-root report))
                    (not= (:impact/baseline-resolved-root report)
                          (:impact/observed-resolved-root report)))
+        change-reasons (cond-> []
+                         (not= (:impact/baseline-manifest-root report)
+                               (:impact/observed-manifest-root report))
+                         (conj :dependency-manifest-differs)
+                         (not= (:impact/baseline-policy-root report)
+                               (:impact/observed-policy-root report))
+                         (conj :dependency-policy-differs)
+                         (not= (:impact/baseline-resolved-root report)
+                               (:impact/observed-resolved-root report))
+                         (conj :resolved-dependency-set-differs))
         expected-status (cond
+                          state-differs? :requalification-required
                           (not= :matched anchor) :unknown-unanchored-baseline
-                          drift? :requalification-required
-                          :else :no-observed-drift-freshness-unverified)
+                          :else :matching-roots-freshness-unverified)
         changes (:impact/changed-dependencies report)
         change-ids (if (vector? changes) (mapv :dependency/id changes) [])
         change-entries-valid?
@@ -333,8 +375,15 @@
                        (and (map? change)
                             (= #{:dependency/id :before :after} (set (keys change)))
                             (qualified-keyword? (:dependency/id change))
-                            (or (nil? (:before change)) (map? (:before change)))
-                            (or (nil? (:after change)) (map? (:after change)))
+                            (or (valid-impact-projection? (:before change))
+                                (nil? (:before change)))
+                            (or (valid-impact-projection? (:after change))
+                                (nil? (:after change)))
+                            (or (:before change) (:after change))
+                            (or (nil? (:before change))
+                                (= (:dependency/id change) (get-in change [:before :dependency/id])))
+                            (or (nil? (:after change))
+                                (= (:dependency/id change) (get-in change [:after :dependency/id])))
                             (not= (:before change) (:after change))))
                      changes))
         computed-root (try (impact-report-root report) (catch Exception _ nil))
@@ -345,8 +394,11 @@
                          :impact/baseline-manifest-root :impact/baseline-policy-root
                          :impact/baseline-resolved-root :impact/observed-manifest-root
                          :impact/observed-policy-root :impact/observed-resolved-root
+                         :impact/historical-assessment-root
+                         :impact/historical-assessment-dependency-root
                          :impact/trusted-baseline-root :impact/baseline-anchor-status
-                         :impact/changed-dependencies :impact/drift-observed?
+                         :impact/changed-dependencies :impact/change-reasons
+                         :impact/dependency-state-differs?
                          :impact/historical-evidence-status
                          :impact/current-assessment-status :impact/latestness
                          :impact/authority-issued?
@@ -356,10 +408,15 @@
                  (not-every? root? [(:impact/baseline-manifest-root report)
                                    (:impact/baseline-policy-root report)
                                    (:impact/baseline-resolved-root report)
+                                   (:impact/historical-assessment-root report)
+                                   (:impact/historical-assessment-dependency-root report)
                                    (:impact/observed-manifest-root report)
                                    (:impact/observed-policy-root report)
                                    (:impact/observed-resolved-root report)])
                  (conj :invalid-impact-root-reference)
+                 (not= (:impact/baseline-resolved-root report)
+                       (:impact/historical-assessment-dependency-root report))
+                 (conj :historical-assessment-dependency-binding-mismatch)
                  (not (root? (:research-dependency-impact-report/root report)))
                  (conj :missing-impact-report-root)
                  (not (contains? #{:matched :missing :mismatch}
@@ -369,19 +426,21 @@
                  (conj :baseline-anchor-status-mismatch)
                  (not (contains? #{:requalification-required
                                    :unknown-unanchored-baseline
-                                   :no-observed-drift-freshness-unverified}
+                                   :matching-roots-freshness-unverified}
                                  (:impact/current-assessment-status report)))
                  (conj :invalid-impact-status)
-                 (not (boolean? (:impact/drift-observed? report)))
-                 (conj :invalid-drift-flag)
+                 (not (boolean? (:impact/dependency-state-differs? report)))
+                 (conj :invalid-state-difference-flag)
                  (not= :preserved-by-reference (:impact/historical-evidence-status report))
                  (conj :historical-evidence-must-remain-immutable)
                  (not= :not-established (:impact/latestness report))
                  (conj :dependency-impact-cannot-establish-latestness)
                  (not= false (:impact/authority-issued? report))
                  (conj :dependency-impact-cannot-issue-authority)
-                 (not= drift? (:impact/drift-observed? report))
-                 (conj :drift-status-mismatch)
+                 (not= state-differs? (:impact/dependency-state-differs? report))
+                 (conj :state-difference-mismatch)
+                 (not= change-reasons (:impact/change-reasons report))
+                 (conj :change-reasons-mismatch)
                  (not= expected-status (:impact/current-assessment-status report))
                  (conj :current-assessment-status-mismatch)
                  (not (vector? (:impact/changed-dependencies report)))
