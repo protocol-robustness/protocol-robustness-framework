@@ -533,6 +533,21 @@
     (ensure! (= checkpoint (checkpoint-from-state config state)) :history-checkpoint-mismatch)
     state))
 
+(defn verify-history-extension
+  "Verify that history begins with the exact trusted checkpoint prefix, then
+   replay and return the complete extended history state. Does not establish
+   whether the extension is the latest history published by the operator."
+  [config history checkpoint]
+  (exact! checkpoint [:configuration/root :network/root :history/root :history/action-count]
+          :invalid-history-checkpoint)
+  (let [prefix-count (:history/action-count checkpoint)]
+    (ensure! (and (integer? prefix-count) (<= 0 prefix-count (count history)))
+             :history-checkpoint-mismatch)
+    (let [prefix-state (replay config (subvec (vec history) 0 prefix-count))]
+      (ensure! (= checkpoint (checkpoint-from-state config prefix-state))
+               :history-checkpoint-mismatch)
+      (replay config history))))
+
 (defn controlled-history-checkpoint [config policy history]
   (assoc (checkpoint-from-state config (replay-controlled config policy history))
          :control-policy/root (:artifact/root policy)))
@@ -548,10 +563,33 @@
 (defn- summary-from-state [config state researcher]
   (let [enrollment (get-in state [:researchers researcher])
         _ (ensure! enrollment :not-enrolled)
-        accepted (accepted-work state researcher)]
+        accepted (accepted-work state researcher)
+        submissions (filter #(= researcher (:researcher/root %)) (vals (:submissions state)))
+        reviewed-submissions (set (keys (:reviews state)))
+        pending-review (filter #(not (contains? reviewed-submissions (:submission/root %))) submissions)
+        submitted-task-claims (set (map :task-claim/root submissions))
+        open-task-claims (filter #(and (= researcher (:researcher/root %))
+                                       (not (contains? submitted-task-claims (:artifact/root %))))
+                                 (vals (:quotes state)))]
     {:researcher/root researcher :disclosure :pseudonymous
      :network/root (:network/root config) :history/root (:history/root state)
      :accepted-contribution-count (accepted-count accepted) :experience/tier (experience-tier (accepted-count accepted))
+     :open-task-claims
+     (mapv (fn [quote]
+             {:task-claim/root (:artifact/root quote)
+              :challenge/root (:challenge/root quote)
+              :quote/reward-tier (:reward/tier quote)
+              :quote/reward-amount (:reward/amount quote)
+              :quote/reward-currency (:reward/currency quote)})
+           (sort-by :artifact/root open-task-claims))
+     :pending-review
+     (mapv (fn [submission]
+             {:challenge/root (:challenge/root submission)
+              :submission/root (:submission/root submission)
+              :task-claim/root (:task-claim/root submission)
+              :claim/root (get-in submission [:claim :research-claim/root])
+              :verification/root (get-in submission [:verification :research-analysis-verification/root])})
+           (sort-by :submission/root pending-review))
      :reviewed-work (mapv #(select-keys % [:submission/root :contribution/root :decision :incentive/eligible? :review/action-root])
                           (sort-by :review/action-root
                                    (filter #(= researcher (:researcher/root %)) (vals (:reviews state)))))
