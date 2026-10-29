@@ -27,6 +27,9 @@
 ;; Research dependency drift is an explanatory report, not a freshness oracle.
 (def compare-research-dependency-state dependency/compare-dependency-state)
 (def validate-research-dependency-impact-report dependency/validate-impact-report)
+(def compare-research-dependency-observations dependency/compare-dependency-observations)
+(def validate-research-dependency-observation-comparison
+  dependency/validate-dependency-observation-comparison)
 
 ;; Authoritative acceptance and lifecycle operations.
 (def build-claim-acceptance-policy acceptance/build-policy)

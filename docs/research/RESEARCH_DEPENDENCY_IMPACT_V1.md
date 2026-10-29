@@ -52,3 +52,24 @@ rotation is visible here only if it changes a dependency or policy root; this
 report does not determine signer eligibility. Matching roots cannot detect a
 stale source observation, delayed chain head, or conflicting observers. Those
 cases remain freshness-unknown and need a temporal/observation verifier.
+
+## Conflicting observers
+
+When more than one observer reports a state, use
+`resolver-sim.research.api/compare-research-dependency-observations`. Each
+observation must identify its observer and the exact reference root it reports
+about, plus the manifest, policy, and resolved set. These roots are supplied
+claims; this report does not authenticate the observers or verify that their
+reference roots are canonical heads. The report retains each observer's impact
+report. If observers report different dependency roots for
+the same reference, status is `:conflicting`. If they report different
+reference roots, status is `:not-comparable`; the API does not assume those
+references are ordered.
+
+There is no first-wins, latest-timestamp, or majority rule. Exact retries from
+the same observer for the same reference and content collapse to one rooted
+observation. `:observers-agree` means only that supplied roots match at one
+reference; observer authentication, independence, and latestness remain
+unestablished. Existing observation and publication code follows the same
+boundary by preserving conflicting cell results or signed branches rather than
+overwriting them.
