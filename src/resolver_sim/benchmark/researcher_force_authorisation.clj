@@ -369,25 +369,8 @@
       signing-key-id (assoc :signing-key/id signing-key-id)
       dissent-reason (assoc :dissent/reason dissent-reason))))
 
-(defn verify-signed-decision-v2
-  "Verify a researcher-decision.v2 position against a public key.
-
-   decision-ref        — the v2 decision reference map
-   public-key-path     — path to the researcher's Ed25519 public key
-
-   Reconstructs the v2 preimage from the decision-ref's embedded
-   :authorisation/id, :authorisation/request-root, :review-round/hash and
-   :outcome/root, ensuring the signature binds the exact authorisation,
-   scope, and complete outcome.
-
-   Fails closed on:
-     - a non-v2 schema-version;
-     - a missing or invalid :outcome/root;
-     - a hash mismatch (tampered without rehash);
-     - a signature that does not verify (modified+rehashed without re-signing).
-
-   Returns {:valid? true} or {:valid? false :reason str}."
-  [decision-ref public-key-path]
+(defn- verify-signed-decision-v2-with
+  [decision-ref verify-signature]
   (let [signature (:signature decision-ref)]
     (if-not signature
       {:valid? false :reason "no signature present"}
@@ -416,14 +399,32 @@
               {:valid? false :reason "decision/hash mismatch"}
               (try
                 (let [stripped (str/replace actual-hash #"^sha256:" "")
-                      valid? (signing/verify-signature
-                              stripped (:value signature) public-key-path)]
+                      valid? (verify-signature stripped (:value signature))]
                   {:valid? valid?
                    :reason (when-not valid? "signature does not verify")})
                 (catch Exception e
                   {:valid? false
                    :reason (str "signature verification error: "
                                 (.getMessage e))})))))))))
+
+(defn verify-signed-decision-v2
+  "Verify a researcher-decision.v2 position against a public-key file."
+  [decision-ref public-key-path]
+  (verify-signed-decision-v2-with
+   decision-ref
+   (fn [hash signature]
+     (signing/verify-signature hash signature public-key-path))))
+
+(defn verify-signed-decision-v2-with-public-key-content
+  "Verify researcher-decision.v2 using public-key content from an already
+   resolved governance/key registry. Decision hashing and signature semantics
+   are shared with verify-signed-decision-v2."
+  [decision-ref public-key-content]
+  (verify-signed-decision-v2-with
+   decision-ref
+   (fn [hash signature]
+     (signing/verify-signature-with-public-key-content
+      hash signature public-key-content))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Signed-decision version and outcome-binding classification

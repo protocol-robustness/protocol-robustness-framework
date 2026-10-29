@@ -11,6 +11,8 @@
             [resolver-sim.benchmark.research-claim-lifecycle :as lifecycle]
             [resolver-sim.research.resolution-view :as resolution-view]
             [resolver-sim.research.dependency-assurance :as dependency]
+            [resolver-sim.research.policy-approval :as policy-approval]
+            [resolver-sim.research.integer-sum-verifier :as integer-sum-verifier]
             [resolver-sim.hash.reference :as canonical-reference]))
 
 ;; Research-result verification and analytical-claim derivation.
@@ -21,6 +23,13 @@
 
 ;; Research-conclusion qualification is explanatory and leaves V1 roots intact.
 (def qualify-research-conclusion conclusion/qualify-conclusion)
+(def build-research-policy-approval policy-approval/build-policy-approval)
+(def build-research-policy-approval-ratification-policy
+  policy-approval/build-approval-ratification-policy)
+(def verify-research-policy-approval policy-approval/verify-policy-approval)
+(def research-integer-sum-verifier-root integer-sum-verifier/verifier-root)
+(def build-research-integer-sum-evidence integer-sum-verifier/build-evidence)
+(def build-research-integer-sum-conclusion integer-sum-verifier/build-fixture-conclusion)
 (def build-research-resolution-view resolution-view/build-view)
 (def validate-research-resolution-view resolution-view/validate-view)
 
