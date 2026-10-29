@@ -1,5 +1,7 @@
 (ns resolver-sim.commands.researcher-ux-test
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [resolver-sim.benchmark.research-conclusion :as conclusion]
             [resolver-sim.benchmark.researcher-force-authorisation :as decisions]
             [resolver-sim.commands.researcher-ux :as ux]
@@ -106,3 +108,21 @@
           (is (= "member-a" (get-in @signed [:result :researcher/id])))
           (is (:valid? (decisions/verify-signed-decision-v2-with-public-key-content
                         (:result @signed) public-key))))))))
+
+(deftest ro-crate-export-copies-the-source-and-writes-metadata
+  (with-input-file {:artifact/root root-a :payload "fixture"}
+    (fn [source]
+      (let [directory (java.io.File/createTempFile "prf-ro-crate-" "")]
+        (.delete directory)
+        (try
+          (with-out-str
+            (is (= 0 (:exit-code
+                      (ux/export-ro-crate
+                       {:input source :output (.getAbsolutePath directory)
+                        :format "ro-crate"})))))
+          (let [metadata (json/read-str
+                          (slurp (io/file directory "ro-crate-metadata.json")))]
+            (is (= "https://w3id.org/ro/crate/1.1/context" (get metadata "@context")))
+            (is (.isFile (io/file directory (.getName (io/file source))))))
+          (finally
+            (doseq [file (reverse (file-seq directory))] (.delete file))))))))
