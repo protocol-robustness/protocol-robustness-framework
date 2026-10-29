@@ -23,6 +23,7 @@
 (def ^:const governed-schema-version "benchmark-review-round.v2")
 
 (declare member-identity-projection)
+(declare creation-requirements finalisation-requirements purpose-material-fields)
 
 (def ^:private governed-round-fields
   [:review-round/chain-configuration-root :review-round/governance-root
@@ -39,18 +40,22 @@
               :members (member-identity-projection (vec (sort-by :researcher/id members)))
               :membership-frozen-at (:review-round/membership-frozen-at ctx)
               :policy-root (:review-round/policy-root ctx)
-              :purpose (:review-round/purpose ctx)}]
+              :purpose (:review-round/purpose ctx)}
+        purpose-material (select-keys ctx purpose-material-fields)
+        base (cond-> base
+               (seq purpose-material) (assoc :purpose-material purpose-material))]
     (if (every? #(contains? ctx %) governed-round-fields)
       (assoc base :governance (select-keys ctx governed-round-fields))
       base)))
 
 (defn review-round-root
-  "Recompute the durable review-round identity.  v1 inputs retain the existing
-   hash projection; a v2 round additionally commits its configuration and
-   governance snapshot, policy identity, and constitution time."
+  "Recompute the durable review-round identity. Purpose-specific material is
+   committed when present; v2 rounds additionally commit their configuration
+   and governance snapshot, policy identity, and constitution time."
   [round]
   (str "review-round:" (hc/domain-hash :review-round-identity
-                                       (round-identity-input round (:review-round/members round)))))
+                                       (hc/project-canonical-safe
+                                        (round-identity-input round (:review-round/members round))))))
 
 (def ^:const review-purposes
   "Controlled vocabulary for review-round purposes."
@@ -129,6 +134,12 @@
                            :review-round/theorem-refs
                            :review-round/conclusion-refs}})
 
+(def ^:private purpose-material-fields
+  (disj (into #{}
+              (concat (mapcat identity (vals creation-requirements))
+                      (mapcat identity (remove nil? (vals finalisation-requirements)))))
+        :benchmark/content-root :review-round/policy-root))
+
 (defn check-creation-requirements
   "Validate that a review-round context satisfies its purpose's creation requirements.
    
@@ -191,7 +202,7 @@
                           When absent, the member is unkeyed (legacy).
 
    Validates local member shape only.  Collection-level properties
-   (duplicate IDs, duplicate keys, dense keys, mixed keyed/unkeyed)
+   (duplicate IDs, duplicate keys, canonical key assignment, mixed keyed/unkeyed)
    are enforced by build-review-round and validate-round.
 
    Returns a member map with the serialized shape preserved."
@@ -240,6 +251,14 @@
   [members]
   (= (set (map :review-member/key members))
      (set (range (count members)))))
+
+(defn canonical-member-keys?
+  "True when keyed members carry the zero-based indices derived by researcher ID."
+  [members]
+  (every? true?
+          (map-indexed (fn [idx member]
+                         (= idx (:review-member/key member)))
+                       (sort-by :researcher/id members))))
 
 (defn assign-consecutive-member-keys
   "Assign :review-member/key 0..n-1 matching the canonical-index ordering.
@@ -311,6 +330,10 @@
         (throw (ex-info "Invalid review-member keys"
                         {:reason :invalid-review-member-key
                          :keys (map :review-member/key members)})))
+      (when (and keyed? (not (canonical-member-keys? members)))
+        (throw (ex-info "Review-member keys must match canonical researcher indices"
+                        {:reason :review-member-key-derived-index-mismatch
+                         :members (mapv #(select-keys % [:researcher/id :review-member/key]) members)})))
       (when (some? (some :review-member/key members))
         (when-not keyed?
           (throw (ex-info "Mixed keyed and unkeyed members in review round"
@@ -328,7 +351,7 @@
                        :review-round/members (vec members)
                        :review-round/membership-frozen-at membership-frozen-at
                        :review-round/policy-root policy-root}
-                      (select-keys ctx governed-round-fields))
+                      (select-keys ctx (into purpose-material-fields governed-round-fields)))
           review-round-id (review-round-root base)]
       (merge {:schema-version (if governed? governed-schema-version schema-version)
               :review-round/id review-round-id
@@ -339,7 +362,7 @@
               :review-round/membership-frozen-at membership-frozen-at
               :review-round/policy-root policy-root
               :review-round/status (or status :open)}
-             (select-keys ctx governed-round-fields)))))
+             (select-keys ctx (into purpose-material-fields governed-round-fields))))))
 
 ;; ── Accessors and validation ──────────────────────────────────────────────
 
@@ -379,10 +402,13 @@
          (or (not (governed-round? round))
              (and (every? #(contains? round %) governed-round-fields)
                   (= (:review-round/hash round) (review-round-root round))))
+         (= (:review-round/id round) (:review-round/hash round))
+         (= (:review-round/hash round) (review-round-root round))
          (or (not (some? (some :review-member/key members)))
              (and (every? :review-member/key members)
                   (every? valid-member-key? (map :review-member/key members))
-                  (unique-member-keys? members))))))
+                  (unique-member-keys? members)
+                  (canonical-member-keys? members))))))
 
 (defn validate-round
   "Standalone validator for a loaded review round.
@@ -405,6 +431,11 @@
         (swap! errors conj "review-round hash mismatch")))
     (when-not (some? (:review-round/id round))
       (swap! errors conj "missing :review-round/id"))
+    (when-not (= (:review-round/id round) (:review-round/hash round))
+      (swap! errors conj ":review-round/id and :review-round/hash must match"))
+    (when (and (some? (:review-round/id round))
+               (not= (:review-round/hash round) (review-round-root round)))
+      (swap! errors conj "review-round hash mismatch"))
     (when-not (some? (:benchmark/content-root round))
       (swap! errors conj "missing :benchmark/content-root"))
     (let [purpose (:review-round/purpose round)]
@@ -440,10 +471,13 @@
           (let [id->key (group-by :researcher/id members)]
             (doseq [[rid ms] id->key]
               (when (> (count ms) 1)
-                (swap! errors conj (str "duplicate researcher/id under different keys: " rid))))))))
+                (swap! errors conj (str "duplicate researcher/id under different keys: " rid)))))
+          (when-not (canonical-member-keys? members)
+            (swap! errors conj "review-member keys do not match canonical researcher indices")))))
     (let [purpose (:review-round/purpose round)
+          finalized? (not= :open (:review-round/status round :open))
           fin-reqs (check-finalisation-requirements purpose round)]
-      (when-not (:valid? fin-reqs)
+      (when (and finalized? (not (:valid? fin-reqs)))
         (doseq [e (:errors fin-reqs)] (swap! errors conj (str "finalisation: " e)))))
     {:valid? (empty? @errors) :errors @errors}))
 
@@ -456,17 +490,23 @@
 ;; ── Member-key lookup ─────────────────────────────────────────────────────
 
 (defn member-by-key
-  "Return the member map for a given member key, or nil."
+  "Return the member map for a valid canonical member key, or nil."
   [round key]
-  (some #(when (= key (:review-member/key %)) %)
-        (:review-round/members round)))
+  (let [members (:review-round/members round)]
+    (when (and (round-uses-member-keys? round)
+               (canonical-member-keys? members))
+      (some #(when (= key (:review-member/key %)) %)
+            members))))
 
 (defn member-key-for-researcher
   "Return the :review-member/key for a given researcher-id, or nil."
   [round researcher-id]
-  (some #(when (= researcher-id (:researcher/id %))
-           (:review-member/key %))
-        (:review-round/members round)))
+  (let [members (:review-round/members round)]
+    (when (and (round-uses-member-keys? round)
+               (canonical-member-keys? members))
+      (some #(when (= researcher-id (:researcher/id %))
+               (:review-member/key %))
+            members))))
 
 (defn researcher-id-for-member-key
   "Return the :researcher/id for a given member key, or nil."
@@ -478,7 +518,8 @@
    Returns nil when the round is not keyed (no member has a key).
    Returns a vector only when all members have keys."
   [round]
-  (when (round-uses-member-keys? round)
+  (when (and (round-uses-member-keys? round)
+             (canonical-member-keys? (:review-round/members round)))
     (mapv :review-member/key (:review-round/members round))))
 
 (defn member-bit-width
@@ -486,7 +527,7 @@
    Returns nil for legacy unkeyed rounds.
    For a 3-member round with keys 0,1,2 this returns 2."
   [round]
-  (when (round-uses-member-keys? round)
+  (when (and (round-uses-member-keys? round)
+             (canonical-member-keys? (:review-round/members round)))
     (let [max-key (apply max (map :review-member/key (:review-round/members round)))]
-      (if (<= max-key 1) 1
-          (inc (int (Math/floor (/ (Math/log max-key) (Math/log 2)))))))))
+      (max 1 (.bitLength (biginteger max-key))))))
