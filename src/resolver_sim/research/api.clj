@@ -24,6 +24,7 @@
 ;; Research-conclusion qualification is explanatory and leaves V1 roots intact.
 (def qualify-research-conclusion conclusion/qualify-conclusion)
 (def build-research-policy-approval policy-approval/build-policy-approval)
+(def prepare-research-policy-approval policy-approval/prepare-policy-approval)
 (def build-research-policy-approval-ratification-policy
   policy-approval/build-approval-ratification-policy)
 (def verify-research-policy-approval policy-approval/verify-policy-approval)

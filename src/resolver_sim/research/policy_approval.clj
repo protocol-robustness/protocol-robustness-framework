@@ -225,6 +225,41 @@
                       {:errors (:errors verification)})))
     approval))
 
+(defn prepare-policy-approval
+  "Derive a fixed approval target and per-member signing requests. This does
+   not accept signatures or change the policy; each request is later signed as
+   a researcher-decision.v2 position and passed to build-policy-approval."
+  [{:keys [policy review-governance review-round governance-policy-id
+           trusted-authority-root] :as inputs}]
+  (let [context (derive-context inputs)]
+    (when-not (:valid? context)
+      (throw (ex-info "Policy approval basis is invalid"
+                      {:errors (:errors context)})))
+    {:schema/version "prf/research-policy-approval-request.v1"
+     :approval/authorisation-id approval-authorisation-id
+     :approval/research-policy-root (:policy/root policy)
+     :approval/trusted-authority-root trusted-authority-root
+     :approval/target (:target context)
+     :approval/review-round review-round
+     :approval/derived-ratification-policy (:approval-policy context)
+     :approval/signing-requests
+     (mapv (fn [member]
+             (let [binding (get (:key-bindings context) (:reviewer/member-id member))]
+               {:researcher/id (:researcher/id binding)
+                :signing-key/id (:signing-key/id binding)
+                :authorisation/id approval-authorisation-id
+                :authorisation/request-root (get-in context [:target :target/root])
+                :review-round/hash (:review-round/hash review-round)
+                :outcome/root (ratification/contribution-subject-root
+                               {:target-root (get-in context [:target :target/root])
+                                :principal-id (:principal/id binding)
+                                :kind :approve
+                                :evidence-root nil})
+                :decision :approve}))
+           (group-members review-governance))
+     :approval/status :awaiting-signatures
+     :approval/operational-authority? false}))
+
 (defn verify-policy-approval
   "Reconstruct a retained approval receipt against an external authority root.
    A valid but below-threshold receipt remains :pending and cannot approve the

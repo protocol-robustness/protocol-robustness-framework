@@ -114,6 +114,17 @@
    :researcher-challenge-status 'resolver-sim.commands.researcher-challenge/status
    :research-reward-check 'resolver-sim.commands.research/reward-check
    :research-reward-propose 'resolver-sim.commands.research/reward-propose
+   :research-question-list 'resolver-sim.commands.researcher-ux/question-list
+   :research-question-show 'resolver-sim.commands.researcher-ux/question-show
+   :research-evidence-inspect 'resolver-sim.commands.researcher-ux/evidence-inspect
+   :research-conclusion-verify 'resolver-sim.commands.researcher-ux/conclusion-verify
+   :research-resolution-show 'resolver-sim.commands.researcher-ux/resolution-show
+   :research-review-status 'resolver-sim.commands.researcher-ux/review-status
+   :research-policy-approval-prepare 'resolver-sim.commands.researcher-ux/policy-approval-prepare
+   :research-policy-approval-sign 'resolver-sim.commands.researcher-ux/policy-approval-sign
+   :research-policy-approval-verify 'resolver-sim.commands.researcher-ux/policy-approval-verify
+   :research-compare 'resolver-sim.commands.research/diff
+   :research-export 'resolver-sim.commands.researcher-ux/export-ro-crate
    :research-reward-approve 'resolver-sim.commands.research/reward-approve
    :check-aggregate 'resolver-sim.commands.check-aggregate/run})
 
