@@ -13,6 +13,7 @@
 (def ^:const policy-schema "research-dependency-policy.v1")
 (def ^:const resolved-schema "resolved-research-dependency-set.v1")
 (def ^:const impact-report-schema "research-dependency-impact-report.v1")
+(def ^:const observation-comparison-schema "research-dependency-observation-comparison.v1")
 
 (def dependency-classes
   #{:prf-framework :prf-extension :registry-snapshot :clojure-model
@@ -454,4 +455,175 @@
                       (not= (:research-dependency-impact-report/root report)
                             computed-root))
                  (conj :impact-report-root-mismatch))]
+    {:valid? (empty? errors) :errors errors}))
+
+(defn- dependency-observation-root [observation]
+  (root :research-dependency-observation-v1
+        (dissoc observation :dependency-observation/root)))
+
+(defn- observation-comparison-root [comparison]
+  (root :research-dependency-observation-comparison-v1
+        (dissoc comparison :research-dependency-observation-comparison/root)))
+
+(defn- observation-status [observations]
+  (let [reference-roots (set (map :observation/reference-root observations))
+        state-roots (set (map :observation/resolved-root observations))]
+    (cond
+      (> (count reference-roots) 1) :not-comparable
+      (> (count state-roots) 1) :conflicting
+      (= 1 (count observations)) :single-observation
+      :else :observers-agree)))
+
+(defn compare-dependency-observations
+  "Reconcile independent dependency observations without selecting a winner.
+
+   Each observation has :observer/root, :reference/root, :manifest, :policy,
+   and :resolved. Only observations about the same reference can be compared.
+   Different dependency roots at one reference are :conflicting; roots attached
+   to different references are :not-comparable. Exact duplicate observation
+   roots are retained once so retries cannot simulate extra observers.
+
+   Observer authentication, observer independence, and latestness are explicit
+   unknowns. Every per-observer impact report is retained in the result."
+  [{:keys [baseline observations trusted-baseline-root]}]
+  (when-not (and (vector? observations) (seq observations))
+    (throw (ex-info "At least one dependency observation is required"
+                    {:reason :missing-dependency-observations})))
+  (let [records
+        (mapv (fn [observation]
+                (let [observer-root (:observer/root observation)
+                      reference-root (:reference/root observation)]
+                (when-not (and (map? observation)
+                               (= #{:observer/root :reference/root :manifest :policy :resolved}
+                                  (set (keys observation)))
+                               (root? observer-root) (root? reference-root))
+                  (throw (ex-info "Dependency observation lacks observer or reference roots"
+                                  {:reason :invalid-dependency-observation-identity})))
+                (let [impact (compare-dependency-state
+                              {:baseline baseline
+                               :observed (select-keys observation [:manifest :policy :resolved])
+                               :trusted-baseline-root trusted-baseline-root})
+                      body {:observation/observer-root observer-root
+                            :observation/reference-root reference-root
+                            :observation/resolved-root (:impact/observed-resolved-root impact)
+                            :observation/impact-report impact}]
+                  (assoc body :dependency-observation/root
+                         (dependency-observation-root body)))))
+              observations)
+        records (->> records
+                     (reduce (fn [by-root record]
+                               (assoc by-root (:dependency-observation/root record) record))
+                             (sorted-map))
+                     vals vec)
+        status (observation-status records)
+        report-roots (mapv #(get-in % [:observation/impact-report
+                                       :research-dependency-impact-report/root]) records)
+        state-roots (vec (sort (distinct (map :observation/resolved-root records))))
+        reference-roots (vec (sort (distinct (map :observation/reference-root records))))
+        body {:artifact/schema observation-comparison-schema
+              :observation/historical-assessment-root (:assessment-root baseline)
+              :observation/baseline-resolved-root
+              (:assessment-dependency-set-root baseline)
+              :observation/records records
+              :observation/impact-report-roots report-roots
+              :observation/reference-roots reference-roots
+              :observation/resolved-state-roots state-roots
+              :observation/status status
+              :observation/observer-authentication :not-evaluated
+              :observation/observer-independence :not-established
+              :observation/latestness :not-established
+              :observation/operational-authority? false}]
+    (assoc body :research-dependency-observation-comparison/root
+           (observation-comparison-root body))))
+
+(defn validate-dependency-observation-comparison [comparison]
+  (let [records (:observation/records comparison)
+        records (if (vector? records) records [])
+        roots (mapv :dependency-observation/root records)
+        report-roots (mapv #(get-in % [:observation/impact-report
+                                       :research-dependency-impact-report/root]) records)
+        state-roots (vec (sort (distinct (map :observation/resolved-root records))))
+        reference-roots (vec (sort (distinct (map :observation/reference-root records))))
+        valid-records?
+        (and (seq records)
+             (every? (fn [record]
+                       (let [report (:observation/impact-report record)]
+                         (and (= #{:observation/observer-root
+                                   :observation/reference-root
+                                   :observation/resolved-root
+                                   :observation/impact-report
+                                   :dependency-observation/root}
+                                 (set (keys record)))
+                              (every? root? [(:observation/observer-root record)
+                                             (:observation/reference-root record)
+                                             (:observation/resolved-root record)
+                                             (:dependency-observation/root record)])
+                              (:valid? (validate-impact-report report))
+                              (= (:observation/resolved-root record)
+                                 (:impact/observed-resolved-root report))
+                              (= (:dependency-observation/root record)
+                                 (dependency-observation-root
+                                  (dissoc record :dependency-observation/root))))))
+                     records))
+        baseline-bindings-valid?
+        (and valid-records?
+             (every? (fn [record]
+                       (let [impact (:observation/impact-report record)]
+                         (and (= (:observation/baseline-resolved-root comparison)
+                                 (:impact/baseline-resolved-root impact))
+                              (= (:observation/historical-assessment-root comparison)
+                                 (:impact/historical-assessment-root impact)))))
+                     records))
+        expected-status (when valid-records? (observation-status records))
+        errors (cond-> []
+                 (not= observation-comparison-schema (:artifact/schema comparison))
+                 (conj :unsupported-observation-comparison-schema)
+                 (not= #{:artifact/schema :observation/historical-assessment-root
+                         :observation/baseline-resolved-root :observation/records
+                         :observation/impact-report-roots :observation/reference-roots
+                         :observation/resolved-state-roots :observation/status
+                         :observation/observer-authentication
+                         :observation/observer-independence :observation/latestness
+                         :observation/operational-authority?
+                         :research-dependency-observation-comparison/root}
+                       (set (keys comparison)))
+                 (conj :invalid-observation-comparison-fields)
+                 (not valid-records?) (conj :invalid-observation-records)
+                 (not= roots (vec (sort (distinct roots))))
+                 (conj :noncanonical-observation-records)
+                 (not= report-roots (:observation/impact-report-roots comparison))
+                 (conj :observation-impact-root-mismatch)
+                 (not= state-roots (:observation/resolved-state-roots comparison))
+                 (conj :observation-state-root-mismatch)
+                 (not= reference-roots (:observation/reference-roots comparison))
+                 (conj :observation-reference-root-mismatch)
+                 (not= expected-status (:observation/status comparison))
+                 (conj :observation-status-mismatch)
+                 (not= :not-evaluated (:observation/observer-authentication comparison))
+                 (conj :observer-authentication-must-remain-explicit)
+                 (not= :not-established (:observation/observer-independence comparison))
+                 (conj :observer-independence-must-remain-explicit)
+                 (not= :not-established (:observation/latestness comparison))
+                 (conj :observer-report-cannot-establish-latestness)
+                 (not= false (:observation/operational-authority? comparison))
+                 (conj :observer-report-cannot-issue-authority)
+                 (not (every? root? [(:observation/historical-assessment-root comparison)
+                                     (:observation/baseline-resolved-root comparison)]))
+                 (conj :invalid-historical-assessment-reference)
+                 (not= (:impact/baseline-resolved-root
+                        (get-in comparison [:observation/records 0 :observation/impact-report]))
+                       (:observation/baseline-resolved-root comparison))
+                 (conj :baseline-root-mismatch)
+                 (not= (:impact/historical-assessment-root
+                        (get-in comparison [:observation/records 0 :observation/impact-report]))
+                       (:observation/historical-assessment-root comparison))
+                 (conj :assessment-root-mismatch)
+                 (not baseline-bindings-valid?)
+                 (conj :observation-baseline-binding-mismatch)
+                 (not (root? (:research-dependency-observation-comparison/root comparison)))
+                 (conj :missing-observation-comparison-root)
+                 (not= (:research-dependency-observation-comparison/root comparison)
+                       (try (observation-comparison-root comparison)
+                            (catch Exception _ nil)))
+                 (conj :observation-comparison-root-mismatch))]
     {:valid? (empty? errors) :errors errors}))
