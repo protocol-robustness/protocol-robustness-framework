@@ -9,6 +9,7 @@
             [resolver-sim.benchmark.research-analysis :as analysis]
             [resolver-sim.benchmark.research-claim-acceptance :as acceptance]
             [resolver-sim.benchmark.research-claim-lifecycle :as lifecycle]
+            [resolver-sim.research.resolution-view :as resolution-view]
             [resolver-sim.hash.reference :as canonical-reference]))
 
 ;; Research-result verification and analytical-claim derivation.
@@ -19,6 +20,8 @@
 
 ;; Research-conclusion qualification is explanatory and leaves V1 roots intact.
 (def qualify-research-conclusion conclusion/qualify-conclusion)
+(def build-research-resolution-view resolution-view/build-view)
+(def validate-research-resolution-view resolution-view/validate-view)
 
 ;; Authoritative acceptance and lifecycle operations.
 (def build-claim-acceptance-policy acceptance/build-policy)
