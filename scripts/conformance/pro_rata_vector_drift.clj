@@ -164,9 +164,21 @@
                                   [(name (:vector/id v))
                                    {:request (:request/hash (:expected v))
                                     :result (:allocation/hash (:expected v))}]))
+        malformed-positive (into (sorted-map)
+                                 (filter (fn [[_ fields]] (not= 2 (count fields))))
+                                 positive)
         actual-positive (into {} (map (fn [[id [request result]]] [id {:request request :result result}])) positive)
         negative (record-map records "allocation-rejection")
+        malformed-negative (into (sorted-map)
+                                 (filter (fn [[_ fields]] (not= 1 (count fields))))
+                                 negative)
         expected-negative (expected-rejections (get vectors "negative-allocation-001.edn"))]
+    (when (seq malformed-positive)
+      (fail! "Rust allocation result records must contain exactly request and result roots"
+             {:records malformed-positive}))
+    (when (seq malformed-negative)
+      (fail! "Rust allocation rejection records must contain exactly one reason field"
+             {:records malformed-negative}))
     (when-not (= (set (keys expected-positive)) (set (keys actual-positive)))
       (fail! "Rust allocation vector coverage differs from frozen EDN vectors"
              {:expected-ids (sort (keys expected-positive)) :actual-ids (sort (keys actual-positive))}))
@@ -198,7 +210,13 @@
                     :actual-ids (sort (keys transition-results))}))
         actual (required-record records "transition" "canonical-transition-001" 4)
         expected-negative (expected-rejections (get vectors "negative-transition-001.edn"))
-        negative (record-map records "transition-rejection")]
+        negative (record-map records "transition-rejection")
+        malformed-negative (into (sorted-map)
+                                 (filter (fn [[_ fields]] (not= 1 (count fields))))
+                                 negative)]
+    (when (seq malformed-negative)
+      (fail! "Rust transition rejection records must contain exactly one reason field"
+             {:records malformed-negative}))
     (when-not (= (set (keys expected-negative)) (set (keys negative)))
       (fail! "Rust transition rejection record set differs from frozen vectors"
              {:expected-ids (sort (keys expected-negative))
