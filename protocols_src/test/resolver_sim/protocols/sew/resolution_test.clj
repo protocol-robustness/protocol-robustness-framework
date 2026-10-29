@@ -1223,6 +1223,21 @@
     (is (= 2 (count contributions)))
     (is (= 2 (count key-bindings)))))
 
+(deftest sew-rejects-ratified-label-without-policy-quorum-inputs
+  (let [{:keys [world basis]} (high-assurance-inputs :release)
+        {:keys [ratification-result current-snapshot] :as package}
+        (sew-research-ratification-inputs world basis)
+        verified (sew-ratification/verify-ratification
+                  (assoc package
+                         :sew-basis basis
+                         :adjudication-snapshot current-snapshot
+                         :contributions []))]
+    (is (false? (:valid? verified)))
+    (is (= [:ratification-result-mismatch] (:errors verified)))
+    (is (= :contested-unresolved
+           (get-in verified [:ratification :ratification/status]))
+        "SEW reconstructs policy quorum instead of accepting a stored ratified label")))
+
 (deftest fenced-ratification-and-settlement-use-one-authoritative-state-fence
   (let [{:keys [world basis artifact verification finality]} (high-assurance-inputs :release)
         package (sew-research-ratification-inputs world basis)

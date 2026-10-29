@@ -35,6 +35,7 @@
             [resolver-sim.benchmark.research-theorem-outcome :as rto]))
 
 (def ^:const schema-version "research-conclusion.v1")
+(def ^:const qualification-schema-version "research-conclusion-qualification.v1")
 
 (def ^:const valid-conclusion-statuses
   "Controlled vocabulary for conclusion statuses."
@@ -235,27 +236,102 @@
      3. it is resolved (present) — a missing theorem fails;
      4. it cannot be substituted without verification failure.
 
-   theorem-resolver — fn (sha256-ref) -> theorem-map-or-nil. A resolver that
-   recomputes theorem hashes (e.g. re-validating the theorem artifact) is the
-   verifier half of the rule.
+   theorem-resolver — fn (sha256-ref) -> theorem-map-or-nil. The returned
+   theorem is independently hash- and structure-validated here.
 
    Returns {:valid? bool :errors [str] :resolved-theorems [theorem-map]}."
   [conclusion theorem-resolver]
   (let [results (mapv (fn [h]
-                        (cond
-                          (not (hash-ref/valid-sha256-ref? h))
-                          {:hash h :ok? false :reason "malformed theorem hash"}
+                        (let [theorem (when (hash-ref/valid-sha256-ref? h)
+                                        (theorem-resolver h))]
+                          (cond
+                            (not (hash-ref/valid-sha256-ref? h))
+                            {:hash h :ok? false :reason "malformed theorem hash"}
 
-                          (nil? (theorem-resolver h))
-                          {:hash h :ok? false :reason "theorem not resolvable"}
+                            (nil? theorem)
+                            {:hash h :ok? false :reason "theorem not resolvable"}
 
-                          (not= h (:theorem/hash (theorem-resolver h)))
-                          {:hash h :ok? false :reason "theorem hash does not recompute"}
+                            (not= h (:theorem/hash theorem))
+                            {:hash h :ok? false :reason "theorem hash does not recompute"}
 
-                          :else
-                          {:hash h :ok? true :theorem (theorem-resolver h)}))
+                            (not (:valid? (rto/validate-theorem-outcome theorem)))
+                            {:hash h :ok? false :reason "theorem artifact failed validation"}
+
+                            :else
+                            {:hash h :ok? true :theorem theorem})))
                       (:conclusion/supporting-theorem-hashes conclusion))
         failed (filter #(not (:ok? %)) results)]
     {:valid? (empty? failed)
      :errors (mapv (fn [r] (str (:reason r) ": " (:hash r))) failed)
      :resolved-theorems (mapv :theorem (filter :ok? results))}))
+
+(defn qualify-conclusion
+  "Build a read-only qualification view without changing the V1 conclusion.
+
+   Structural validity, resolvable supporting theorems, and method-specific
+   verification are reported as separate dimensions. A valid V1 hash or a
+   declared :established status is never itself treated as method verification.
+
+   `method-verifier` is optional and receives the conclusion plus resolved
+   supporting theorems. To qualify, it must return
+   {:status :verified :conclusion/root <same conclusion hash>
+    :evidence/root <sha256 reference>}. Its implementation is responsible for
+   independently checking the method and evidence represented by the supplied
+   artifacts. Missing verifier, malformed output, or exceptions fail closed.
+
+   Returns a presentation projection; it is not a canonical protocol artifact
+   and does not authorize operational action or researcher ratification."
+  ([conclusion theorem-resolver]
+   (qualify-conclusion conclusion theorem-resolver nil))
+  ([conclusion theorem-resolver method-verifier]
+   (let [structure (validate-conclusion conclusion)
+         support (if (and (:valid? structure)
+                          (or (empty? (:conclusion/supporting-theorem-hashes conclusion))
+                              (ifn? theorem-resolver)))
+                   (verify-conclusion-support conclusion theorem-resolver)
+                   {:valid? false
+                    :errors (if (:valid? structure)
+                              ["theorem resolver is required"]
+                              ["conclusion structure is invalid"])
+                    :resolved-theorems []})
+         method-result (when (and (:valid? structure)
+                                  (:valid? support)
+                                  (ifn? method-verifier))
+                         (try
+                           (method-verifier {:conclusion conclusion
+                                             :supporting-theorems (:resolved-theorems support)})
+                           (catch Exception e
+                             {:status :invalid
+                              :error (or (.getMessage e) "method verifier failed")})))
+         evidence-root (:evidence/root method-result)
+         method-verified? (and (= :verified (:status method-result))
+                               (= (:conclusion/hash conclusion)
+                                  (:conclusion/root method-result))
+                               (hash-ref/valid-sha256-ref? evidence-root))
+         method-status (cond
+                         method-verified? :verified
+                         (nil? method-verifier) :unverified
+                         :else :invalid)
+         declared-status (:conclusion/status conclusion)
+         research-status (cond
+                           (not (:valid? structure)) :invalid-conclusion
+                           (= :withdrawn declared-status) :withdrawn
+                           (not (:valid? support)) :unverified-support
+                           (not method-verified?) :unverified-method
+                           (= :established declared-status) :established-within-verified-method
+                           (= :qualified declared-status) :qualified-within-verified-method
+                           :else :not-established)]
+     {:schema-version qualification-schema-version
+      :conclusion/root (:conclusion/hash conclusion)
+      :structure-status (if (:valid? structure) :valid :invalid)
+      :structure-errors (:errors structure)
+      :declared-status declared-status
+      :support-status (cond
+                        (empty? (:conclusion/supporting-theorem-hashes conclusion)) :not-provided
+                        (:valid? support) :verified
+                        :else :invalid)
+      :support-errors (:errors support)
+      :method-status method-status
+      :method-evidence-root (when method-verified? evidence-root)
+      :method-error (:error method-result)
+      :research-status research-status})))
