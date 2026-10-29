@@ -30,6 +30,10 @@
 (def compare-research-dependency-observations dependency/compare-dependency-observations)
 (def validate-research-dependency-observation-comparison
   dependency/validate-dependency-observation-comparison)
+(def assess-research-dependency-temporal-applicability
+  dependency/assess-observation-temporal-applicability)
+(def validate-research-dependency-temporal-assessment
+  dependency/validate-temporal-assessment)
 
 ;; Authoritative acceptance and lifecycle operations.
 (def build-claim-acceptance-policy acceptance/build-policy)

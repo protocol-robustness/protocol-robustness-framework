@@ -75,3 +75,26 @@ reference; observer authentication, independence, and latestness remain
 unestablished. Existing observation and publication code follows the same
 boundary by preserving conflicting cell results or signed branches rather than
 overwriting them.
+
+## Checkpoint-relative temporal applicability
+
+`assess-research-dependency-temporal-applicability` compares the observation
+reference roots with the head and ancestry from the existing
+`network/verify-history` checkpoint verifier. Supply the validated observer
+comparison, a trusted genesis, checkpoint entries, and the existing authority
+resolution adapters. Only a history the verifier returns as `:certified` can
+produce `:at-certified-head`, `:historical-reference`,
+`:mixed-reference-ages`, or `:conflicting-at-certified-head`. A local-only,
+invalid, or incomplete history yields `:unknown`.
+
+This answers whether an observation refers to the certified head in the
+supplied history, or to a checkpoint ancestor. It cannot show that the supplied
+head is globally latest, that the observation is recent in wall-clock time, or
+that observers are authenticated or independent. The report is a rooted
+projection, not a certificate; consumers must replay the checkpoint history
+with their own trusted genesis and verifier adapters. A conflict at the
+certified head remains a conflict and no observer is selected as winner.
+
+Call it with a map containing `:comparison`, `:trusted-genesis`,
+`:entries`, and `:checkpoint-adapters`; the adapters are the same trusted
+authority resolvers used by the existing checkpoint history verifier.

@@ -7,13 +7,17 @@
   (:require [clojure.set :as set]
             [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.hash.reference :as hash-ref]))
+            [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.network.checkpoint :as checkpoint]))
 
 (def ^:const manifest-schema "research-dependency-manifest.v1")
 (def ^:const policy-schema "research-dependency-policy.v1")
 (def ^:const resolved-schema "resolved-research-dependency-set.v1")
 (def ^:const impact-report-schema "research-dependency-impact-report.v1")
 (def ^:const observation-comparison-schema "research-dependency-observation-comparison.v1")
+(def ^:const temporal-assessment-schema "research-dependency-temporal-assessment.v1")
+(def ^:const observation-statuses
+  #{:not-comparable :conflicting :single-observation :observers-agree})
 
 (def dependency-classes
   #{:prf-framework :prf-extension :registry-snapshot :clojure-model
@@ -455,6 +459,180 @@
                       (not= (:research-dependency-impact-report/root report)
                             computed-root))
                  (conj :impact-report-root-mismatch))]
+    {:valid? (empty? errors) :errors errors}))
+
+(declare validate-dependency-observation-comparison)
+
+(defn- temporal-assessment-root [assessment]
+  (root :research-dependency-temporal-assessment-v1
+        (dissoc assessment :research-dependency-temporal-assessment/root)))
+
+(defn assess-observation-temporal-applicability
+  "Compare dependency observation references with an existing, certified PRF
+   checkpoint history. This can identify a report anchored to the certified
+   head or a known ancestor. It cannot establish wall-clock freshness, future
+   head availability, observer identity, independence, or operational authority.
+
+   Consumers must replay this checkpoint history under their own trusted
+   genesis and verifier adapters; the returned projection root is not a
+   checkpoint certificate."
+  [{:keys [comparison trusted-genesis entries checkpoint-adapters]}]
+  (when-not (:valid? (validate-dependency-observation-comparison comparison))
+    (throw (ex-info "Dependency observation comparison is invalid"
+                    {:reason :invalid-dependency-observation-comparison})))
+  (let [verification (checkpoint/verify-history trusted-genesis entries checkpoint-adapters)
+        certified? (and (:valid? verification) (= :certified (:status verification)))
+        history (mapv (fn [entry result]
+                        {:checkpoint/root (get-in entry [:checkpoint :checkpoint/root])
+                         :checkpoint/sequence (:checkpoint/sequence result)})
+                      entries (:checkpoints verification))
+        head (:head verification)
+        head-root (:checkpoint/root head)
+        head-sequence (:checkpoint/sequence head)
+        references (:observation-reference-roots comparison)
+        positions (mapv (fn [reference-root]
+                          (let [entry (some #(when (= reference-root (:checkpoint/root %)) %) history)]
+                            {:reference/root reference-root
+                             :checkpoint/sequence (when entry (:checkpoint/sequence entry))
+                             :position (cond
+                                         (not certified?) :unknown
+                                         (nil? entry) :unknown
+                                         (= head-root reference-root) :head
+                                         (< (:checkpoint/sequence entry) head-sequence) :ancestor
+                                         :else :unknown)}))
+                        references)
+        known? (and certified? (seq positions)
+                    (every? #(contains? #{:head :ancestor} (:position %)) positions))
+        all-head? (and known? (every? #(= :head (:position %)) positions))
+        all-ancestor? (and known? (every? #(= :ancestor (:position %)) positions))
+        applicability (cond
+                        (not known?) :unknown
+                        (and all-head? (= :conflicting (:observation/status comparison)))
+                        :conflicting-at-certified-head
+                        all-head? :at-certified-head
+                        all-ancestor? :historical-reference
+                        :else :mixed-reference-ages)
+        body {:artifact/schema temporal-assessment-schema
+              :temporal/comparison-root
+              (:research-dependency-observation-comparison/root comparison)
+              :temporal/observer-status (:observation/status comparison)
+              :temporal/checkpoint-verification-status
+              (if certified? :certified :unverified)
+              :temporal/trusted-genesis-root (:checkpoint/root trusted-genesis)
+              :temporal/checkpoint-roots (mapv :checkpoint/root history)
+              :temporal/head-root head-root
+              :temporal/head-sequence head-sequence
+              :temporal/reference-positions positions
+              :temporal/applicability applicability
+              :temporal/wall-clock-freshness :not-assessed
+              :temporal/observer-authentication :not-assessed
+              :temporal/observer-independence :not-established
+              :temporal/latestness :not-established
+              :temporal/operational-authority? false}]
+    (assoc body :research-dependency-temporal-assessment/root
+           (temporal-assessment-root body))))
+
+(defn validate-temporal-assessment
+  "Validate the rooted projection shape and its internally derived labels.
+   Checkpoint authenticity still requires replay under a trusted genesis."
+  [assessment]
+  (let [positions (:temporal/reference-positions assessment)
+        verified? (= :certified (:temporal/checkpoint-verification-status assessment))
+        positions-valid? (and (vector? positions)
+                              (every? (fn [position]
+                                        (and (= #{:reference/root :checkpoint/sequence :position}
+                                                (set (keys position)))
+                                             (root? (:reference/root position))
+                                             (or (nil? (:checkpoint/sequence position))
+                                                 (and (integer? (:checkpoint/sequence position))
+                                                      (not (neg? (:checkpoint/sequence position)))))
+                                             (contains? #{:head :ancestor :unknown}
+                                                        (:position position))
+                                             (case (:position position)
+                                               :head (and (= (:reference/root position)
+                                                             (:temporal/head-root assessment))
+                                                          (= (:checkpoint/sequence position)
+                                                             (:temporal/head-sequence assessment)))
+                                               :ancestor (and (some #{(:reference/root position)}
+                                                                    (:temporal/checkpoint-roots assessment))
+                                                              (integer? (:checkpoint/sequence position))
+                                                              (< (:checkpoint/sequence position)
+                                                                 (:temporal/head-sequence assessment)))
+                                               :unknown true
+                                               false)))
+                                      positions))
+        known? (and verified? (seq positions)
+                    (every? #(contains? #{:head :ancestor} (:position %)) positions))
+        all-head? (and known? (every? #(= :head (:position %)) positions))
+        all-ancestor? (and known? (every? #(= :ancestor (:position %)) positions))
+        expected-applicability (cond
+                                 (not known?) :unknown
+                                 (and all-head?
+                                      (= :conflicting (:temporal/observer-status assessment)))
+                                 :conflicting-at-certified-head
+                                 all-head? :at-certified-head
+                                 all-ancestor? :historical-reference
+                                 :else :mixed-reference-ages)
+        errors (cond-> []
+                 (not= temporal-assessment-schema (:artifact/schema assessment))
+                 (conj :unsupported-temporal-assessment-schema)
+                 (not= #{:artifact/schema :temporal/comparison-root :temporal/observer-status
+                         :temporal/checkpoint-verification-status :temporal/trusted-genesis-root
+                         :temporal/checkpoint-roots :temporal/head-root :temporal/head-sequence
+                         :temporal/reference-positions :temporal/applicability
+                         :temporal/wall-clock-freshness :temporal/observer-authentication
+                         :temporal/observer-independence :temporal/latestness
+                         :temporal/operational-authority?
+                         :research-dependency-temporal-assessment/root}
+                       (set (keys assessment)))
+                 (conj :invalid-temporal-assessment-fields)
+                 (not (root? (:temporal/comparison-root assessment)))
+                 (conj :invalid-comparison-root)
+                 (not (root? (:temporal/trusted-genesis-root assessment)))
+                 (conj :invalid-trusted-genesis-root)
+                 (not (contains? #{:certified :unverified}
+                                 (:temporal/checkpoint-verification-status assessment)))
+                 (conj :invalid-checkpoint-verification-status)
+                 (not (contains? observation-statuses (:temporal/observer-status assessment)))
+                 (conj :invalid-observer-status)
+                 (not (or (nil? (:temporal/head-root assessment))
+                          (root? (:temporal/head-root assessment))))
+                 (conj :invalid-head-root)
+                 (not (or (nil? (:temporal/head-sequence assessment))
+                          (and (integer? (:temporal/head-sequence assessment))
+                               (not (neg? (:temporal/head-sequence assessment))))))
+                 (conj :invalid-head-sequence)
+                 (not (and (vector? (:temporal/checkpoint-roots assessment))
+                           (every? root? (:temporal/checkpoint-roots assessment))
+                           (= (count (:temporal/checkpoint-roots assessment))
+                              (count (distinct (:temporal/checkpoint-roots assessment))))))
+                 (conj :invalid-checkpoint-roots)
+                 (and verified?
+                      (not (and (root? (:temporal/head-root assessment))
+                                (integer? (:temporal/head-sequence assessment))
+                                (some #{(:temporal/head-root assessment)}
+                                      (:temporal/checkpoint-roots assessment)))))
+                 (conj :certified-history-missing-head)
+                 (not positions-valid?) (conj :invalid-reference-positions)
+                 (not= (mapv :reference/root positions)
+                       (vec (sort (distinct (map :reference/root positions)))))
+                 (conj :noncanonical-reference-positions)
+                 (not= expected-applicability (:temporal/applicability assessment))
+                 (conj :temporal-applicability-mismatch)
+                 (not= :not-assessed (:temporal/wall-clock-freshness assessment))
+                 (conj :wall-clock-freshness-must-remain-unassessed)
+                 (not= :not-assessed (:temporal/observer-authentication assessment))
+                 (conj :observer-authentication-must-remain-unassessed)
+                 (not= :not-established (:temporal/observer-independence assessment))
+                 (conj :observer-independence-must-remain-unestablished)
+                 (not= :not-established (:temporal/latestness assessment))
+                 (conj :latestness-must-remain-unestablished)
+                 (not= false (:temporal/operational-authority? assessment))
+                 (conj :temporal-assessment-cannot-issue-authority)
+                 (not= (:research-dependency-temporal-assessment/root assessment)
+                       (try (temporal-assessment-root assessment)
+                            (catch Exception _ nil)))
+                 (conj :temporal-assessment-root-mismatch))]
     {:valid? (empty? errors) :errors errors}))
 
 (defn- dependency-observation-root [observation]

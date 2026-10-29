@@ -31,6 +31,8 @@ assessment.
 
 The OpenAPI draft is
 [`../../schemas/research-ratification-demo-api.v1.json`](../../schemas/research-ratification-demo-api.v1.json).
+The empty demo workspace response captured from the running service is
+[`../../examples/research-ratification-demo-workspace.golden.json`](../../examples/research-ratification-demo-workspace.golden.json).
 Read endpoints are public on loopback; contribution endpoints require the
 fixture bearer token. For example:
 
