@@ -102,12 +102,14 @@
 (defn resolution-show [{:keys [input]}]
   (invoke "research resolution show"
           #(let [view (read-input input)
-                 validation (resolution-view/validate-view view)]
-             (print-result {:resolution/status (if (:valid? validation) :valid :invalid)
-                            :resolution/errors (:errors validation)
-                            :resolution/view view})
+                 validation (resolution-view/validate-view view)
+                 result {:resolution/status (if (:valid? validation) :valid :invalid)
+                         :resolution/errors (:errors validation)
+                         :resolution/view view}]
+             (print-result result)
              (when-not (:valid? validation)
-               (throw (ex-info "Resolution view failed validation" validation))))))
+               (throw (ex-info "Resolution view failed validation" validation)))
+             result)))
 
 (defn review-status [{:keys [input]}]
   (invoke "research review status"
