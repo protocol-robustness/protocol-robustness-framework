@@ -65,6 +65,8 @@ report. If observers report different dependency roots for
 the same reference, status is `:conflicting`. If they report different
 reference roots, status is `:not-comparable`; the API does not assume those
 references are ordered.
+Every retained impact report uses the same historical assessment and trusted
+baseline root, so reports cannot be combined across different trust anchors.
 
 There is no first-wins, latest-timestamp, or majority rule. Exact retries from
 the same observer for the same reference and content collapse to one rooted

@@ -8,6 +8,7 @@
     "artifact/schema",
     "observation/historical-assessment-root",
     "observation/baseline-resolved-root",
+    "observation/trusted-baseline-root",
     "observation/records",
     "observation/impact-report-roots",
     "observation/reference-roots",
@@ -23,6 +24,9 @@
     "artifact/schema": { "const": "research-dependency-observation-comparison.v1" },
     "observation/historical-assessment-root": { "$ref": "#/$defs/root" },
     "observation/baseline-resolved-root": { "$ref": "#/$defs/root" },
+    "observation/trusted-baseline-root": {
+      "oneOf": [{ "$ref": "#/$defs/root" }, { "type": "null" }]
+    },
     "observation/records": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/record" } },
     "observation/impact-report-roots": { "type": "array", "items": { "$ref": "#/$defs/root" } },
     "observation/reference-roots": { "type": "array", "items": { "$ref": "#/$defs/root" } },
