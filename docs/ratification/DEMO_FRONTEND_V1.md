@@ -46,6 +46,19 @@ curl -X POST "http://127.0.0.1:8787/v1/targets/$TARGET_ROOT/contribution-intents
   -d '{"kind":"approve"}'
 ```
 
+An independent Python standard-library client can smoke-check the read and
+intent endpoints without loading PRF or its Clojure implementation:
+
+```sh
+python3 scripts/researcher_ratification_smoke.py \
+  --target-root "$TARGET_ROOT" \
+  --token demo-researcher-token
+```
+
+This checks the documented wire fields and authority boundaries. It does not
+sign or submit a contribution and does not independently reconstruct PRF
+hashes or ratification.
+
 The interaction sequence is:
 
 1. `GET /v1/targets/{targetRoot}` to inspect the frozen target and policy.
@@ -79,5 +92,7 @@ The Research Resolution notebook in the pinned `prf/notebooks` dependency now
 has an optional live workspace and intent preview. It displays claim status,
 method verification, ratification, policy approval, and operational authority
 as separate fields. A stable external integration still needs a golden JSON
-fixture, independent client reconstruction, policy approval, and an actual
-method-verification path.
+fixture, independent client reconstruction of the ratification/hash rules,
+policy approval, and an actual method-verification path. The smoke client above
+checks transport and response binding only; it is not that independent
+reconstruction.
