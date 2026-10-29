@@ -198,6 +198,8 @@
    :research-contribution-v1 "RESEARCH_CONTRIBUTION_V1"
    :research-ratification-v1 "RESEARCH_RATIFICATION_V1"
    :research-ratification-artifact-v1 "RESEARCH_RATIFICATION_ARTIFACT_V1"
+   :prf-research-subject "PRF_RESEARCH_SUBJECT_V1"
+   :prf-research-resolution-view-v1 "PRF_RESEARCH_RESOLUTION_VIEW_V1"
    :network-checkpoint-v1 "prf.network-checkpoint.v1"
    :checkpoint-event-manifest-v1 "prf.checkpoint-event-manifest.v1"
    :checkpoint-certificate-v1 "prf.checkpoint-certificate.v1"

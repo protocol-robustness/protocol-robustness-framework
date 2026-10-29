@@ -285,6 +285,16 @@ ratification is absent, and operational authority is false. This is the initial 
 consumer of the view contract; the protected pro-rata consumer still needs to
 adopt it through its assurance-case work.
 
+The retained output files are `research-resolution-supported.v1.edn` and
+`research-resolution-counterexample.v1.edn`. The first reports
+`:supported-within-scope` for its no-shortfall boundary case (view root
+`sha256:10229f28fb991303b175a171a85537ca7929948a4cf1a9aa07fe55b74ee23b66`);
+the second reports `:counterexample-found` for a shortfall case (view root
+`sha256:a05ea78d373c52d14f606206905dd257f7ac31d396c99f42de116c577b41c520`).
+Both keep ratification absent and operational authority false. They are
+same-implementation arithmetic replays, not independent implementation
+reproductions; source pinning remains unknown.
+
 Use the following offline entry point (output is EDN):
 
 ```sh
