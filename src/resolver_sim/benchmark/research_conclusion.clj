@@ -275,15 +275,20 @@
    `method-verifier` is optional and receives the conclusion plus resolved
    supporting theorems. To qualify, it must return
    {:status :verified :conclusion/root <same conclusion hash>
-    :evidence/root <sha256 reference>}. Its implementation is responsible for
-   independently checking the method and evidence represented by the supplied
-   artifacts. Missing verifier, malformed output, or exceptions fail closed.
+    :evidence/root <sha256 reference> :verifier/root <sha256 reference>}.
+   The fourth argument must be the independently trusted verifier root and must
+   equal the verifier's declared root. Its implementation is responsible for
+   checking the method and evidence represented by the supplied artifacts.
+   Missing verifier, missing trusted root, malformed output, or exceptions fail
+   closed.
 
    Returns a presentation projection; it is not a canonical protocol artifact
    and does not authorize operational action or researcher ratification."
   ([conclusion theorem-resolver]
-   (qualify-conclusion conclusion theorem-resolver nil))
+   (qualify-conclusion conclusion theorem-resolver nil nil))
   ([conclusion theorem-resolver method-verifier]
+   (qualify-conclusion conclusion theorem-resolver method-verifier nil))
+  ([conclusion theorem-resolver method-verifier trusted-method-verifier-root]
    (let [structure (validate-conclusion conclusion)
          support (if (and (:valid? structure)
                           (or (empty? (:conclusion/supporting-theorem-hashes conclusion))
@@ -304,13 +309,19 @@
                              {:status :invalid
                               :error (or (.getMessage e) "method verifier failed")})))
          evidence-root (:evidence/root method-result)
+         verifier-root (:verifier/root method-result)
+         trusted-verifier? (and (hash-ref/valid-sha256-ref? trusted-method-verifier-root)
+                                (= trusted-method-verifier-root verifier-root))
          method-verified? (and (= :verified (:status method-result))
                                (= (:conclusion/hash conclusion)
                                   (:conclusion/root method-result))
-                               (hash-ref/valid-sha256-ref? evidence-root))
+                               (hash-ref/valid-sha256-ref? evidence-root)
+                               trusted-verifier?)
          method-status (cond
                          method-verified? :verified
                          (nil? method-verifier) :unverified
+                         (= :invalid (:status method-result)) :invalid
+                         (not trusted-verifier?) :untrusted-verifier
                          :else :invalid)
          declared-status (:conclusion/status conclusion)
          research-status (cond
@@ -332,6 +343,8 @@
                         :else :invalid)
       :support-errors (:errors support)
       :method-status method-status
+      :method-verifier-root verifier-root
+      :trusted-method-verifier-root trusted-method-verifier-root
       :method-evidence-root (when method-verified? evidence-root)
       :method-error (:error method-result)
       :research-status research-status})))

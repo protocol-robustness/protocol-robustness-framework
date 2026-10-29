@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.research-conclusion :as rc]
             [resolver-sim.benchmark.research-theorem-outcome :as rto]
+            [resolver-sim.research.integer-sum-verifier :as integer-sum]
             [resolver-sim.hash.canonical :as hc]))
 
 (def ^:const minimal-conclusion
@@ -293,3 +294,47 @@
           resolver (fn [_h] th)]
       (is (not= claimed (:theorem/hash th)))
       (is (not (:valid? (rc/verify-conclusion-support c resolver)))))))
+
+(deftest method-verification-requires-a-trusted-verifier-root
+  (let [evidence (integer-sum/build-evidence
+                 {:left 20 :right 22 :observed-result 42})
+        evidence-copy (integer-sum/build-evidence
+                       {:left 20 :right 22 :observed-result 42})
+        c (integer-sum/build-fixture-conclusion evidence)
+        verifier (integer-sum/method-verifier evidence)
+        qualified (rc/qualify-conclusion c nil verifier integer-sum/verifier-root)
+        untrusted (rc/qualify-conclusion c nil verifier)
+        wrong-trust-root (rc/qualify-conclusion
+                          c nil verifier
+                          (str "sha256:" (apply str (repeat 64 "f"))))]
+    (is (= :established-within-verified-method (:research-status qualified)))
+    (is (= evidence evidence-copy) "the evidence fixture must be deterministic")
+    (is (= :verified (:method-status qualified)))
+    (is (= integer-sum/verifier-root (:method-verifier-root qualified)))
+    (is (= :untrusted-verifier (:method-status untrusted)))
+    (is (= :untrusted-verifier (:method-status wrong-trust-root)))
+    (is (= :unverified-method (:research-status wrong-trust-root)))))
+
+(deftest integer-sum-method-verification-fails-closed-on-bad-evidence-or-claim
+  (let [evidence (integer-sum/build-evidence
+                 {:left 20 :right 22 :observed-result 42})
+        bad-evidence (assoc evidence :method/observed-result 43)
+        c (integer-sum/build-fixture-conclusion evidence)
+        bad-claim (rc/build-conclusion
+                   (assoc minimal-conclusion
+                          :conclusion/id :conclusion/integer-sum
+                          :conclusion/supporting-theorem-hashes []
+                          :conclusion/result {:y {:operation :integer-addition
+                                                  :left 20 :right 22 :value 43}}
+                          :conclusion/scope
+                          {:method/evidence-root (:method/evidence-root evidence)}))
+        bad-evidence-result
+        (rc/qualify-conclusion c nil (integer-sum/method-verifier bad-evidence)
+                               integer-sum/verifier-root)
+        bad-claim-result
+        (rc/qualify-conclusion bad-claim nil (integer-sum/method-verifier evidence)
+                              integer-sum/verifier-root)]
+    (is (= :invalid (:method-status bad-evidence-result)))
+    (is (= :unverified-method (:research-status bad-evidence-result)))
+    (is (= :invalid (:method-status bad-claim-result)))
+    (is (= :unverified-method (:research-status bad-claim-result)))))

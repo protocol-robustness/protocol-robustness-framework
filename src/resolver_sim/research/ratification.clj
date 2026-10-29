@@ -21,6 +21,10 @@
 (defn- sha256? [value]
   (ref/valid-sha256-ref? value))
 
+(defn- round-ref? [value]
+  (or (sha256? value)
+      (and (string? value) (re-matches #"review-round:[0-9a-f]{64}" value))))
+
 (defn target-root [target]
   (ref/sha256-ref
    (canonical/domain-hash :research-ratification-target-v1
@@ -32,7 +36,7 @@
                  (not (keyword? (:target/domain target))) (conj :invalid-domain)
                  (not (sha256? (:target/subject-root target))) (conj :invalid-subject-root)
                  (not (sha256? (:target/evidence-root target))) (conj :invalid-evidence-root)
-                 (not (sha256? (:target/round-root target))) (conj :invalid-round-root)
+                 (not (round-ref? (:target/round-root target))) (conj :invalid-round-root)
                  (not (sha256? (:target/policy-root target))) (conj :invalid-policy-root)
                  (not= target-schema (:schema/version target)) (conj :unsupported-target-schema)
                  (not (string? (:target/schema target))) (conj :invalid-target-schema)
@@ -156,8 +160,17 @@
                       {:errors errors :target-root (:target/root target)})))
     (assoc contribution :contribution/root (contribution-root contribution))))
 
-(defn- decision-signature-valid? [decision {:keys [public-key-path]}]
-  (:valid? (decisions/verify-signed-decision-v2 decision public-key-path)))
+(defn- decision-signature-valid? [decision binding]
+  (cond
+    (string? (:public-key-path binding))
+    (:valid? (decisions/verify-signed-decision-v2
+              decision (:public-key-path binding)))
+
+    (string? (:public-key-content binding))
+    (:valid? (decisions/verify-signed-decision-v2-with-public-key-content
+              decision (:public-key-content binding)))
+
+    :else false))
 
 (defn- contribution-errors [target policy contribution key-bindings]
   (let [decision (:contribution/decision contribution)
@@ -171,6 +184,9 @@
       (not= principal (:principal/id binding)) (conj :principal-binding-mismatch)
       (not= (:researcher/id decision) (:researcher/id binding))
       (conj :researcher-binding-mismatch)
+      (and (:signing-key/id binding)
+           (not= (:signing-key/id binding) (:signing-key/id decision)))
+      (conj :signing-key-binding-mismatch)
       (not (decision-signature-valid? decision binding)) (conj :invalid-signature)
       (not= contribution-schema (:schema/version contribution)) (conj :invalid-contribution-schema)
       (not= (:contribution/root contribution) (contribution-root contribution))
