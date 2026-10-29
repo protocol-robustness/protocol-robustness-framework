@@ -131,6 +131,19 @@
     (is (= first-receipt second-receipt))
     (is (= (:approval/root first-receipt) (:approval/root second-receipt)))))
 
+(deftest approval-preparation-derives-member-signing-requests
+  (let [inputs (fixture)
+        request (approval/prepare-policy-approval (dissoc inputs :decisions))]
+    (is (= :awaiting-signatures (:approval/status request)))
+    (is (false? (:approval/operational-authority? request)))
+    (is (= 3 (count (:approval/signing-requests request))))
+    (is (every? #(= (get-in request [:approval/target :target/root])
+                   (:authorisation/request-root %))
+                (:approval/signing-requests request)))
+    (is (every? #(= (get-in request [:approval/review-round :review-round/hash])
+                   (:review-round/hash %))
+                (:approval/signing-requests request)))))
+
 (deftest policy-approval-requires-the-governance-threshold
   (let [inputs (update (fixture) :decisions subvec 0 1)
         receipt (approval/build-policy-approval inputs)
