@@ -138,10 +138,10 @@
     (is (false? (:approval/operational-authority? request)))
     (is (= 3 (count (:approval/signing-requests request))))
     (is (every? #(= (get-in request [:approval/target :target/root])
-                   (:authorisation/request-root %))
+                    (:authorisation/request-root %))
                 (:approval/signing-requests request)))
     (is (every? #(= (get-in request [:approval/review-round :review-round/hash])
-                   (:review-round/hash %))
+                    (:review-round/hash %))
                 (:approval/signing-requests request)))))
 
 (deftest policy-approval-requires-the-governance-threshold

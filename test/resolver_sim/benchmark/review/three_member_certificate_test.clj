@@ -85,10 +85,10 @@
                          :reports reports-exact
                          :positions [(make-pos "a") (make-pos "b")]})
         ineligible-member (tmc/pre-certificate-checks
-                          {:review-round default-round
-                           :canonical-indices canonical-indices
-                           :reports reports-exact
-                           :positions [(make-pos "a") (make-pos "b") (make-pos "outside")]})]
+                           {:review-round default-round
+                            :canonical-indices canonical-indices
+                            :reports reports-exact
+                            :positions [(make-pos "a") (make-pos "b") (make-pos "outside")]})]
     (is (not (:pre-certificate-valid? missing-member)))
     (is (some #(re-find #"positions must contain exactly one artifact per distinct member" %)
               (:errors missing-member)))

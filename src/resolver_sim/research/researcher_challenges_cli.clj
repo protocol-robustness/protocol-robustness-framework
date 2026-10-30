@@ -95,32 +95,32 @@
 (defn challenge-catalog
   ([config-path challenge-root] (challenge-catalog config-path challenge-root nil))
   ([config-path challenge-root history-path]
-  (let [config (read-file config-path)
-        history (when history-path
-                  (if (.exists (io/file history-path)) (read-file history-path) []))
-        state (when history (challenges/replay config history))
-        challenges (cond->> (:challenges config)
-                     challenge-root (filter #(= challenge-root (:artifact/root %)))
-                     true (map (fn [challenge]
-                                 (let [claimed (when state
-                                                 (count (filter #(= (:artifact/root challenge)
-                                                                    (:challenge/root %))
-                                                                (vals (:quotes state)))))]
-                                   (cond-> (select-keys challenge [:artifact/root :challenge/id :subject/root
-                                                                   :subject/revision-root :acceptance/criteria
-                                                                   :reward/base-amount :challenge/capacity
-                                                                   :researcher-reward-policy/root])
-                                     state (assoc :capacity/claimed claimed
-                                                  :capacity/remaining (- (:challenge/capacity challenge) claimed)
-                                                  :capacity/status (if (>= claimed (:challenge/capacity challenge))
-                                                                     :full :available))))))
-                     true vec)]
-    (when (and challenge-root (empty? challenges))
-      (throw (ex-info "Challenge root is not present in the configuration"
-                      {:reason :unknown-challenge})))
-    {:configuration/root (:artifact/root config)
-     :network/root (:network/root config)
-     :challenges challenges})))
+   (let [config (read-file config-path)
+         history (when history-path
+                   (if (.exists (io/file history-path)) (read-file history-path) []))
+         state (when history (challenges/replay config history))
+         challenges (cond->> (:challenges config)
+                      challenge-root (filter #(= challenge-root (:artifact/root %)))
+                      true (map (fn [challenge]
+                                  (let [claimed (when state
+                                                  (count (filter #(= (:artifact/root challenge)
+                                                                     (:challenge/root %))
+                                                                 (vals (:quotes state)))))]
+                                    (cond-> (select-keys challenge [:artifact/root :challenge/id :subject/root
+                                                                    :subject/revision-root :acceptance/criteria
+                                                                    :reward/base-amount :challenge/capacity
+                                                                    :researcher-reward-policy/root])
+                                      state (assoc :capacity/claimed claimed
+                                                   :capacity/remaining (- (:challenge/capacity challenge) claimed)
+                                                   :capacity/status (if (>= claimed (:challenge/capacity challenge))
+                                                                      :full :available))))))
+                      true vec)]
+     (when (and challenge-root (empty? challenges))
+       (throw (ex-info "Challenge root is not present in the configuration"
+                       {:reason :unknown-challenge})))
+     {:configuration/root (:artifact/root config)
+      :network/root (:network/root config)
+      :challenges challenges})))
 
 (defn enroll-file!
   [config-path history-path public-key-path private-key-path checkpoint-path]
@@ -204,7 +204,7 @@
                                                  {:reason :ambiguous-task-claim}))))
            task-claim (get-in state [:quotes task-claim-root])
            evidence-keys #{:research-command :incentive-model :deviation-domain
-                            :research-assignment :outcome-manifest :analysis-output}
+                           :research-assignment :outcome-manifest :analysis-output}
            _ (when (= (boolean evidence-context-path) (boolean research-input-path))
                (throw (ex-info "Supply exactly one of evidence-context or research-input"
                                {:reason :missing-or-ambiguous-evidence-input})))

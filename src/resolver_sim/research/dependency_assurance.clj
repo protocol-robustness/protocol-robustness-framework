@@ -217,13 +217,13 @@
              (valid-resolved-set? resolved))
     (try
       (let [reconstructed (resolve-dependencies manifest policy
-                                                 (:resolved/dependencies resolved))]
+                                                (:resolved/dependencies resolved))]
         (when (= reconstructed resolved) reconstructed))
       (catch Exception _ nil))))
 
 (defn- dependency-impact-projection [manifest resolved]
   (let [resolution-index (into {} (map (juxt :dependency/id identity)
-                                        (:resolved/dependencies resolved)))]
+                                       (:resolved/dependencies resolved)))]
     (mapv (fn [dependency]
             (let [resolution (get resolution-index (:dependency/id dependency))]
               {:dependency/id (:dependency/id dependency)
@@ -302,10 +302,10 @@
                                    {:dependency/id id :before old :after new}))))
                        vec)
           state-differs? (or (not= (:research-dependency-manifest/root (:manifest baseline))
-                         (:research-dependency-manifest/root (:manifest observed)))
-                     (not= (:research-dependency-policy/root (:policy baseline))
-                           (:research-dependency-policy/root (:policy observed)))
-                     (not= baseline-root observed-root))
+                                   (:research-dependency-manifest/root (:manifest observed)))
+                             (not= (:research-dependency-policy/root (:policy baseline))
+                                   (:research-dependency-policy/root (:policy observed)))
+                             (not= baseline-root observed-root))
           change-reasons (cond-> []
                            (not= (:research-dependency-manifest/root (:manifest baseline))
                                  (:research-dependency-manifest/root (:manifest observed)))
@@ -353,11 +353,11 @@
                     (:impact/baseline-resolved-root report)) :matched
                  :else :mismatch)
         state-differs? (or (not= (:impact/baseline-manifest-root report)
-                         (:impact/observed-manifest-root report))
-                   (not= (:impact/baseline-policy-root report)
-                         (:impact/observed-policy-root report))
-                   (not= (:impact/baseline-resolved-root report)
-                         (:impact/observed-resolved-root report)))
+                                 (:impact/observed-manifest-root report))
+                           (not= (:impact/baseline-policy-root report)
+                                 (:impact/observed-policy-root report))
+                           (not= (:impact/baseline-resolved-root report)
+                                 (:impact/observed-resolved-root report)))
         change-reasons (cond-> []
                          (not= (:impact/baseline-manifest-root report)
                                (:impact/observed-manifest-root report))
@@ -411,13 +411,13 @@
                        (set (keys report)))
                  (conj :invalid-impact-report-fields)
                  (not-every? root? [(:impact/baseline-manifest-root report)
-                                   (:impact/baseline-policy-root report)
-                                   (:impact/baseline-resolved-root report)
-                                   (:impact/historical-assessment-root report)
-                                   (:impact/historical-assessment-dependency-root report)
-                                   (:impact/observed-manifest-root report)
-                                   (:impact/observed-policy-root report)
-                                   (:impact/observed-resolved-root report)])
+                                    (:impact/baseline-policy-root report)
+                                    (:impact/baseline-resolved-root report)
+                                    (:impact/historical-assessment-root report)
+                                    (:impact/historical-assessment-dependency-root report)
+                                    (:impact/observed-manifest-root report)
+                                    (:impact/observed-policy-root report)
+                                    (:impact/observed-resolved-root report)])
                  (conj :invalid-impact-root-reference)
                  (not= (:impact/baseline-resolved-root report)
                        (:impact/historical-assessment-dependency-root report))
@@ -671,22 +671,22 @@
         (mapv (fn [observation]
                 (let [observer-root (:observer/root observation)
                       reference-root (:reference/root observation)]
-                (when-not (and (map? observation)
-                               (= #{:observer/root :reference/root :manifest :policy :resolved}
-                                  (set (keys observation)))
-                               (root? observer-root) (root? reference-root))
-                  (throw (ex-info "Dependency observation lacks observer or reference roots"
-                                  {:reason :invalid-dependency-observation-identity})))
-                (let [impact (compare-dependency-state
-                              {:baseline baseline
-                               :observed (select-keys observation [:manifest :policy :resolved])
-                               :trusted-baseline-root trusted-baseline-root})
-                      body {:observation/observer-root observer-root
-                            :observation/reference-root reference-root
-                            :observation/resolved-root (:impact/observed-resolved-root impact)
-                            :observation/impact-report impact}]
-                  (assoc body :dependency-observation/root
-                         (dependency-observation-root body)))))
+                  (when-not (and (map? observation)
+                                 (= #{:observer/root :reference/root :manifest :policy :resolved}
+                                    (set (keys observation)))
+                                 (root? observer-root) (root? reference-root))
+                    (throw (ex-info "Dependency observation lacks observer or reference roots"
+                                    {:reason :invalid-dependency-observation-identity})))
+                  (let [impact (compare-dependency-state
+                                {:baseline baseline
+                                 :observed (select-keys observation [:manifest :policy :resolved])
+                                 :trusted-baseline-root trusted-baseline-root})
+                        body {:observation/observer-root observer-root
+                              :observation/reference-root reference-root
+                              :observation/resolved-root (:impact/observed-resolved-root impact)
+                              :observation/impact-report impact}]
+                    (assoc body :dependency-observation/root
+                           (dependency-observation-root body)))))
               observations)
         records (->> records
                      (reduce (fn [by-root record]
@@ -751,7 +751,7 @@
                          (and (= (:observation/baseline-resolved-root comparison)
                                  (:impact/baseline-resolved-root impact))
                               (= (:observation/historical-assessment-root comparison)
-                                  (:impact/historical-assessment-root impact))
+                                 (:impact/historical-assessment-root impact))
                               (= (:observation/trusted-baseline-root comparison)
                                  (:impact/trusted-baseline-root impact)))))
                      records))
