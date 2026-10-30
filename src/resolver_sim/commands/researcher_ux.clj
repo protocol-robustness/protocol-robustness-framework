@@ -74,8 +74,8 @@
              (print-result
               {:inspection/status :loaded-not-verified
                :artifact/root (or (:artifact/root artifact)
-                                 (:evidence/root artifact)
-                                 (:method/evidence-root artifact))
+                                  (:evidence/root artifact)
+                                  (:method/evidence-root artifact))
                :artifact/schema (or (:artifact/schema artifact) (:schema/version artifact))
                :artifact/fields (vec (sort (keys artifact)))
                :artifact artifact}))))
@@ -85,9 +85,9 @@
           #(let [{:keys [conclusion theorems method-evidence
                          trusted-method-verifier-root]} (read-input input)
                  theorem-index (cond
-                                (map? theorems) theorems
-                                (sequential? theorems) (into {} (map (juxt :theorem/hash identity) theorems))
-                                :else {})
+                                 (map? theorems) theorems
+                                 (sequential? theorems) (into {} (map (juxt :theorem/hash identity) theorems))
+                                 :else {})
                  resolver (fn [root] (get theorem-index root))
                  method-verifier (when method-evidence
                                    (integer-sum/method-verifier method-evidence))

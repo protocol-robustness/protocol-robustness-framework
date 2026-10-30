@@ -93,9 +93,9 @@
         members (:review-round/members review-round)
         constitution (when (and (:valid? governance-check) group-policy)
                        (governance/evaluate-constitution review-governance
-                                                        governance-policy-id
-                                                        members
-                                                        (:review-round/constituted-at review-round)))
+                                                         governance-policy-id
+                                                         members
+                                                         (:review-round/constituted-at review-round)))
         member-records (group-members review-governance)
         approval-policy (when (and (:valid? policy-check)
                                    (:valid? governance-check)

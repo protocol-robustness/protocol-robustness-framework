@@ -297,7 +297,7 @@
 
 (deftest method-verification-requires-a-trusted-verifier-root
   (let [evidence (integer-sum/build-evidence
-                 {:left 20 :right 22 :observed-result 42})
+                  {:left 20 :right 22 :observed-result 42})
         evidence-copy (integer-sum/build-evidence
                        {:left 20 :right 22 :observed-result 42})
         c (integer-sum/build-fixture-conclusion evidence)
@@ -317,7 +317,7 @@
 
 (deftest integer-sum-method-verification-fails-closed-on-bad-evidence-or-claim
   (let [evidence (integer-sum/build-evidence
-                 {:left 20 :right 22 :observed-result 42})
+                  {:left 20 :right 22 :observed-result 42})
         bad-evidence (assoc evidence :method/observed-result 43)
         c (integer-sum/build-fixture-conclusion evidence)
         bad-claim (rc/build-conclusion
@@ -333,7 +333,7 @@
                                integer-sum/verifier-root)
         bad-claim-result
         (rc/qualify-conclusion bad-claim nil (integer-sum/method-verifier evidence)
-                              integer-sum/verifier-root)]
+                               integer-sum/verifier-root)]
     (is (= :invalid (:method-status bad-evidence-result)))
     (is (= :unverified-method (:research-status bad-evidence-result)))
     (is (= :invalid (:method-status bad-claim-result)))
