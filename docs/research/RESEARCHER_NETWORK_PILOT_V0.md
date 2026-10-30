@@ -271,12 +271,46 @@ unrooted verifier setting. Neither artifact revises any existing V1 identity.
 The method root identifies declared comparison semantics, not a hermetic source
 or binary closure. Publish/pin the actual implementation revision separately.
 
+For a frozen scope candidate and a pair of requests, the `qualify` command
+recomputes the arithmetic and emits `prf/research-resolution-view.v1`. This
+read-only view keeps bounded claim status, method verification, reproduction
+type, and ratification status in separate fields. A zero difference reports
+support within that case only; a positive difference reports a counterexample
+to the declared policy-invariance proposition. The method is marked verified
+only because this command freshly recomputes the pair and validates its
+candidate scope. The report separately marks method source as unverified while
+the candidate records `:working-copy-not-captured` and the source manifest is
+not resolved by this command. Reproduction remains same-implementation,
+ratification is absent, and operational authority is false. This is the initial research
+consumer of the view contract; the protected pro-rata consumer still needs to
+adopt it through its assurance-case work.
+
+The retained output files are `research-resolution-supported.v1.edn` and
+`research-resolution-counterexample.v1.edn`. The first reports
+`:supported-within-scope` for its no-shortfall boundary case (view root
+`sha256:10229f28fb991303b175a171a85537ca7929948a4cf1a9aa07fe55b74ee23b66`);
+the second reports `:counterexample-found` for a shortfall case (view root
+`sha256:a05ea78d373c52d14f606206905dd257f7ac31d396c99f42de116c577b41c520`).
+Both keep ratification absent and operational authority false. They are
+same-implementation arithmetic replays, not independent implementation
+reproductions; source pinning remains unknown.
+
 Use the following offline entry point (output is EDN):
 
 ```sh
 clojure -M -m resolver-sim.research.shortfall-pilot-cli compare \
   examples/researcher-challenges/shortfall-stress/unallocated.edn \
   examples/researcher-challenges/shortfall-stress/redistribute.edn
+
+clojure -M -m resolver-sim.research.shortfall-pilot-cli qualify \
+  examples/researcher-challenges/shortfall-stress/challenge-001-scope-candidate.v1.edn \
+  examples/researcher-challenges/shortfall-stress/resolution-supported-unallocated.edn \
+  examples/researcher-challenges/shortfall-stress/resolution-supported-redistribute.edn
+
+clojure -M -m resolver-sim.research.shortfall-pilot-cli qualify \
+  examples/researcher-challenges/shortfall-stress/challenge-001-scope-candidate.v1.edn \
+  examples/researcher-challenges/shortfall-stress/resolution-counterexample-unallocated.edn \
+  examples/researcher-challenges/shortfall-stress/resolution-counterexample-redistribute.edn
 
 # Subsequent commands consume saved canonical artifacts:
 clojure -M -m resolver-sim.research.shortfall-pilot-cli context METADATA COMPARISON

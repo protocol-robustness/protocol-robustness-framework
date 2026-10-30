@@ -7,6 +7,7 @@
             [resolver-sim.research.researcher-challenges-cli :as cli]
             [resolver-sim.research.researcher-challenges-test :as helpers]
             [resolver-sim.benchmark.research-analysis :as analysis]
+            [resolver-sim.pro-rata-contract.contract :as portable-contract]
             [resolver-sim.evidence.node :as node]
             [resolver-sim.hash.reference :as reference]
             [resolver-sim.hash.canonical :as canonical])
@@ -82,6 +83,24 @@
                  (reroot (assoc comparison :value 99))
                  (reroot (assoc-in comparison [:results 0 :rows 0 :allocated] 99))]]
       (is (thrown? clojure.lang.ExceptionInfo (pilot/validate-comparison! bad))))))
+
+(deftest fresh-qualification-case-matches-independent-portable-contract
+  (let [directory "examples/research-resolution/shortfall/"
+        requests (mapv #(edn/read-string (slurp (str directory %)))
+                       ["case-001-unallocated.edn" "case-001-redistribute.edn"])
+        retained (edn/read-string (slurp (str directory "case-001-comparison.edn")))
+        replayed (pilot/execute-comparison requests)
+        independent (mapv portable-contract/allocate requests)
+        row-allocations #(into {} (map (juxt :row/id :allocated) (:rows %)))]
+    (is (= retained replayed))
+    (is (= "sha256:7f26595fb757d544afd670c977666289d2e9a1813435e7de1044bfbf6c1210ba"
+           (:case/root retained)))
+    (is (= 10 (:value retained)))
+    (is (= (mapv row-allocations (:results replayed))
+           (mapv row-allocations independent)))
+    (is (= [#:claim{:alpha 19N :bravo 26N :charlie 19N :delta 11N}
+            #:claim{:alpha 19N :bravo 36N :charlie 27N :delta 15N}]
+           (mapv row-allocations independent)))))
 
 (deftest network-adapter-preserves-pilot-profile-identities
   (let [f (fixture)

@@ -1,0 +1,11 @@
+{:schema-version "pro-rata-allocation-request.v1"
+ :mechanism/version 1
+ :allocation/id :research-qualification/case-001
+ :available 97
+ :rows [{:row/id :claim/alpha :obligation/id :obligation/alpha :requested 113 :weight 113 :cap 19}
+        {:row/id :claim/bravo :obligation/id :obligation/bravo :requested 71 :weight 71 :cap nil}
+        {:row/id :claim/charlie :obligation/id :obligation/charlie :requested 53 :weight 53 :cap 31}
+        {:row/id :claim/delta :obligation/id :obligation/delta :requested 29 :weight 29 :cap nil}]
+ :rounding-policy :largest-remainder
+ :tie-break-policy :canonical-row-id
+ :redistribution-policy :redistribute-cap-excess}

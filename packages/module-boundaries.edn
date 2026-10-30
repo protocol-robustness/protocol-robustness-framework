@@ -20,7 +20,7 @@
   {:owner :prf-allocation
    :status :source-qualified-candidate-unpublished-to-package-registry
    :git/url "https://github.com/protocol-robustness/prf-pro-rata-allocation.git"
-   :git/sha "e0788f911e4fba3a27544cbccbb95d59d7daf2f7"
+   :git/sha "cf38de1ea4ef03654ee3de8bead56c32ef078b10"
    :public-namespace prf.pro-rata.api
    :api [:allocate :verify-result :portable-pro-rata-allocation-v1]
    :qualification {:overall-conformance :partial

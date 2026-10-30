@@ -1,0 +1,24 @@
+[0.002s][warning][perf,memops] Cannot use file /tmp/hsperfdata_user/2 because it is locked by another process (errno = 11)
+{:resolution-view/reproduction-status :same-implementation,
+ :resolution-view/subject-root
+ "sha256:9cab151d350d57c95806794cd83ae5b047004b3b04654eec86416602cc480140",
+ :resolution-view/scope-root
+ "sha256:0cf739f74a9874afb7b984640316aa5beba5357eda45042b9bf542eb1ebbb030",
+ :schema-version "prf/research-resolution-view.v1",
+ :resolution-view/method-root
+ "sha256:840e8eb65ea36fce98edcf2d43feb8082be4e0fad7ee36e85daee770187b0c45",
+ :resolution-view/ratification-status :absent,
+ :resolution-view/claim-status :counterexample-found,
+ :resolution-view/method-status :verified,
+ :resolution-view/operational-authority? false,
+ :resolution-view/method-source-status :unverified,
+ :resolution-view/evidence-root
+ "sha256:5001213d2fd91718fbb1f27c9d8f6bd28074a628b5945fc4b11526f42e9524a9",
+ :resolution-view/root
+ "sha256:a05ea78d373c52d14f606206905dd257f7ac31d396c99f42de116c577b41c520",
+ :resolution-view/limitations
+ ["single-finite-policy-pair"
+  "same-implementation-replay"
+  "novelty-requires-review"
+  "no-operational-authority"]}
+
