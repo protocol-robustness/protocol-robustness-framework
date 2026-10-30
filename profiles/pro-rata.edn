@@ -9,4 +9,5 @@
   {:execution/claimant-parallelism 1
    :execution/claimant-parallel-threshold 16
    :execution/quiescence-timeout-seconds 30}}
- :profile/components [:prf/ideal-pro-rata-v1]}
+ :profile/components [:prf/ideal-pro-rata-v1
+                     :prf/sew-pro-rata-application-v1]}
