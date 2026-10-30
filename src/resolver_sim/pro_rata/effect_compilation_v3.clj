@@ -79,6 +79,8 @@
            adapter-descriptor] :as _input}]
   (let [profile (:effect-compilation/profile semantics)]
     (when-not (and (allocation/allocation-hash-valid? allocation)
+                   (allocation/allocation-matches-request?
+                    (:canonical-request allocation) allocation)
                    (= (:target-map/root target-map)
                       (case profile
                         :all-active (target-map/target-map-root target-map)
