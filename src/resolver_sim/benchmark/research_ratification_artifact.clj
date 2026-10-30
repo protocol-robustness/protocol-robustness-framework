@@ -80,11 +80,13 @@
      :verification/ratification (if (and reconstructed
                                          (= reconstructed (:artifact/ratification artifact)))
                                   :verified :unverified)
-     :verification/trust-roots (if (and (seq trust-roots)
-                                        (every? ref/valid-sha256-ref? trust-roots)
-                                        (some #{(:policy/authority-root policy)} trust-roots)
-                                        (some #{key-registry-root} trust-roots))
-                                 :externally-anchored :unverified)
+     ;; Roots carried by an artifact are declarations. Their presence and
+     ;; internal consistency do not authenticate the authority that issued
+     ;; them. A caller must verify governance provenance separately before
+     ;; making an authority-bearing qualification.
+     :verification/trust-roots :unverified
+     :verification/authority :unverified
+     :verification/history-completeness :unverified
      :ratification/recomputed reconstructed}))
 
 (defn build-artifact

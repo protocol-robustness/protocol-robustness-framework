@@ -15,6 +15,12 @@
       (case command
         "compare" (do (when-not (= 2 (count paths)) (throw (ex-info "compare LEFT RIGHT" {})))
                       (pilot/execute-comparison (mapv read-file paths)))
+        "qualify" (do (when-not (= 3 (count paths))
+                        (throw (ex-info "qualify SCOPE_CANDIDATE LEFT RIGHT" {})))
+                      (let [[candidate-path left-path right-path] paths
+                            comparison (pilot/execute-comparison
+                                        (mapv read-file [left-path right-path]))]
+                        (pilot/qualify-case (read-file candidate-path) comparison)))
         "context" (do (when-not (= 2 (count paths)) (throw (ex-info "context METADATA COMPARISON" {})))
                       (pilot/build-context (read-file (first paths)) (read-file (second paths))))
         "profile" (do (when-not (= 2 (count paths)) (throw (ex-info "profile CONFIG COMPARISON" {})))
@@ -42,4 +48,4 @@
                                  (cli/apply-controlled-checked-file!
                                   config policy-path history action checkpoint
                                   #(pilot-adapter/replay-controlled %1 profile policy %2 evidence))))
-        (throw (ex-info "Expected compare, context, profile, controlled-profile, replay, controlled-replay, apply or controlled-apply" {})))))))
+        (throw (ex-info "Expected compare, qualify, context, profile, controlled-profile, replay, controlled-replay, apply or controlled-apply" {})))))))

@@ -86,6 +86,7 @@
     "path":"none"},
    "actor":"buyer"}],
  "expected_semantics":{},
+ "generated_by":"resolver-sim\/cdrs-0.2",
  "trace_kind":["lifecycle", "escalation", "authorization"],
  "terminal_projection_hash":
  "a4f3da9b5b036cdc3288d04034766e0d382b71f84314de69f1e45774736ebe86",

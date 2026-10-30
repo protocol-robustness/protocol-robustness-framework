@@ -448,7 +448,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                 :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "triage")}
 
    test:notebooks {:doc "Load every notebook namespace to verify it compiles"
-                    :task (shell "clojure" "-M:notebooks:with-sew" "-m" "prf.notebooks.host-load-check")}
+                    :task (shell "clojure" "-M:notebooks:with-sew" "-m" "resolver-sim.notebook-support.host-load-check")}
 
 
    demo:reorder-chain
