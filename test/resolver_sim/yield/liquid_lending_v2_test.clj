@@ -10,6 +10,7 @@
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
+            [resolver-sim.yield.accrual :as accrual]
             [resolver-sim.yield.modules.liquid-lending :as ll]
             [resolver-sim.yield.partial-fill :as partial-fill]
             [resolver-sim.yield.position :as pos]
@@ -74,6 +75,21 @@
                                            :allocation-mode :pro-rata}
                                           opts))]
     (first (vals (:yield/partial-fill-decisions result)))))
+
+(deftest shared-withdrawal-coordinates-snapshot-accrual-decisions
+  (let [world (shared-withdrawal-world ["alice" "bob"] 200)
+        original-coordinator accrual/coordinate-recoverable-liquidity-cap
+        coordinated (atom nil)]
+    (with-redefs [accrual/coordinate-recoverable-liquidity-cap
+                  (fn [world module-id token decisions]
+                    (reset! coordinated decisions)
+                    (original-coordinator world module-id token decisions))]
+      (ll/withdraw-shared world test-mod
+                          {:owner-ids ["alice" "bob"]
+                           :token "USDC"
+                           :allocation-mode :pro-rata}))
+    (is (= 2 (count @coordinated))
+        "All same-snapshot participant decisions pass through the shared cap coordinator")))
 
 (defn- propagation-from
   [world]
