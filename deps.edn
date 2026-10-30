@@ -9,7 +9,7 @@
                                            :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
                                            :deps/root "clj"}
         prf/pro-rata-allocation          {:git/url "https://github.com/protocol-robustness/prf-pro-rata-allocation.git"
-                                           :git/sha "e0788f911e4fba3a27544cbccbb95d59d7daf2f7"
+                                           :git/sha "cf38de1ea4ef03654ee3de8bead56c32ef078b10"
                                            :deps/root "clj"}
         prf/accounting-reductions        {:local/root "packages/accounting-reductions/clj"}
         org.clojure/tools.logging         {:mvn/version "1.2.4"}
@@ -81,7 +81,7 @@
    ;; Optional extracted notebook source; only notebook commands select this.
    :notebooks
    {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "66e319399437f2443939e71835a66e7199ed1b67"}}}
+                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}}
 
    ;; Corruption guard: load-all / def-inventory integrity checks.
    :check
@@ -306,12 +306,12 @@
 
    :clerk
    {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "66e319399437f2443939e71835a66e7199ed1b67"}}
+                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}
     :main-opts ["-m" "notebooks.serve"]}
 
    :build-clerk
    {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "66e319399437f2443939e71835a66e7199ed1b67"}}
+                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}
     :main-opts ["-m" "prf.notebooks.build"]}
 
    :observability
@@ -320,7 +320,7 @@
      {:git/url "https://github.com/nextjournal/clerk"
       :git/sha "8772a0889218274384a30e79165b4c194b59560f"}}
     :extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "66e319399437f2443939e71835a66e7199ed1b67"}}
+                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}
     :main-opts ["-m" "notebooks.serve"]}
 
    :telemetry-seed
@@ -381,7 +381,7 @@
    :search-docs
    {:extra-paths [:paths/scripts]
     :extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "66e319399437f2443939e71835a66e7199ed1b67"}}
+                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}
     :main-opts ["-m" "scripts.search_docs_sentinel.run"]}
 
 }}

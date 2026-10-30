@@ -134,6 +134,7 @@
    "authorized_participant":true},
   "timing":
   {"auto_cancel_triggered":false, "within_resolution_window":true}},
+ "generated_by":"resolver-sim\/cdrs-0.2",
  "trace_kind":["dispute-resolution", "authorization"],
  "terminal_projection_hash":
  "df2eb3cfd093a02216037155d348857bc4940e8252e0388a8f8e3774013be05a",
