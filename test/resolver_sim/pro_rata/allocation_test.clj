@@ -22,8 +22,8 @@
                         {:row/id :claim/bob :requested 40N :weight 40N}]}
         result (allocation/allocate request)
         inconsistent (-> result
-                         (assoc-in [:allocations 0 :allocated] 59N)
-                         (assoc-in [:allocations 1 :allocated] 40N))
+                         (assoc-in [:rows 0 :allocated] 59N)
+                         (assoc-in [:rows 1 :allocated] 40N))
         rehashed (assoc inconsistent :allocation/hash
                         (allocation-identity/allocation-result-root inconsistent))]
     (is (allocation/allocation-hash-valid? rehashed)
