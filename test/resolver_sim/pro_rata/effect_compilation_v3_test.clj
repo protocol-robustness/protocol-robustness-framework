@@ -9,7 +9,8 @@
             [resolver-sim.pro-rata.effect-compilation-binding-v2 :as binding]
             [resolver-sim.pro-rata.effect-compilation-semantics :as semantics]
             [resolver-sim.pro-rata.effect-compilation-v3 :as compilation]
-            [resolver-sim.pro-rata.target-map :as target-map])
+            [resolver-sim.pro-rata.target-map :as target-map]
+            [prf.pro-rata.identity :as allocation-identity])
   (:import [java.nio.file Files]))
 
 (defn- root [tag] (str "sha256:" (hc/domain-hash :registry tag)))
@@ -49,6 +50,28 @@
                              (assoc canonical :effects/root (root :forged)) resolve-body)))
     (is (not (semantics/valid? (assoc (get bodies (:effect-compilation-semantics/root artifact))
                                       :unknown true))))))
+
+(deftest v3-rejects-rehashed-allocation-that-does-not-match-its-request
+  (let [{:keys [artifact bodies]} (fixture)
+        original (get bodies (:realized-allocation/root artifact))
+        inconsistent (-> original
+                         (assoc-in [:rows 0 :allocated] 9N)
+                         (dissoc :allocation/hash))
+        rehashed (assoc inconsistent :allocation/hash
+                        (allocation-identity/allocation-result-root inconsistent))
+        targets (get bodies (:target-map/root artifact))
+        compiler-semantics (get bodies (:effect-compilation-semantics/root artifact))]
+    (is (allocation/allocation-hash-valid? rehashed)
+        "the forged result is internally rehashed")
+    (is (not (allocation/allocation-matches-request? (:canonical-request original) rehashed)))
+    (is (try
+          (compilation/compile {:allocation rehashed
+                                :target-map targets
+                                :semantics compiler-semantics
+                                :allocation-policy-root (root :policy)})
+          false
+          (catch clojure.lang.ExceptionInfo _ true))
+        "V3 compilation must reject a body that does not recompute from its committed request")))
 
 (deftest v3-recompilation-is-runtime-orthogonal
   (let [{:keys [artifact _canonical bodies]} (fixture)

@@ -13,7 +13,9 @@
 - Added `allocation-matches-request?` to independently recompute a committed
   pro-rata allocation from its canonical request. Hash integrity and
   mathematical correctness remain separate checks; neither establishes
-  request authority or settlement admission.
+  request authority or settlement admission. V3 effect compilation now rejects
+  internally rehashed allocation bodies that do not match their retained
+  canonical request.
 
 - `verify-package` now executes each declared Pro-rata EVM V2 negative mutation
   against its named positive vector and fails closed when a mutation is
