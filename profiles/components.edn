@@ -34,7 +34,7 @@
 
   :prf/sew-core-v1
   {:component/plane :protocol
-   :component/requires [:prf/framework-v1]
+   :component/requires [:prf/framework-v1 :prf/sew-pro-rata-slashing-v1]
    :component/owned-namespaces
    [resolver-sim.protocols.sew]
    :component/entry-namespaces
@@ -42,16 +42,56 @@
 
   :prf/ideal-pro-rata-v1
   {:component/plane :semantic
-   :component/requires [:prf/framework-v1 :prf/sew-core-v1]
+   :component/requires [:prf/framework-v1]
    :component/owned-namespaces
    [resolver-sim.pro-rata.allocation
-    resolver-sim.protocols.sew.pro-rata-application]
+    resolver-sim.pro-rata.evidence]
    :component/entry-namespaces
    [resolver-sim.pro-rata.allocation
-    resolver-sim.protocols.sew.pro-rata-application]
+    resolver-sim.pro-rata.evidence]
    :component/material
    [{:path "resources/test-vectors/pro-rata" :kind :conformance-vector}
-    {:path "test/fixtures/pro-rata" :kind :test-fixture}]}
+    {:path "test/fixtures/pro-rata" :kind :test-fixture}
+    {:path "test/resolver_sim/pro_rata/allocation_test.clj" :kind :test-source}]}
+
+  :prf/pro-rata-evaluation-v1
+  {:component/plane :assurance
+   :component/requires [:prf/ideal-pro-rata-v1 :prf/pro-rata-verifier-v1]
+   :component/owned-namespaces
+   [resolver-sim.pro-rata.evaluation]
+   :component/entry-namespaces
+   [resolver-sim.pro-rata.evaluation]
+   :component/material
+   [{:path "test/resolver_sim/pro_rata/programme_test.clj" :kind :test-source}]}
+
+  ;; Sew slash allocation is an explicit adapter over portable allocation and
+  ;; evaluated evidence. It contains no dependency on the Sew root namespace.
+  :prf/sew-pro-rata-slashing-v1
+  {:component/plane :protocol-adapter
+   :component/requires [:prf/pro-rata-evaluation-v1]
+   :component/owned-namespaces
+   [resolver-sim.protocols.sew.pro-rata.economics
+    resolver-sim.protocols.sew.pro-rata.evidence]
+   :component/entry-namespaces
+   [resolver-sim.protocols.sew.pro-rata.economics
+    resolver-sim.protocols.sew.pro-rata.evidence]
+   :component/material
+   [{:path "protocols_src/test/resolver_sim/protocols/sew/evidence/slashing_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/slashing_test.clj"
+     :kind :test-source}
+    {:path "test/resolver_sim/yield/pro_rata_claims_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/resolver_sim/protocols/sew/test_vectors/slash_allocation.clj"
+     :kind :conformance-vector}]}
+
+  :prf/sew-pro-rata-application-v1
+  {:component/plane :protocol-adapter
+   :component/requires [:prf/ideal-pro-rata-v1 :prf/sew-core-v1]
+   :component/owned-namespaces
+   [resolver-sim.protocols.sew.pro-rata-application]
+   :component/entry-namespaces
+   [resolver-sim.protocols.sew.pro-rata-application]}
 
   :prf/bounty-v1
   {:component/plane :semantic
@@ -76,7 +116,9 @@
    :component/entry-namespaces
    [resolver-sim.pro-rata.exact-verifier]
    :component/material
-   [{:path "coprocessor/core" :kind :rust-crate}]}}
+   [{:path "coprocessor/core" :kind :rust-crate}
+    {:path "test/resolver_sim/pro_rata/exact_verifier_test.clj"
+     :kind :test-source}]}}
 
  ;; Claimant options is an implemented runtime capability, but not a source or
  ;; package component. Its profile selects the existing execution abstraction

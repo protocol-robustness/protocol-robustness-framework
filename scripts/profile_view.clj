@@ -93,10 +93,16 @@
           source-roots)))
 
 (defn required-namespaces [path]
-  (->> (re-seq #"\[\s*(resolver-sim(?:\.[A-Za-z0-9_-]+)+)" (slurp (str path)))
+  (let [source (slurp (str path))]
+    (->> (concat
+          ;; Literal namespace vectors in :require forms.
+          (re-seq #"\[\s*(resolver-sim(?:\.[A-Za-z0-9_-]+)+)" source)
+          ;; Literal runtime namespace edges. These are still source dependencies
+          ;; even when loaded or resolved lazily to avoid eager initialization.
+          (re-seq #"\b(?:requiring-resolve|ns-resolve|resolve)\s+'(resolver-sim(?:\.[A-Za-z0-9_-]+)+)(?:/|\s)" source))
        (map second)
        (map symbol)
-       set))
+       set)))
 
 (defn clojure-closure [entry-namespaces]
   (loop [pending (vec entry-namespaces) seen #{} files #{}]
