@@ -1767,6 +1767,16 @@
                         :now now
                         :dt 0}))]))
                owners)
+              ;; Decisions above share the same pre-withdrawal snapshot. Apply
+              ;; the module-wide coordinator before committing any of them so
+              ;; multiple positions cannot each consume the same recoverable
+              ;; solvency headroom.
+              coordinated-accrual-decisions
+              (mapv vector
+                    (mapv first accrual-decisions)
+                    (accrual/coordinate-recoverable-liquidity-cap
+                     world module-id token
+                     (mapv second accrual-decisions)))
               accrued-world
               (reduce (fn [next-world [_ decision]]
                         (if decision
@@ -1775,7 +1785,7 @@
                            decision)
                           next-world))
                       world
-                      accrual-decisions)
+                      coordinated-accrual-decisions)
               accrued-positions
               (mapv #(get-in accrued-world [:yield/positions %]) owners)
               requested-by-owner
