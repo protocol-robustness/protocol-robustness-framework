@@ -132,6 +132,14 @@
    :concept/status :draft
    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
+  {:concept/id    :assurance/pro-rata-evm-v2
+   :concept/type  :assurance
+   :concept/layer :framework-explanation
+   :concept/file  "data/concepts/assurance/pro_rata_evm_v2.edn"
+   :concept/name  "Pro-rata EVM V2 assurance"
+   :concept/status :draft
+   :concept/protocols #{:protocol/prf}}
+
    {:concept/id    :forensic/evidence-chain
     :concept/type  :assurance
     :concept/layer :stakeholder

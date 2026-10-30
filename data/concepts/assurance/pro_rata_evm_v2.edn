@@ -1,0 +1,94 @@
+{:concept/id :assurance/pro-rata-evm-v2
+ :concept/type :assurance
+ :concept/layer :framework-explanation
+ :concept/name "Pro-rata EVM V2 assurance"
+ :concept/summary
+ "A portable assurance statement for a reconstructed pro-rata state transition. It binds the transition to its configuration commitment and retained semantic inputs, while making explicit that reconstruction alone does not establish native execution or authoritative state."
+
+ :concept/stakeholder-question
+ "What does a valid Pro-rata EVM V2 statement establish, and which execution or authority claims remain outside it?"
+
+ :concept/protocols #{:protocol/prf}
+
+ :concept/related [:mechanism/pro-rata-allocation
+                   :verifiable-assurance/forensic-confidence
+                   :concept/configuration
+                   :forensic/evidence-chain]
+
+ :concept/roles
+ {:statement-producer
+  {:description "Produces a statement by reconstructing the canonical transition from retained semantic inputs and a supplied configuration commitment."
+   :maps-to []}
+  :independent-verifier
+  {:description "Reconstructs the transition and checks that the statement's committed roots follow from its retained inputs."
+   :maps-to []}}
+
+ :concept/entities
+ {:retained-semantic-input
+  {:description "Committed allocation, target-map, compilation-semantics, validation, quantity, or adapter material needed to reconstruct the transition."
+   :maps-to []}
+  :configuration-commitment
+  {:description "An externally authoritative configuration root bound into the statement but not derived or authenticated by the V2 reconstruction itself."
+   :maps-to []}
+  :reconstructed-transition
+  {:description "The derived effects, before and after state, canonical transition, and resulting V2 statement identity."
+   :maps-to []}}
+
+ :concept/actions
+ {:reconstruct-transition
+  {:description "Rebuild transition artifacts from retained semantic inputs without using expected outputs as derivation inputs."
+   :maps-to []}
+  :verify-commitments
+  {:description "Recompute roots and verify that the statement binds the reconstructed state transition and configuration commitment."
+   :maps-to []}}
+
+ :concept/outcomes
+ {:reconstruction-consistent
+  {:description "The statement's committed transition roots match independently reconstructed results for the supplied retained inputs."
+   :maps-to []}
+  :reconstruction-rejected
+  {:description "A substituted or inconsistent retained body, effect, or post-state fails the applicable reconstruction check."
+   :maps-to []}
+  :execution-unestablished
+  {:description "A valid reconstruction does not by itself establish that native execution occurred or that the supplied before-state was a chain head."
+   :maps-to []}}
+
+ :concept/failure-modes
+ [{:failure/id :retained-input-substitution
+   :failure/name "Retained input substitution"
+   :failure/summary "A body is replaced while a statement or dependent artifact continues to claim the original semantic input identity."
+   :protocol-mechanisms [:content-commitment :independent-reconstruction]
+   :stakeholder-impact "The transition cannot be trusted until all referenced input bodies and dependent roots validate."}
+  {:failure/id :reconstruction-mistaken-for-execution
+   :failure/name "Reconstruction mistaken for execution"
+   :failure/summary "A deterministic transition statement is presented as proof that a native ledger or chain performed the transition."
+   :protocol-mechanisms [:scope-limitation :execution-observation]
+   :stakeholder-impact "Reviewers may infer settlement or chain finality that the statement does not establish."}
+  {:failure/id :configuration-commitment-mistaken-for-authority
+   :failure/name "Configuration commitment mistaken for authenticated authority"
+   :failure/summary "The bound configuration root is treated as authenticated even though this profile only consumes it as an external commitment."
+   :protocol-mechanisms [:configuration-binding :authority-separation]
+   :stakeholder-impact "The statement may be internally consistent while its configuration authority remains unverified."}]
+
+ :concept/metrics
+ {:reconstructed-root-count
+  {:description "Number of statement roots independently recomputed from retained semantic inputs."
+   :source :derived-from-evidence}
+  :retained-input-completeness
+  {:description "Whether every semantic body required by the selected V2 profile is available and validated."
+   :source :derived-from-evidence}
+  :native-execution-status
+  {:description "Whether separate native execution evidence exists; reconstruction alone leaves this unestablished."
+   :source :derived-from-evidence}}
+
+ :concept/assumptions
+ ["The implementation follows the named portable-pro-rata-contract.v1 semantics and the additive Pro-rata EVM V2 conformance profile."
+  "Retained semantic bodies are independently loaded and validated rather than trusted from claimed verification labels."
+  "The supplied configuration root is an external commitment and requires a separate authority check where that claim matters."]
+
+ :concept/out-of-scope
+ ["Establishing that state-before is a chain head or authenticated native state."
+  "Proving that native execution occurred, was admitted, or was persisted."
+  "Authenticating the source of the configuration root."
+  "Checking allocation arithmetic against its request and policy; a committed allocation body must be separately recomputed before an authority-bearing consumer relies on its correctness."
+  "Proving allocation-source completeness, beneficiary authority, or economic entitlement."]}
