@@ -10,6 +10,17 @@
 
 ## Unreleased
 
+- Added `allocation-matches-request?` to independently recompute a committed
+  pro-rata allocation from its canonical request. Hash integrity and
+  mathematical correctness remain separate checks; neither establishes
+  request authority or settlement admission.
+
+- `verify-package` now executes each declared Pro-rata EVM V2 negative mutation
+  against its named positive vector and fails closed when a mutation is
+  unsupported or no longer rejected. Added a distinct assurance concept that
+  states the V2 reconstruction, configuration-binding, and native-execution
+  boundaries.
+
 - Added a diagnostic dependency-closure report for retained local
   pro-rata execution evidence. It reuses the existing receipt reconstruction,
   requires an out-of-band report digest, and reports missing approval/current
