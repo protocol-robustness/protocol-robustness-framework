@@ -276,7 +276,9 @@ PRF pins that source under its optional `:notebooks` dependency alias. See
 
 | Document | Description |
 |---|---|
-| `research/` (6 documents) | Research notes and analyses |
+| `research/` | Research notes and analyses |
+| `research/RUNNER_TRANSPORT_MODULES.md` | Internal runner transport responsibilities and extension boundary |
+| `research/RESEARCH_MODULE_BOUNDARIES.md` | Internal research module splits and repository extraction criteria |
 | `researcher/` (2 documents) | Researcher workflow guides |
 | `prompts/` (1 document) | Agent prompts |
 | `proposals/` (1 document) | Design proposals |
