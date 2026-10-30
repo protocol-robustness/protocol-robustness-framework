@@ -104,8 +104,27 @@
    :researcher-disagree 'resolver-sim.commands.researcher/disagree
    :researcher-approve 'resolver-sim.commands.researcher/approve
    :researcher-check 'resolver-sim.commands.researcher/check
+   :researcher-challenge-list 'resolver-sim.commands.researcher-challenge/list-challenges
+   :researcher-challenge-show 'resolver-sim.commands.researcher-challenge/show-challenge
+   :researcher-challenge-enroll 'resolver-sim.commands.researcher-challenge/enroll
+   :researcher-challenge-key-check 'resolver-sim.commands.researcher-challenge/key-check
+   :researcher-challenge-history-check 'resolver-sim.commands.researcher-challenge/history-check
+   :researcher-challenge-claim 'resolver-sim.commands.researcher-challenge/claim
+   :researcher-challenge-submit 'resolver-sim.commands.researcher-challenge/submit
+   :researcher-challenge-status 'resolver-sim.commands.researcher-challenge/status
    :research-reward-check 'resolver-sim.commands.research/reward-check
    :research-reward-propose 'resolver-sim.commands.research/reward-propose
+   :research-question-list 'resolver-sim.commands.researcher-ux/question-list
+   :research-question-show 'resolver-sim.commands.researcher-ux/question-show
+   :research-evidence-inspect 'resolver-sim.commands.researcher-ux/evidence-inspect
+   :research-conclusion-verify 'resolver-sim.commands.researcher-ux/conclusion-verify
+   :research-resolution-show 'resolver-sim.commands.researcher-ux/resolution-show
+   :research-review-status 'resolver-sim.commands.researcher-ux/review-status
+   :research-policy-approval-prepare 'resolver-sim.commands.researcher-ux/policy-approval-prepare
+   :research-policy-approval-sign 'resolver-sim.commands.researcher-ux/policy-approval-sign
+   :research-policy-approval-verify 'resolver-sim.commands.researcher-ux/policy-approval-verify
+   :research-compare 'resolver-sim.commands.research/diff
+   :research-export 'resolver-sim.commands.researcher-ux/export-ro-crate
    :research-reward-approve 'resolver-sim.commands.research/reward-approve
    :check-aggregate 'resolver-sim.commands.check-aggregate/run})
 
@@ -226,7 +245,11 @@
   (let [visible (filter (fn [c] (and (command-available? (:id c))
                                      (or (nil? (:surface c)) (= :prf (:surface c)))))
                         (registry/list-commands))
+        researcher-visible (filter (fn [c] (and (command-available? (:id c))
+                                                (= :researcher (:surface c))))
+                                   (registry/list-commands))
         cmds (sort-by (comp #(str/join " " %) :path) visible)
+        researcher-cmds (sort-by (comp #(str/join " " %) :path) researcher-visible)
         primary #{:benchmark :scenario}]
 
     (println "Benchmark & Scenario Commands:")
@@ -236,6 +259,11 @@
 
     (println "Development & Validation Commands:")
     (doseq [{:keys [path description]} (filter #(not (primary (:category %))) cmds)]
+      (printf "  %-30s %s\n" (str/join " " path) description))
+    (println)
+
+    (println "Researcher Commands:")
+    (doseq [{:keys [path description]} researcher-cmds]
       (printf "  %-30s %s\n" (str/join " " path) description))
     (println))
 
@@ -262,7 +290,9 @@
     "--output-dir" "--scenario-output-dir" "--save-output" "--claim-registry"
     "--out" "--output" "--package-a" "--package-b" "--key" "--check"
     "--trust-context" "--input" "--cas-dir" "--params" "--output-file"
-    "--baseline" "--candidate" "--dir" "--mailbox-dir"})
+    "--baseline" "--candidate" "--dir" "--mailbox-dir" "--config" "--history"
+    "--evidence-context" "--checkpoint" "--research-input" "--public-key"
+    "--challenge-root" "--task-claim-root"})
 
 (defn- caller-directory []
   (or (System/getenv "PRF_CLI_CALLER_DIR") (System/getProperty "user.dir")))
