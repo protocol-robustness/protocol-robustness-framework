@@ -10,6 +10,16 @@
 
 ## Unreleased
 
+- Added a diagnostic dependency-closure report for retained local
+  pro-rata execution evidence. It reuses the existing receipt reconstruction,
+  requires an out-of-band report digest, and reports missing approval/current
+  state as unknown; it does not qualify a deployment or establish public-chain
+  finality. The CLI can also invoke the existing pinned local Groth16 verifier;
+  it binds contract addresses to validated creation receipts where available
+  and can consume the existing block-pinned terminal-state observation. Proof
+  and local state results remain distinct from admission and deployment
+  qualification.
+
 - Added `bb pro-rata-vectors:check` to compare the PRF frozen allocation and
   transition vectors with extracted package mirrors and Rust conformance-test
   roots and rejection outcomes. The command reports source revisions and tool
