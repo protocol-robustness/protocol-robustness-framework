@@ -14,7 +14,8 @@ tunneling."
             [resolver-sim.evidence.node :as node]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation]
-            [resolver-sim.protocols.sew.pro-rata.economics :as sew-pro-rata-economics]))
+            [resolver-sim.protocols.sew.pro-rata.economics :as sew-pro-rata-economics]
+            [resolver-sim.protocols.sew.slash-evidence :as slash-evidence]))
 
 ;; ── Extractors ──────────────────────────────────────────────────────────
 
@@ -441,3 +442,18 @@ tunneling."
      (chain/index-artifact-entry registry-id filename
                                  "allocation-result.v1" "CORE"))
     (.getPath f)))
+
+(defmethod slash-evidence/build-prorata-slash-evidence
+  :resolver-sim.protocols.sew.slash-evidence/pro-rata-slash
+  [request]
+  (build-prorata-slash-evidence request))
+
+(defmethod slash-evidence/ensure-prorata-slash-evidence-loaded!
+  :resolver-sim.protocols.sew.slash-evidence/pro-rata-slash
+  []
+  true)
+
+(defmethod slash-evidence/write-allocation-result-artifact!
+  :resolver-sim.protocols.sew.slash-evidence/pro-rata-slash
+  [artifact]
+  (write-allocation-result-artifact! artifact))
