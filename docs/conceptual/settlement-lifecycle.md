@@ -1828,7 +1828,7 @@ shortfall rounds.
 
 #### 3.6.1 Core Data Structure: original-priority
 
-Defined in `src/resolver_sim/yield/position.clj:34`:
+Defined in `yield_runtime_src/resolver_sim/yield/position.clj:34`:
 
 ```clojure
 ;; On every yield position:
@@ -2183,7 +2183,7 @@ amounts in the evidence match the final world state.
 
 #### 3.6.12 Invariants for Lineage Consistency
 
-The yield invariants (`src/resolver_sim/yield/invariants.clj`) enforce
+The yield invariants (`yield_runtime_src/resolver_sim/yield/invariants.clj`) enforce
 lineage correctness at multiple levels:
 
 **Closed position history** (`closed-history-violations`, line 390-420):
@@ -2290,18 +2290,18 @@ portion carries their priority forward to the next liquidity event.
 
 | File | Lines | Content |
 |------|-------|---------|
-| `src/resolver_sim/yield/position.clj` | 34-41, 58, 101 | `:original-priority` field definition and default |
-| `src/resolver_sim/yield/modules/liquid_lending.clj` | 62-81 | `authoritative-original-priority` resolution function |
-| `src/resolver_sim/yield/modules/liquid_lending.clj` | 147-203 | `deposit` function — priority assignment at deposit |
-| `src/resolver_sim/yield/modules/liquid_lending.clj` | 437-455 | `record-closed-deferred-position` — immutable history |
-| `src/resolver_sim/yield/modules/liquid_lending.clj` | 495-507 | `next-lineage-round` — round number computation |
-| `src/resolver_sim/yield/modules/liquid_lending.clj` | 660-733 | Propagation precondition validation (9 checks) |
-| `src/resolver_sim/yield/modules/liquid_lending.clj` | 790-802 | `transition-commitment` — cryptographic seal |
-| `src/resolver_sim/yield/modules/liquid_lending.clj` | 893-998 | Deferred position creation with lineage inheritance |
-| `src/resolver_sim/yield/pro_rata_propagation_policy.clj` | 1-28 | `:preserve-original` policy declaration |
-| `src/resolver_sim/yield/invariants.clj` | 390-420 | `closed-history-violations` invariant |
-| `src/resolver_sim/yield/invariants.clj` | 548-580 | `deferred-state-violations` invariant |
-| `src/resolver_sim/yield/invariants.clj` | 852-856 | Deferred position invariant registrations |
+| `yield_runtime_src/resolver_sim/yield/position.clj` | 34-41, 58, 101 | `:original-priority` field definition and default |
+| `yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj` | 62-81 | `authoritative-original-priority` resolution function |
+| `yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj` | 147-203 | `deposit` function — priority assignment at deposit |
+| `yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj` | 437-455 | `record-closed-deferred-position` — immutable history |
+| `yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj` | 495-507 | `next-lineage-round` — round number computation |
+| `yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj` | 660-733 | Propagation precondition validation (9 checks) |
+| `yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj` | 790-802 | `transition-commitment` — cryptographic seal |
+| `yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj` | 893-998 | Deferred position creation with lineage inheritance |
+| `yield_runtime_src/resolver_sim/yield/pro_rata_propagation_policy.clj` | 1-28 | `:preserve-original` policy declaration |
+| `yield_runtime_src/resolver_sim/yield/invariants.clj` | 390-420 | `closed-history-violations` invariant |
+| `yield_runtime_src/resolver_sim/yield/invariants.clj` | 548-580 | `deferred-state-violations` invariant |
+| `yield_runtime_src/resolver_sim/yield/invariants.clj` | 852-856 | Deferred position invariant registrations |
 | `src/resolver_sim/benchmark/packs/partial_fill/evidence.clj` | 43-72 | Deferred position evidence capture |
 | `src/resolver_sim/run/verdict_policy.clj` | 177 | Lineage field validation in artifacts |
 | `src/resolver_sim/hash/canonical.clj` | 1128-1135 | `:provenance` intent with `provenance-lineage` |

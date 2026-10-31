@@ -117,12 +117,12 @@ package. It removes runner entrypoints from the composition, but its current
 transitive source closure still includes Sew research, yield, benchmark,
 scenario, and shared PRF framework internals.
 
-`yield-runtime` gives the 28 yield namespaces used by Sew an explicit component
-owner and a standalone candidate profile. The profile resolves 69 Clojure
-source files with zero declared component crossings and passes its isolated
-profile load check. Sew still depends on this component, so the Sew source
-closure remains 232 files; this boundary makes yield ownership independently
-selectable without claiming that a published package is ready.
+`yield-runtime` owns 35 namespaces in the separate `yield_runtime_src` source
+root; 28 are in Sew's current dependency closure. Its standalone candidate
+profile resolves 69 Clojure source files with zero declared component crossings
+and passes its isolated profile load check. Sew still depends on this component,
+so the Sew source closure remains 232 files; this boundary makes yield ownership
+independently selectable without claiming that a published package is ready.
 
 `sew-kernel` is a smaller candidate view of the escrow state model and guarded
 state transitions. Its public API can construct a world containing a valid

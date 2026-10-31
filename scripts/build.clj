@@ -159,7 +159,7 @@ core-deps-str (pr-str
                                 io.grpc/grpc-netty-shaded {:mvn/version "1.64.0"}
                                 io.grpc/grpc-stub {:mvn/version "1.64.0"}
                                 scicloj/tablecloth {:mvn/version "7.029.2"}}
-                        :paths ["src" "resources"]})
+                        :paths ["src" "yield_runtime_src" "resources"]})
         sew-deps-str (pr-str
                       '{:deps {org.clojure/clojure {:mvn/version "1.12.0"}
                                prf/canonical {:git/url "https://github.com/protocol-robustness/prf-canonical.git"
@@ -177,7 +177,7 @@ core-deps-str (pr-str
                                com.github.seancorfield/next.jdbc {:mvn/version "1.3.939"}
                                org.postgresql/postgresql {:mvn/version "42.7.2"}
                                metosin/malli {:mvn/version "0.17.0"}}
-                        :paths ["src" "protocols_src" "resources"]})
+                        :paths ["src" "yield_runtime_src" "protocols_src" "resources"]})
         deps-str (if (or is-prf is-prf-runnable) core-deps-str sew-deps-str)
         deps-path (str (System/getProperty "java.io.tmpdir")
                        "/prf-build-deps-" (System/nanoTime) ".edn")
@@ -185,8 +185,8 @@ core-deps-str (pr-str
         basis (b/create-basis {:project deps-path})
         src-dirs (cond
                            is-prf [".profile-view/framework"]
-                           is-prf-runnable ["src" "resources" "scenarios"]
-                           :else ["src" "protocols_src" "resources" "scenarios"])
+                           is-prf-runnable ["src" "yield_runtime_src" "resources" "scenarios"]
+                           :else ["src" "yield_runtime_src" "protocols_src" "resources" "scenarios"])
         class-dir (str (System/getProperty "java.io.tmpdir")
                        "/prf-build-" (System/nanoTime))
         jar-file (cond is-prf "target/prf.jar"
@@ -339,7 +339,7 @@ core-deps-str (pr-str
         class-dir "target/classes"]
     (.mkdirs (java.io.File. class-dir))
     (println "\n=== AOT compile Sew protocol sources ===")
-    (doseq [src-dir ["protocols_src" "src"]]
+    (doseq [src-dir ["protocols_src" "src" "yield_runtime_src"]]
       (let [d (java.io.File. src-dir)]
         (when (.exists d)
           (try
