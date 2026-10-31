@@ -42,9 +42,10 @@
   {:component/plane :protocol
    :component/requires [:prf/framework-v1
                         :prf/sew-escrow-kernel-v1
-                        :prf/sew-pro-rata-slashing-v1]
+                        :prf/sew-pro-rata-economics-v1]
    :component/owned-namespaces
-   [resolver-sim.protocols.sew]
+   [resolver-sim.protocols.sew
+    resolver-sim.protocols.sew.slash-evidence]
    :component/entry-namespaces
    [resolver-sim.protocols.sew]}
 
@@ -87,26 +88,41 @@
    :component/material
    [{:path "test/resolver_sim/pro_rata/programme_test.clj" :kind :test-source}]}
 
-  ;; Sew slash allocation is an explicit adapter over portable allocation and
-  ;; evaluated evidence. It contains no dependency on the Sew root namespace.
-  :prf/sew-pro-rata-slashing-v1
+  ;; Sew slash economics is an adapter over portable allocation and evaluated
+  ;; evidence. Sew core uses this integration for its allocation projection.
+  :prf/sew-pro-rata-economics-v1
   {:component/plane :protocol-adapter
    :component/requires [:prf/pro-rata-evaluation-v1]
    :component/owned-namespaces
-   [resolver-sim.protocols.sew.pro-rata.economics
-    resolver-sim.protocols.sew.pro-rata.evidence]
+   [resolver-sim.protocols.sew.pro-rata.economics]
    :component/entry-namespaces
-   [resolver-sim.protocols.sew.pro-rata.economics
+   [resolver-sim.protocols.sew.pro-rata.economics]
+   :component/material
+   [{:path "protocols_src/resolver_sim/protocols/sew/test_vectors/slash_allocation.clj"
+     :kind :conformance-vector}]}
+
+  ;; Evidence is an optional adapter to the core-owned slash-evidence contract.
+  ;; If omitted, evidence-producing slash execution fails before side effects.
+  :prf/sew-pro-rata-slashing-v1
+  {:component/plane :protocol-adapter
+   :component/requires [:prf/sew-core-v1
+                        :prf/sew-pro-rata-economics-v1
+                        :prf/pro-rata-evaluation-v1]
+   :component/owned-namespaces
+   [resolver-sim.protocols.sew.pro-rata.evidence
+    resolver-sim.protocols.sew.extension]
+   :component/entry-namespaces
+   [resolver-sim.protocols.sew.extension
     resolver-sim.protocols.sew.pro-rata.evidence]
    :component/material
    [{:path "protocols_src/test/resolver_sim/protocols/sew/evidence/slashing_test.clj"
      :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
+     :kind :test-source}
     {:path "protocols_src/test/resolver_sim/protocols/sew/slashing_test.clj"
      :kind :test-source}
     {:path "test/resolver_sim/yield/pro_rata_claims_test.clj"
-     :kind :test-source}
-    {:path "protocols_src/resolver_sim/protocols/sew/test_vectors/slash_allocation.clj"
-     :kind :conformance-vector}]}
+     :kind :test-source}]}
 
   :prf/sew-pro-rata-application-v1
   {:component/plane :protocol-adapter

@@ -34,7 +34,7 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as ref]
-            [resolver-sim.protocols.sew.pro-rata.evidence :as slashing-ev]
+            [resolver-sim.protocols.sew.slash-evidence :as slash-evidence]
             [resolver-sim.logging :as log]))
 
 (declare finalize handle-reversal-slashing handle-fraud-slashing update-unavailability)
@@ -1971,6 +1971,7 @@
 
        :else
        (let [resolver (:resolver pending)
+             _ (slash-evidence/ensure-prorata-slash-evidence-loaded!)
              amount (:amount pending)
              current-stake (reg/get-stake world resolver)
              epoch-cap-bps (get-in world [:params :slash-epoch-cap-bps] 2000)
@@ -2051,29 +2052,29 @@
                                       :evidence/reason :fraud-slash-executed}]
                (attr/with-attribution
                  slash-attribution
-                 (let [{:keys [evidence artifact]}
-                       (slashing-ev/build-prorata-slash-evidence
-                        {:world world-slashed
-                         :slash-id slash-id
-                         :workflow-id workflow-id
-                         :resolver resolver
-                         :epoch (get-in world-slashed [:resolver-epoch-slashed resolver :epoch-start] 0)
-                         :trigger :fraud-slash
-                         :allocation-input allocation-input
-                         :projection-artifact projection
-                         :allocation-result allocation
-                         :transition-dependencies (filterv some?
-                                                           [(:proposal-evidence-hash pending)
-                                                            stake-evidence-hash])
-                         :world-before-hash world-before-hash
-                         :action-hash action-hash
-                         :action-hash-at action-hash-at
-                         :attribution (attr/current-attribution)})
-                       evidence (assoc evidence
-                                       :world/before-full-hash world-before-hash
-                                       :world/after-full-hash (hc/hash-with-intent {:hash/intent :world-structure} world-slashed))]
-                   (cap/capture-event-evidence! evidence)
-                   (slashing-ev/write-allocation-result-artifact! artifact)))
+               (when-let [{:keys [evidence artifact]}
+                          (slash-evidence/build-prorata-slash-evidence
+                           {:world world-slashed
+                            :slash-id slash-id
+                            :workflow-id workflow-id
+                            :resolver resolver
+                            :epoch (get-in world-slashed [:resolver-epoch-slashed resolver :epoch-start] 0)
+                            :trigger :fraud-slash
+                            :allocation-input allocation-input
+                            :projection-artifact projection
+                            :allocation-result allocation
+                            :transition-dependencies (filterv some?
+                                                              [(:proposal-evidence-hash pending)
+                                                               stake-evidence-hash])
+                            :world-before-hash world-before-hash
+                            :action-hash action-hash
+                            :action-hash-at action-hash-at
+                            :attribution (attr/current-attribution)})]
+                 (cap/capture-event-evidence!
+                  (assoc evidence
+                         :world/before-full-hash world-before-hash
+                         :world/after-full-hash (hc/hash-with-intent {:hash/intent :world-structure} world-slashed)))
+                 (slash-evidence/write-allocation-result-artifact! artifact)))
                (cap/capture-event-evidence!
                 :resolver-frozen
                 {:freeze/before {:frozen-until (get-in world-slashed [:resolver-frozen-until resolver])}}
@@ -2484,7 +2485,8 @@
        (t/fail :appeal-in-progress)
        (<= (time-ctx/block-ts world) (:appeal-deadline pending)) (t/fail :timelock-not-expired)
        :else
-       (let [members (:members pending)
+       (let [_ (slash-evidence/ensure-prorata-slash-evidence-loaded!)
+             members (:members pending)
              allocation-input {:slash-obligation (:amount pending)
                                :fraud-incident/ref (:fraud-incident-ref pending)
                                :liable-parties members
@@ -2575,18 +2577,18 @@
          (attr/with-attribution {:subject/type :slash :subject/id slash-id
                                  :action/type :slash/execute
                                  :evidence/reason :fraud-group-slash-executed}
-           (let [{:keys [evidence artifact]}
-                 (slashing-ev/build-prorata-slash-evidence
-                  {:world world'
-                   :slash-id slash-id :workflow-id workflow-id :trigger :fraud-group-slash
-                   :allocation-input allocation-input :projection-artifact projection
-                   :allocation-result allocation
-                   :execution-result (assoc allocation :allocations payments)
-                   :transition-dependencies (vec (filter some? stake-evidence-hashes))
-                   :world-before-hash world-before-hash
-                   :attribution (attr/current-attribution)})]
-             (cap/capture-event-evidence! evidence)
-             (slashing-ev/write-allocation-result-artifact! artifact))
+         (when-let [{:keys [evidence artifact]}
+                    (slash-evidence/build-prorata-slash-evidence
+                     {:world world'
+                      :slash-id slash-id :workflow-id workflow-id :trigger :fraud-group-slash
+                      :allocation-input allocation-input :projection-artifact projection
+                      :allocation-result allocation
+                      :execution-result (assoc allocation :allocations payments)
+                      :transition-dependencies (vec (filter some? stake-evidence-hashes))
+                      :world-before-hash world-before-hash
+                      :attribution (attr/current-attribution)})]
+           (cap/capture-event-evidence! evidence)
+           (slash-evidence/write-allocation-result-artifact! artifact))
            (t/ok world')))))))
 
 (defn resolve-appeal
