@@ -12,7 +12,7 @@
 
 (def scan-paths
   "Directories to scan for term occurrences."
-  ["docs" "protocols_src" "src" "scenarios" "scripts" "schemas" "data" "suites"])
+  ["docs" "protocols_src" "src" "yield_runtime_src" "scenarios" "scripts" "schemas" "data" "suites"])
 
 (def queries-path
   "scripts/search_docs_sentinel/queries.edn")

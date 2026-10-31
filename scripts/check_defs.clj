@@ -23,7 +23,7 @@
             [clojure.string :as str]
             [clojure.tools.namespace.find :as find]))
 
-(def ^:private default-roots ["src" "protocols_src"])
+(def ^:private default-roots ["src" "yield_runtime_src" "protocols_src"])
 (def ^:private golden-path "checks/ns-defs.edn")
 
 (defn- test-file? [file]
