@@ -19,29 +19,29 @@
 
  :concept/roles
  {:ir-evaluator {:description "Entity that evaluates individual rationality against the outside-option baseline."
-                 :maps-to [:protocol.role/verifier]}
+                 }
   :incentive-designer {:description "Entity that sets the outside-option value for a benchmark."
-                       :maps-to [:protocol.actor/resolution-module]}}
+                       }}
 
  :concept/entities
  {:outside-option-value {:description "The numeric reservation utility per participant, defaulting to 0, used as the individual-rationality baseline."
-                         :maps-to [:protocol.entity/parameter]}
+                         }
   :outside-option-definition-root {:description "Content root binding the exact outside-option definition used by an individual-rationality or coalition evaluation. Mirrors the content-root integrity pattern: the evaluation result commits to this root so the baseline value can be re-verified, not just the outcome."
-                                   :maps-to [:protocol.entity/canonical-hash]}}
+                                   }}
 
  :concept/actions
  {:measure-individual-rationality {:description "Check that a participant's net payoff meets or exceeds the outside-option utility (net-payoff >= outside-option)."
-                                   :maps-to [:protocol.action/check-invariant]}
+                                   }
   :bind-outside-option-root {:description "Commit the outside-option definition root so the baseline value used is bound to a verifiable root."
-                             :maps-to [:protocol.action/commit-root]}}
+                             }}
 
  :concept/outcomes
  {:individual-rational {:description "Every required participant's net payoff meets or exceeds the outside-option baseline."
-                        :maps-to [:protocol.outcome/released]}
+                        }
   :individual-irrational {:description "At least one participant's net payoff falls below the outside-option baseline."
-                          :maps-to [:protocol.outcome/adversarial-resolution]}
+                          }
   :outside-option-root-committed {:description "The outside-option definition root is committed with the evaluation result."
-                                  :maps-to [:protocol.outcome/released]}}
+                                  }}
 
  :concept/failure-modes
  [{:failure/id :outside-option-baseline-unbound

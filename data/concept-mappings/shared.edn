@@ -1,0 +1,2213 @@
+{:mapping-set/protocol :shared,
+ :mapping-set/version 1,
+ :mappings
+ [{:concept/id :allocation/bounty-payable-reserve,
+   :mapping/category :concept/actions,
+   :mapping/id :audit-reserve,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :allocation/bounty-payable-reserve,
+   :mapping/category :concept/actions,
+   :mapping/id :designate-reserve,
+   :mapping/values {:maps-to [:protocol.action/record-obligation]}}
+  {:concept/id :allocation/bounty-payable-reserve,
+   :mapping/category :concept/entities,
+   :mapping/id :reserve-designation,
+   :mapping/values {:maps-to [:protocol.entity/reserve]}}
+  {:concept/id :allocation/bounty-payable-reserve,
+   :mapping/category :concept/entities,
+   :mapping/id :reserve-policy,
+   :mapping/values {:maps-to [:protocol.entity/governance-policy]}}
+  {:concept/id :allocation/bounty-payable-reserve,
+   :mapping/category :concept/outcomes,
+   :mapping/id :reserve-correct,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :allocation/bounty-payable-reserve,
+   :mapping/category :concept/outcomes,
+   :mapping/id :reserve-misstated,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :allocation/bounty-payable-reserve,
+   :mapping/category :concept/roles,
+   :mapping/id :reserve-auditor,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :allocation/bounty-payable-reserve,
+   :mapping/category :concept/roles,
+   :mapping/id :reserve-manager,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :allocation/bounty-payable,
+   :mapping/category :concept/actions,
+   :mapping/id :recognise-payable,
+   :mapping/values {:maps-to [:protocol.action/record-obligation]}}
+  {:concept/id :allocation/bounty-payable,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-payable,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :allocation/bounty-payable,
+   :mapping/category :concept/entities,
+   :mapping/id :bounty-policy,
+   :mapping/values {:maps-to [:protocol.entity/governance-policy]}}
+  {:concept/id :allocation/bounty-payable,
+   :mapping/category :concept/entities,
+   :mapping/id :payable-obligation,
+   :mapping/values {:maps-to [:protocol.entity/obligation]}}
+  {:concept/id :allocation/bounty-payable,
+   :mapping/category :concept/outcomes,
+   :mapping/id :payable-recognised,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :allocation/bounty-payable,
+   :mapping/category :concept/outcomes,
+   :mapping/id :payable-rejected,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :allocation/bounty-payable,
+   :mapping/category :concept/roles,
+   :mapping/id :bounty-obligor,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :allocation/bounty-payable,
+   :mapping/category :concept/roles,
+   :mapping/id :bounty-recipient,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :allocation/deferred-claim,
+   :mapping/category :concept/actions,
+   :mapping/id :record-deferred-claim,
+   :mapping/values {:maps-to [:protocol.action/record-deferred-claim]}}
+  {:concept/id :allocation/deferred-claim,
+   :mapping/category :concept/actions,
+   :mapping/id :recover-deferred-claim,
+   :mapping/values
+   {:maps-to [:protocol.action/settle :protocol.action/partial-fill]}}
+  {:concept/id :allocation/deferred-claim,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-deferred-claim,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/verify-allocation
+     :protocol.action/check-invariant]}}
+  {:concept/id :allocation/deferred-claim,
+   :mapping/category :concept/entities,
+   :mapping/id :claim-basis,
+   :mapping/values {:maps-to [:protocol.entity/claim]}}
+  {:concept/id :allocation/deferred-claim,
+   :mapping/category :concept/entities,
+   :mapping/id :deferred-claim,
+   :mapping/values {:maps-to [:protocol.entity/deferred-claim]}}
+  {:concept/id :allocation/deferred-claim,
+   :mapping/category :concept/entities,
+   :mapping/id :fulfilled-amount,
+   :mapping/values {:maps-to [:protocol.entity/settlement]}}
+  {:concept/id :allocation/deferred-claim,
+   :mapping/category :concept/entities,
+   :mapping/id :recovery-record,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :allocation/deferred-claim,
+   :mapping/category :concept/outcomes,
+   :mapping/id :claim-deferred,
+   :mapping/values {:maps-to [:protocol.outcome/deferred]}}
+  {:concept/id :allocation/deferred-claim,
+   :mapping/category :concept/outcomes,
+   :mapping/id :claim-lost,
+   :mapping/values {:maps-to [:protocol.outcome/stuck]}}
+  {:concept/id :allocation/deferred-claim,
+   :mapping/category :concept/outcomes,
+   :mapping/id :claim-recovered,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :allocation/deferred-claim,
+   :mapping/category :concept/roles,
+   :mapping/id :allocation-engine,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :allocation/deferred-claim,
+   :mapping/category :concept/roles,
+   :mapping/id :auditor,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :allocation/deferred-claim,
+   :mapping/category :concept/roles,
+   :mapping/id :claimant,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/actions,
+   :mapping/id :apply-partial-fill,
+   :mapping/values
+   {:maps-to [:protocol.action/settle :protocol.action/partial-fill]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/actions,
+   :mapping/id :compute-pro-rata-allocation,
+   :mapping/values
+   {:maps-to [:protocol.action/calculate-pro-rata-allocation]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/actions,
+   :mapping/id :detect-shortfall,
+   :mapping/values {:maps-to [:protocol.action/calculate-shortfall]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/actions,
+   :mapping/id :enforce-caps,
+   :mapping/values
+   {:maps-to [:protocol.action/calculate-pro-rata-allocation]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/actions,
+   :mapping/id :record-deferred-claim,
+   :mapping/values {:maps-to [:protocol.action/record-deferred-claim]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/actions,
+   :mapping/id :redistribute-capped-excess,
+   :mapping/values
+   {:maps-to [:protocol.action/calculate-pro-rata-allocation]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-allocation,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/verify-allocation
+     :protocol.action/check-invariant]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/entities,
+   :mapping/id :allocation,
+   :mapping/values {:maps-to [:protocol.entity/settlement]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/entities,
+   :mapping/id :allocation-rows,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/entities,
+   :mapping/id :available-value,
+   :mapping/values {:maps-to [:protocol.entity/funds]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/entities,
+   :mapping/id :cap,
+   :mapping/values {:maps-to [:protocol.entity/cap]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/entities,
+   :mapping/id :claim,
+   :mapping/values {:maps-to [:protocol.entity/claim]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/entities,
+   :mapping/id :deferred-claim,
+   :mapping/values {:maps-to [:protocol.entity/deferred-claim]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/entities,
+   :mapping/id :redistribution,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/entities,
+   :mapping/id :shortfall,
+   :mapping/values {:maps-to [:protocol.entity/shortfall]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/outcomes,
+   :mapping/id :allocation-rejected,
+   :mapping/values {:maps-to [:protocol.outcome/rejected]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/outcomes,
+   :mapping/id :allocation-unfair,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/outcomes,
+   :mapping/id :claims-fully-paid,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/outcomes,
+   :mapping/id :claims-partially-filled,
+   :mapping/values {:maps-to [:protocol.outcome/partially-filled]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/outcomes,
+   :mapping/id :shortfall-recorded,
+   :mapping/values {:maps-to [:protocol.outcome/deferred]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/roles,
+   :mapping/id :allocation-engine,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/roles,
+   :mapping/id :claimant,
+   :mapping/values
+   {:maps-to
+    [:protocol.actor/sender
+     :protocol.actor/recipient
+     :protocol.actor/resolver]}}
+  {:concept/id :allocation/partial-fill,
+   :mapping/category :concept/roles,
+   :mapping/id :verifier,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/actions,
+   :mapping/id :compute-pro-rata,
+   :mapping/values
+   {:maps-to [:protocol.action/calculate-pro-rata-allocation]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/actions,
+   :mapping/id :detect-imbalance,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/actions,
+   :mapping/id :enforce-caps,
+   :mapping/values
+   {:maps-to [:protocol.action/calculate-pro-rata-allocation]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/actions,
+   :mapping/id :redistribute-capped-excess,
+   :mapping/values
+   {:maps-to [:protocol.action/calculate-pro-rata-allocation]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/actions,
+   :mapping/id :reject-unequal-allocation,
+   :mapping/values {:maps-to [:protocol.action/reject-allocation]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-cap-adherence,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/verify-allocation
+     :protocol.action/check-invariant]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-proportionality,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/verify-allocation
+     :protocol.action/check-invariant]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/entities,
+   :mapping/id :allocation-table,
+   :mapping/values {:maps-to [:protocol.entity/settlement]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/entities,
+   :mapping/id :cap,
+   :mapping/values {:maps-to [:protocol.entity/cap]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/entities,
+   :mapping/id :claim-group,
+   :mapping/values {:maps-to [:protocol.entity/claim-pool]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/entities,
+   :mapping/id :pro-rata-share,
+   :mapping/values {:maps-to [:protocol.entity/allocation]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/entities,
+   :mapping/id :proportionality-proof,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/entities,
+   :mapping/id :redistribution,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :allocation-order-dependent,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :allocation-proportional,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :allocation-rejected,
+   :mapping/values {:maps-to [:protocol.outcome/rejected]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :allocation-unequal,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/roles,
+   :mapping/id :allocation-engine,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/roles,
+   :mapping/id :claimant,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/roles,
+   :mapping/id :priority-classifier,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :allocation/pro-rata-fairness,
+   :mapping/category :concept/roles,
+   :mapping/id :verifier,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/actions,
+   :mapping/id :bridge-epoch,
+   :mapping/values
+   {:maps-to [:protocol.action/settle :protocol.action/partial-fill]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/actions,
+   :mapping/id :capture-redistribution-evidence,
+   :mapping/values {:maps-to [:protocol.action/capture-evidence]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/actions,
+   :mapping/id :cascade-level-surplus,
+   :mapping/values
+   {:maps-to [:protocol.action/calculate-pro-rata-allocation]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/actions,
+   :mapping/id :detect-redistribution-injustice,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/actions,
+   :mapping/id :transfer-cross-pool,
+   :mapping/values {:maps-to [:protocol.action/governance-transfer]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-redistribution-fairness,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/verify-allocation
+     :protocol.action/check-invariant]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/entities,
+   :mapping/id :epoch-transition-record,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/entities,
+   :mapping/id :level-cascade-record,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/entities,
+   :mapping/id :pool-transfer-record,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/entities,
+   :mapping/id :redistribution-evidence-pack,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/entities,
+   :mapping/id :redistribution-policy,
+   :mapping/values {:maps-to [:protocol.entity/policy]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :redistribution-fair,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :redistribution-rule-violated,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :redistribution-unevidenced,
+   :mapping/values {:maps-to [:protocol.outcome/stuck]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :redistribution-unfair,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/roles,
+   :mapping/id :deferred-claimant,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/roles,
+   :mapping/id :epoch-bridge,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/roles,
+   :mapping/id :level-sequencer,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/roles,
+   :mapping/id :pool-governor,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/roles,
+   :mapping/id :surplus-distributor,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :allocation/redistribution-fairness,
+   :mapping/category :concept/roles,
+   :mapping/id :verifier,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/actions,
+   :mapping/id :detect-shortfall,
+   :mapping/values {:maps-to [:protocol.action/calculate-shortfall]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/actions,
+   :mapping/id :record-shortfall,
+   :mapping/values {:maps-to [:protocol.action/record-shortfall]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/actions,
+   :mapping/id :resolve-shortfall,
+   :mapping/values
+   {:maps-to [:protocol.action/settle :protocol.action/partial-fill]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-shortfall,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/verify-allocation
+     :protocol.action/check-invariant]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/entities,
+   :mapping/id :basis-amount,
+   :mapping/values {:maps-to [:protocol.entity/claim]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/entities,
+   :mapping/id :deferred-amount,
+   :mapping/values {:maps-to [:protocol.entity/deferred-claim]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/entities,
+   :mapping/id :fulfilled-amount,
+   :mapping/values {:maps-to [:protocol.entity/settlement]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/entities,
+   :mapping/id :haircut-amount,
+   :mapping/values {:maps-to [:protocol.entity/haircut]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/entities,
+   :mapping/id :shortfall,
+   :mapping/values {:maps-to [:protocol.entity/shortfall]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/outcomes,
+   :mapping/id :shortfall-detected,
+   :mapping/values {:maps-to [:protocol.outcome/deferred]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/outcomes,
+   :mapping/id :shortfall-hidden,
+   :mapping/values {:maps-to [:protocol.outcome/stuck]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/outcomes,
+   :mapping/id :shortfall-missed,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/outcomes,
+   :mapping/id :shortfall-resolved,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/roles,
+   :mapping/id :auditor,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/roles,
+   :mapping/id :claimant,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/roles,
+   :mapping/id :shortfall-detector,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :allocation/shortfall,
+   :mapping/category :concept/roles,
+   :mapping/id :yield-provider,
+   :mapping/values {:maps-to [:protocol.actor/recipient]}}
+  {:concept/id :allocation/slash-distribution,
+   :mapping/category :concept/actions,
+   :mapping/id :compute-distribution,
+   :mapping/values
+   {:maps-to [:protocol.action/calculate-pro-rata-allocation]}}
+  {:concept/id :allocation/slash-distribution,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-distribution,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :allocation/slash-distribution,
+   :mapping/category :concept/entities,
+   :mapping/id :distribution-table,
+   :mapping/values {:maps-to [:protocol.entity/allocation]}}
+  {:concept/id :allocation/slash-distribution,
+   :mapping/category :concept/entities,
+   :mapping/id :slash-obligation,
+   :mapping/values {:maps-to [:protocol.entity/obligation]}}
+  {:concept/id :allocation/slash-distribution,
+   :mapping/category :concept/outcomes,
+   :mapping/id :distribution-mismatch,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :allocation/slash-distribution,
+   :mapping/category :concept/outcomes,
+   :mapping/id :distribution-verified,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :allocation/slash-distribution,
+   :mapping/category :concept/roles,
+   :mapping/id :distribution-engine,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :allocation/slash-distribution,
+   :mapping/category :concept/roles,
+   :mapping/id :liable-party,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :assurance/evidence-backed-classification,
+   :mapping/category :concept/actions,
+   :mapping/id :classify-from-findings,
+   :mapping/values {:maps-to [:protocol.action/classify]}}
+  {:concept/id :assurance/evidence-backed-classification,
+   :mapping/category :concept/actions,
+   :mapping/id :classify-structural,
+   :mapping/values {:maps-to [:protocol.action/classify]}}
+  {:concept/id :assurance/evidence-backed-classification,
+   :mapping/category :concept/actions,
+   :mapping/id :scan-sensitivity,
+   :mapping/values {:maps-to [:protocol.action/evidence-capture]}}
+  {:concept/id :assurance/evidence-backed-classification,
+   :mapping/category :concept/entities,
+   :mapping/id :safety-findings,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :assurance/evidence-backed-classification,
+   :mapping/category :concept/entities,
+   :mapping/id :sensitivity-findings,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :assurance/evidence-backed-classification,
+   :mapping/category :concept/entities,
+   :mapping/id :sensitivity-level,
+   :mapping/values
+   {:maps-to [:protocol.entity/sensitivity-classification]}}
+  {:concept/id :assurance/evidence-backed-classification,
+   :mapping/category :concept/outcomes,
+   :mapping/id :evidence-backed-level,
+   :mapping/values {:maps-to [:protocol.outcome/classified]}}
+  {:concept/id :assurance/evidence-backed-classification,
+   :mapping/category :concept/outcomes,
+   :mapping/id :structural-fallback,
+   :mapping/values {:maps-to [:protocol.outcome/classified]}}
+  {:concept/id :assurance/evidence-backed-classification,
+   :mapping/category :concept/outcomes,
+   :mapping/id :unknown-rule-critical-private,
+   :mapping/values {:maps-to [:protocol.outcome/blocked]}}
+  {:concept/id :assurance/evidence-backed-classification,
+   :mapping/category :concept/roles,
+   :mapping/id :reviewer,
+   :mapping/values {:maps-to [:protocol.actor/reviewer]}}
+  {:concept/id :assurance/evidence-backed-classification,
+   :mapping/category :concept/roles,
+   :mapping/id :scanner,
+   :mapping/values {:maps-to [:protocol.actor/keeper]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/actions,
+   :mapping/id :create-attestation,
+   :mapping/values {:maps-to [:protocol.action/sign-attestation]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/actions,
+   :mapping/id :open-violation-case,
+   :mapping/values {:maps-to [:protocol.action/open-violation-case]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/actions,
+   :mapping/id :revoke-attestation,
+   :mapping/values {:maps-to [:protocol.action/revoke-attestation]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/actions,
+   :mapping/id :supersede-attestation,
+   :mapping/values {:maps-to [:protocol.action/supersede-attestation]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-attestation,
+   :mapping/values {:maps-to [:protocol.action/verify-attestation]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-quorum,
+   :mapping/values {:maps-to [:protocol.action/verify-quorum]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/entities,
+   :mapping/id :attestation,
+   :mapping/values {:maps-to [:protocol.entity/attestation]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/entities,
+   :mapping/id :attestation-bundle,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/entities,
+   :mapping/id :lifecycle-state,
+   :mapping/values {:maps-to [:protocol.entity/lifecycle-status]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/entities,
+   :mapping/id :quorum-policy,
+   :mapping/values {:maps-to [:protocol.entity/quorum-policy]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/entities,
+   :mapping/id :supersession-chain,
+   :mapping/values {:maps-to [:protocol.entity/evidence-chain]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/entities,
+   :mapping/id :violation-case,
+   :mapping/values {:maps-to [:protocol.entity/violation-case]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/outcomes,
+   :mapping/id :attestation-revoked,
+   :mapping/values {:maps-to [:protocol.outcome/governance-override]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/outcomes,
+   :mapping/id :attestor-slashed,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/outcomes,
+   :mapping/id :quorum-confirmed,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/outcomes,
+   :mapping/id :quorum-conflicted,
+   :mapping/values {:maps-to [:protocol.outcome/stuck]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/outcomes,
+   :mapping/id :quorum-insufficient,
+   :mapping/values {:maps-to [:protocol.outcome/deferred]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/outcomes,
+   :mapping/id :quorum-rejected,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/roles,
+   :mapping/id :attestation-verifier,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/roles,
+   :mapping/id :attestor,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/roles,
+   :mapping/id :governance,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :attestation/verification,
+   :mapping/category :concept/roles,
+   :mapping/id :subject,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/actions,
+   :mapping/id :appoint-decider,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/create-escrow :protocol.action/set-resolver]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/actions,
+   :mapping/id :challenge-authority,
+   :mapping/values
+   {:maps-to [:protocol.action/appeal :protocol.action/escalate]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/actions,
+   :mapping/id :exercise-authority,
+   :mapping/values
+   {:maps-to [:protocol.action/resolve :protocol.action/settle]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/actions,
+   :mapping/id :override-decision,
+   :mapping/values
+   {:maps-to [:protocol.action/governance-intervention]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/actions,
+   :mapping/id :rotate-decider,
+   :mapping/values
+   {:maps-to [:protocol.action/governance-rotate-resolver]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/entities,
+   :mapping/id :authority-grant,
+   :mapping/values
+   {:maps-to
+    [:protocol.entity/resolver-binding
+     :protocol.entity/governance-role],
+    :mapping/confidence :approximate,
+    :mapping/note
+    "Authority may derive from resolver assignment or governance role"}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/entities,
+   :mapping/id :capture-evidence,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/entities,
+   :mapping/id :decision,
+   :mapping/values {:maps-to [:protocol.entity/settlement]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/outcomes,
+   :mapping/id :authority-contested,
+   :mapping/values {:maps-to [:protocol.outcome/appealed]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/outcomes,
+   :mapping/id :authority-overridden,
+   :mapping/values {:maps-to [:protocol.outcome/governance-override]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/outcomes,
+   :mapping/id :captured-decision,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/outcomes,
+   :mapping/id :default-authority,
+   :mapping/values {:maps-to [:protocol.outcome/default-resolution]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/outcomes,
+   :mapping/id :independent-decision,
+   :mapping/values {:maps-to [:protocol.outcome/resolved]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/roles,
+   :mapping/id :decider,
+   :mapping/values
+   {:maps-to [:protocol.actor/resolver :protocol.actor/governance],
+    :mapping/confidence :approximate,
+    :mapping/note
+    "Decider may be a resolver module or governance depending on context"}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/roles,
+   :mapping/id :decision-subject,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/roles,
+   :mapping/id :module,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :consensus/authority,
+   :mapping/category :concept/roles,
+   :mapping/id :oversight,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/actions,
+   :mapping/id :initiate-escalation,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/appeal
+     :protocol.action/escalate
+     :protocol.action/challenge-resolution]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/actions,
+   :mapping/id :post-bond,
+   :mapping/values {:maps-to [:protocol.action/post-bond]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/actions,
+   :mapping/id :rule-on-escalation,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/resolve-appeal :protocol.action/settle]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/actions,
+   :mapping/id :waive-escalation,
+   :mapping/values
+   {:maps-to [:protocol.action/timeout :protocol.action/accept-split]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/entities,
+   :mapping/id :appeal,
+   :mapping/values {:maps-to [:protocol.entity/appeal]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/entities,
+   :mapping/id :escalation-bond,
+   :mapping/values {:maps-to [:protocol.entity/bond]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/entities,
+   :mapping/id :escalation-deadline,
+   :mapping/values {:maps-to [:protocol.entity/deadline]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :escalation-economically-inaccessible,
+   :mapping/values {:maps-to [:protocol.outcome/stuck]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :escalation-expired,
+   :mapping/values {:maps-to [:protocol.outcome/timeout]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :escalation-processed,
+   :mapping/values {:maps-to [:protocol.outcome/appealed]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :escalation-rejected,
+   :mapping/values {:maps-to [:protocol.outcome/rejected]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :escalation-unavailable,
+   :mapping/values {:maps-to [:protocol.outcome/resolved]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/roles,
+   :mapping/id :escalation-decider,
+   :mapping/values
+   {:maps-to
+    [:protocol.actor/resolver :protocol.actor/resolution-module]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/roles,
+   :mapping/id :escalation-gatekeeper,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :consensus/escalation,
+   :mapping/category :concept/roles,
+   :mapping/id :escalation-initiator,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/actions,
+   :mapping/id :evaluate-evidence,
+   :mapping/values
+   {:maps-to [:protocol.action/resolve :protocol.action/settle]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/actions,
+   :mapping/id :reject-evidence,
+   :mapping/values {:maps-to [:protocol.action/reject-evidence]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/actions,
+   :mapping/id :request-evidence,
+   :mapping/values {:maps-to [:protocol.action/request-evidence]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/actions,
+   :mapping/id :submit-evidence,
+   :mapping/values {:maps-to [:protocol.action/submit-evidence]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/entities,
+   :mapping/id :evidence-deadline,
+   :mapping/values {:maps-to [:protocol.entity/deadline]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/entities,
+   :mapping/id :evidence-registry,
+   :mapping/values {:maps-to [:protocol.entity/evidence-chain]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/entities,
+   :mapping/id :evidence-submission,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :evidence-contradictory,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :evidence-ignored,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :evidence-late,
+   :mapping/values {:maps-to [:protocol.outcome/rejected]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :evidence-missing,
+   :mapping/values {:maps-to [:protocol.outcome/stuck]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :evidence-sufficient,
+   :mapping/values {:maps-to [:protocol.outcome/resolved]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/roles,
+   :mapping/id :evidence-examiner,
+   :mapping/values
+   {:maps-to
+    [:protocol.actor/resolver :protocol.actor/resolution-module]}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/roles,
+   :mapping/id :evidence-keeper,
+   :mapping/values
+   {:maps-to [:protocol.actor/verifier :protocol.actor/node],
+    :mapping/confidence :approximate,
+    :mapping/note
+    "Evidence keeper may be a protocol verifier or a network node"}}
+  {:concept/id :consensus/evidence,
+   :mapping/category :concept/roles,
+   :mapping/id :evidence-submitter,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/actions,
+   :mapping/id :block-finality,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/dispute
+     :protocol.action/appeal
+     :protocol.action/challenge]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/actions,
+   :mapping/id :confirm-finality,
+   :mapping/values {:maps-to [:protocol.action/verify-finality]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/actions,
+   :mapping/id :reach-finality,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/settle
+     :protocol.action/release
+     :protocol.action/refund]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/actions,
+   :mapping/id :reverse-finality,
+   :mapping/values
+   {:maps-to [:protocol.action/governance-intervention]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/entities,
+   :mapping/id :finality-block,
+   :mapping/values {:maps-to [:protocol.entity/dispute]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/entities,
+   :mapping/id :finality-deadline,
+   :mapping/values {:maps-to [:protocol.entity/deadline]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/entities,
+   :mapping/id :settlement,
+   :mapping/values {:maps-to [:protocol.entity/settlement]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/outcomes,
+   :mapping/id :finality-blocked,
+   :mapping/values {:maps-to [:protocol.outcome/stuck]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/outcomes,
+   :mapping/id :finality-deferred,
+   :mapping/values {:maps-to [:protocol.outcome/resolved]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/outcomes,
+   :mapping/id :finality-premature,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/outcomes,
+   :mapping/id :finality-reached,
+   :mapping/values
+   {:maps-to [:protocol.outcome/released :protocol.outcome/refunded],
+    :mapping/confidence :approximate,
+    :mapping/note
+    "Finality covers both release to recipient and refund to sender"}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/outcomes,
+   :mapping/id :finality-reversed,
+   :mapping/values {:maps-to [:protocol.outcome/governance-override]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/roles,
+   :mapping/id :finality-beneficiary,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/roles,
+   :mapping/id :finality-challenger,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :consensus/finality,
+   :mapping/category :concept/roles,
+   :mapping/id :finality-enforcer,
+   :mapping/values
+   {:maps-to [:protocol.actor/resolver :protocol.actor/governance]}}
+  {:concept/id :consensus/legitimacy,
+   :mapping/category :concept/actions,
+   :mapping/id :accept-outcome,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/accept-split :protocol.action/waive-appeal]}}
+  {:concept/id :consensus/legitimacy,
+   :mapping/category :concept/actions,
+   :mapping/id :assess-legitimacy,
+   :mapping/values
+   {:maps-to [:protocol.action/verify :protocol.action/audit]}}
+  {:concept/id :consensus/legitimacy,
+   :mapping/category :concept/actions,
+   :mapping/id :challenge-legitimacy,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/dispute
+     :protocol.action/appeal
+     :protocol.action/challenge-resolution]}}
+  {:concept/id :consensus/legitimacy,
+   :mapping/category :concept/actions,
+   :mapping/id :establish-legitimacy,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/resolve
+     :protocol.action/settle
+     :protocol.action/submit-evidence]}}
+  {:concept/id :consensus/legitimacy,
+   :mapping/category :concept/entities,
+   :mapping/id :illegitimacy-signal,
+   :mapping/values
+   {:maps-to [:protocol.entity/dispute :protocol.entity/appeal]}}
+  {:concept/id :consensus/legitimacy,
+   :mapping/category :concept/entities,
+   :mapping/id :legitimacy-signal,
+   :mapping/values
+   {:maps-to [:protocol.entity/settlement :protocol.entity/evidence]}}
+  {:concept/id :consensus/legitimacy,
+   :mapping/category :concept/outcomes,
+   :mapping/id :legitimacy-contested,
+   :mapping/values {:maps-to [:protocol.outcome/appealed]}}
+  {:concept/id :consensus/legitimacy,
+   :mapping/category :concept/outcomes,
+   :mapping/id :legitimacy-failed,
+   :mapping/values
+   {:maps-to [:protocol.outcome/stuck :protocol.outcome/disputed],
+    :mapping/confidence :approximate,
+    :mapping/note
+    "Legitimacy failure may leave funds stuck or the outcome actively disputed"}}
+  {:concept/id :consensus/legitimacy,
+   :mapping/category :concept/outcomes,
+   :mapping/id :legitimacy-strong,
+   :mapping/values {:maps-to [:protocol.outcome/resolved]}}
+  {:concept/id :consensus/legitimacy,
+   :mapping/category :concept/outcomes,
+   :mapping/id :legitimacy-weak,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :consensus/legitimacy,
+   :mapping/category :concept/roles,
+   :mapping/id :legitimacy-assessor,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :consensus/legitimacy,
+   :mapping/category :concept/roles,
+   :mapping/id :legitimacy-challenger,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :consensus/legitimacy,
+   :mapping/category :concept/roles,
+   :mapping/id :legitimacy-claimer,
+   :mapping/values
+   {:maps-to [:protocol.actor/resolver :protocol.actor/governance]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/actions,
+   :mapping/id :advance-process,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/submit-evidence
+     :protocol.action/resolve
+     :protocol.action/settle]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/actions,
+   :mapping/id :detect-stall,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/check-timeout :protocol.action/verify-liveness]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/actions,
+   :mapping/id :recover-from-stall,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/governance-intervention
+     :protocol.action/capacity-bypass]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/actions,
+   :mapping/id :trigger-timeout,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/auto-cancel
+     :protocol.action/timeout-resolution]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/entities,
+   :mapping/id :capacity-budget,
+   :mapping/values {:maps-to [:protocol.entity/capacity]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/entities,
+   :mapping/id :stall-condition,
+   :mapping/values {:maps-to [:protocol.entity/stuck]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/entities,
+   :mapping/id :timer,
+   :mapping/values {:maps-to [:protocol.entity/deadline]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :capacity-exhausted,
+   :mapping/values {:maps-to [:protocol.outcome/stuck]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :progressed-normally,
+   :mapping/values {:maps-to [:protocol.outcome/resolved]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :recovered,
+   :mapping/values {:maps-to [:protocol.outcome/resolved]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :stalled,
+   :mapping/values {:maps-to [:protocol.outcome/stuck]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :timed-out,
+   :mapping/values {:maps-to [:protocol.outcome/timeout]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/roles,
+   :mapping/id :progress-blocker,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/roles,
+   :mapping/id :progress-monitor,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :consensus/liveness,
+   :mapping/category :concept/roles,
+   :mapping/id :progress-unblocker,
+   :mapping/values
+   {:maps-to [:protocol.actor/resolver :protocol.actor/governance]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/actions,
+   :mapping/id :build-registry,
+   :mapping/values {:maps-to [:protocol.action/build-registry]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/actions,
+   :mapping/id :check-forensic-status,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/actions,
+   :mapping/id :reconcile-evidence,
+   :mapping/values {:maps-to [:protocol.action/reconcile-evidence]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/actions,
+   :mapping/id :sign-registry,
+   :mapping/values {:maps-to [:protocol.action/sign-attestation]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/actions,
+   :mapping/id :timestamp-registry,
+   :mapping/values {:maps-to [:protocol.action/timestamp-registry]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/actions,
+   :mapping/id :write-chain-cursor,
+   :mapping/values {:maps-to [:protocol.action/write-chain-cursor]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/entities,
+   :mapping/id :chain-cursor,
+   :mapping/values {:maps-to [:protocol.entity/evidence-chain]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/entities,
+   :mapping/id :evidence-registry,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/entities,
+   :mapping/id :registry-hash,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/entities,
+   :mapping/id :self-referential-hash,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/entities,
+   :mapping/id :signature-map,
+   :mapping/values {:maps-to [:protocol.entity/signature]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/entities,
+   :mapping/id :timestamp-proof,
+   :mapping/values {:maps-to [:protocol.entity/timestamp-proof]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/outcomes,
+   :mapping/id :cursor-mismatch,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/outcomes,
+   :mapping/id :evidence-unreconciled,
+   :mapping/values {:maps-to [:protocol.outcome/stuck]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/outcomes,
+   :mapping/id :forensic-grade,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/outcomes,
+   :mapping/id :registry-hash-mismatch,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/outcomes,
+   :mapping/id :signature-missing-or-invalid,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/outcomes,
+   :mapping/id :timestamp-invalid,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/roles,
+   :mapping/id :evidence-producer,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/roles,
+   :mapping/id :evidence-verifier,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/roles,
+   :mapping/id :signer,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :forensic/evidence-chain,
+   :mapping/category :concept/roles,
+   :mapping/id :timestamp-authority,
+   :mapping/values {:maps-to [:protocol.actor/external]}}
+  {:concept/id :framework/content-root,
+   :mapping/category :concept/actions,
+   :mapping/id :publish-root,
+   :mapping/values {:maps-to [:protocol.action/commit-root]}}
+  {:concept/id :framework/content-root,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-content,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :framework/content-root,
+   :mapping/category :concept/entities,
+   :mapping/id :content-hash,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/content-root,
+   :mapping/category :concept/entities,
+   :mapping/id :projection-spec,
+   :mapping/values {:maps-to [:protocol.entity/projection]}}
+  {:concept/id :framework/content-root,
+   :mapping/category :concept/outcomes,
+   :mapping/id :root-failed,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/content-root,
+   :mapping/category :concept/outcomes,
+   :mapping/id :root-verified,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/content-root,
+   :mapping/category :concept/roles,
+   :mapping/id :consumer,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :framework/content-root,
+   :mapping/category :concept/roles,
+   :mapping/id :publisher,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :framework/creation-provenance,
+   :mapping/category :concept/actions,
+   :mapping/id :commit-creation-provenance,
+   :mapping/values {:maps-to [:protocol.action/commit-root]}}
+  {:concept/id :framework/creation-provenance,
+   :mapping/category :concept/actions,
+   :mapping/id :record-creation-provenance,
+   :mapping/values {:maps-to [:protocol.action/commit-root]}}
+  {:concept/id :framework/creation-provenance,
+   :mapping/category :concept/actions,
+   :mapping/id :validate-creation-provenance,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :framework/creation-provenance,
+   :mapping/category :concept/entities,
+   :mapping/id :creation-provenance-commitment,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/creation-provenance,
+   :mapping/category :concept/entities,
+   :mapping/id :creation-provenance-field,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/creation-provenance,
+   :mapping/category :concept/outcomes,
+   :mapping/id :creation-provenance-committed,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/creation-provenance,
+   :mapping/category :concept/outcomes,
+   :mapping/id :creation-provenance-recorded,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/creation-provenance,
+   :mapping/category :concept/roles,
+   :mapping/id :provenance-creator,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :framework/creation-provenance,
+   :mapping/category :concept/roles,
+   :mapping/id :provenance-verifier,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/actions,
+   :mapping/id :add-held,
+   :mapping/values
+   {:maps-to [:protocol.action/record-held-adjustment]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/actions,
+   :mapping/id :build-held-artifact,
+   :mapping/values {:maps-to [:protocol.action/build-registry]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/actions,
+   :mapping/id :check-held-custody-closed-form,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/actions,
+   :mapping/id :final-held-summary,
+   :mapping/values {:maps-to [:protocol.action/capture-evidence]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/actions,
+   :mapping/id :rebuild-held-artifacts,
+   :mapping/values {:maps-to [:protocol.action/build-registry]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/actions,
+   :mapping/id :replay-held-adjustments,
+   :mapping/values {:maps-to [:protocol.action/reconcile-evidence]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/entities,
+   :mapping/id :held-adjustment,
+   :mapping/values {:maps-to [:protocol.entity/held-adjustment]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/entities,
+   :mapping/id :held-adjustment-ledger,
+   :mapping/values {:maps-to [:protocol.entity/ledger]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/entities,
+   :mapping/id :held-custody-artifact,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/entities,
+   :mapping/id :held-custody-artifact-hash,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/entities,
+   :mapping/id :held-ledger-index,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/outcomes,
+   :mapping/id :held-custody-consistent,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/outcomes,
+   :mapping/id :held-custody-inconsistent,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/outcomes,
+   :mapping/id :held-custody-underflow,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/roles,
+   :mapping/id :custody-observer,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/roles,
+   :mapping/id :custody-producer,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :framework/held-custody,
+   :mapping/category :concept/roles,
+   :mapping/id :researcher,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/incentive-compatibility,
+   :mapping/category :concept/actions,
+   :mapping/id :compute-incentive-margin,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :framework/incentive-compatibility,
+   :mapping/category :concept/actions,
+   :mapping/id :evaluate-incentive-compatibility,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :framework/incentive-compatibility,
+   :mapping/category :concept/entities,
+   :mapping/id :incentive-compatibility-evaluation,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/incentive-compatibility,
+   :mapping/category :concept/entities,
+   :mapping/id :incentive-compatibility-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/incentive-compatibility,
+   :mapping/category :concept/outcomes,
+   :mapping/id :incentive-compatibility-root-committed,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/incentive-compatibility,
+   :mapping/category :concept/outcomes,
+   :mapping/id :incentives-aligned,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/incentive-compatibility,
+   :mapping/category :concept/outcomes,
+   :mapping/id :incentives-inconclusive,
+   :mapping/values {:maps-to [:protocol.outcome/deferred]}}
+  {:concept/id :framework/incentive-compatibility,
+   :mapping/category :concept/outcomes,
+   :mapping/id :incentives-misaligned,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/incentive-compatibility,
+   :mapping/category :concept/roles,
+   :mapping/id :incentive-designer,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :framework/incentive-compatibility,
+   :mapping/category :concept/roles,
+   :mapping/id :incentive-evaluator,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/incentive-compatibility,
+   :mapping/category :concept/roles,
+   :mapping/id :reviewer,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/actions,
+   :mapping/id :compute-incentive-margin,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/actions,
+   :mapping/id :define-incentive-model,
+   :mapping/values {:maps-to [:protocol.action/commit-root]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/actions,
+   :mapping/id :evaluate-incentives,
+   :mapping/values {:maps-to [:protocol.action/evaluate-claim]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/entities,
+   :mapping/id :incentive-assessment,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/entities,
+   :mapping/id :incentive-evaluation,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/entities,
+   :mapping/id :incentive-model,
+   :mapping/values {:maps-to [:protocol.entity/model]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/entities,
+   :mapping/id :incentive-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/outcomes,
+   :mapping/id :incentive-root-committed,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/outcomes,
+   :mapping/id :incentives-aligned,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/outcomes,
+   :mapping/id :incentives-inconclusive,
+   :mapping/values {:maps-to [:protocol.outcome/deferred]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/outcomes,
+   :mapping/id :incentives-misaligned,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/roles,
+   :mapping/id :incentive-designer,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/roles,
+   :mapping/id :incentive-evaluator,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/incentive,
+   :mapping/category :concept/roles,
+   :mapping/id :reviewer,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/outside-option,
+   :mapping/category :concept/actions,
+   :mapping/id :bind-outside-option-root,
+   :mapping/values {:maps-to [:protocol.action/commit-root]}}
+  {:concept/id :framework/outside-option,
+   :mapping/category :concept/actions,
+   :mapping/id :measure-individual-rationality,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :framework/outside-option,
+   :mapping/category :concept/entities,
+   :mapping/id :outside-option-definition-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/outside-option,
+   :mapping/category :concept/entities,
+   :mapping/id :outside-option-value,
+   :mapping/values {:maps-to [:protocol.entity/parameter]}}
+  {:concept/id :framework/outside-option,
+   :mapping/category :concept/outcomes,
+   :mapping/id :individual-irrational,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/outside-option,
+   :mapping/category :concept/outcomes,
+   :mapping/id :individual-rational,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/outside-option,
+   :mapping/category :concept/outcomes,
+   :mapping/id :outside-option-root-committed,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/outside-option,
+   :mapping/category :concept/roles,
+   :mapping/id :incentive-designer,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :framework/outside-option,
+   :mapping/category :concept/roles,
+   :mapping/id :ir-evaluator,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/actions,
+   :mapping/id :build-witness,
+   :mapping/values {:maps-to [:protocol.action/build-registry]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/actions,
+   :mapping/id :resolve-step-evidence,
+   :mapping/values {:maps-to [:protocol.action/reconcile-evidence]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-witness,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/entities,
+   :mapping/id :definition-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/entities,
+   :mapping/id :execution-witness,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/entities,
+   :mapping/id :initial-input-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/entities,
+   :mapping/id :result-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/entities,
+   :mapping/id :step-binding,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/entities,
+   :mapping/id :witness-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :witness-incomplete,
+   :mapping/values {:maps-to [:protocol.outcome/deferred]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :witness-invalid,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/outcomes,
+   :mapping/id :witness-valid,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/roles,
+   :mapping/id :procedure-observer,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/roles,
+   :mapping/id :witness-builder,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :framework/procedure-execution-witness,
+   :mapping/category :concept/roles,
+   :mapping/id :witness-verifier,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/protocol-extension-boundary,
+   :mapping/category :concept/actions,
+   :mapping/id :enforce-boundary,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :framework/protocol-extension-boundary,
+   :mapping/category :concept/actions,
+   :mapping/id :translate-state,
+   :mapping/values {:maps-to [:protocol.action/parameterise]}}
+  {:concept/id :framework/protocol-extension-boundary,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-ownership,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :framework/protocol-extension-boundary,
+   :mapping/category :concept/entities,
+   :mapping/id :binding-receipt,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/protocol-extension-boundary,
+   :mapping/category :concept/entities,
+   :mapping/id :concrete-accounting,
+   :mapping/values {:maps-to [:protocol.entity/module]}}
+  {:concept/id :framework/protocol-extension-boundary,
+   :mapping/category :concept/entities,
+   :mapping/id :generic-framework,
+   :mapping/values {:maps-to [:protocol.entity/module]}}
+  {:concept/id :framework/protocol-extension-boundary,
+   :mapping/category :concept/entities,
+   :mapping/id :protocol-extension,
+   :mapping/values {:maps-to [:protocol.entity/module]}}
+  {:concept/id :framework/protocol-extension-boundary,
+   :mapping/category :concept/outcomes,
+   :mapping/id :boundary-respected,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/protocol-extension-boundary,
+   :mapping/category :concept/outcomes,
+   :mapping/id :boundary-violated,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/protocol-extension-boundary,
+   :mapping/category :concept/roles,
+   :mapping/id :accounting-owner,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :framework/protocol-extension-boundary,
+   :mapping/category :concept/roles,
+   :mapping/id :extension-owner,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :framework/protocol-extension-boundary,
+   :mapping/category :concept/roles,
+   :mapping/id :framework-owner,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :framework/registry-entry-hash,
+   :mapping/category :concept/actions,
+   :mapping/id :compute-hash,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :framework/registry-entry-hash,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-hash,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :framework/registry-entry-hash,
+   :mapping/category :concept/entities,
+   :mapping/id :entry-fields,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/registry-entry-hash,
+   :mapping/category :concept/entities,
+   :mapping/id :entry-hash,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/registry-entry-hash,
+   :mapping/category :concept/outcomes,
+   :mapping/id :hash-mismatch,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/registry-entry-hash,
+   :mapping/category :concept/outcomes,
+   :mapping/id :hash-verified,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/registry-entry-hash,
+   :mapping/category :concept/roles,
+   :mapping/id :registrant,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :framework/registry-entry-hash,
+   :mapping/category :concept/roles,
+   :mapping/id :registry-reader,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/research-assignment,
+   :mapping/category :concept/actions,
+   :mapping/id :assign-task,
+   :mapping/values {:maps-to [:protocol.action/commit-root]}}
+  {:concept/id :framework/research-assignment,
+   :mapping/category :concept/actions,
+   :mapping/id :attest-assignment,
+   :mapping/values {:maps-to [:protocol.action/sign-attestation]}}
+  {:concept/id :framework/research-assignment,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-assignment,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :framework/research-assignment,
+   :mapping/category :concept/entities,
+   :mapping/id :assigned-runner-id,
+   :mapping/values {:maps-to [:protocol.entity/actor]}}
+  {:concept/id :framework/research-assignment,
+   :mapping/category :concept/entities,
+   :mapping/id :assignment-command-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/research-assignment,
+   :mapping/category :concept/entities,
+   :mapping/id :research-task,
+   :mapping/values {:maps-to [:protocol.entity/command]}}
+  {:concept/id :framework/research-assignment,
+   :mapping/category :concept/entities,
+   :mapping/id :task-ref,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/research-assignment,
+   :mapping/category :concept/outcomes,
+   :mapping/id :assignment-mismatch,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/research-assignment,
+   :mapping/category :concept/outcomes,
+   :mapping/id :assignment-valid,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/research-assignment,
+   :mapping/category :concept/roles,
+   :mapping/id :assigned-runner,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :framework/research-assignment,
+   :mapping/category :concept/roles,
+   :mapping/id :assigner,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :framework/research-assignment,
+   :mapping/category :concept/roles,
+   :mapping/id :assignment-verifier,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/actions,
+   :mapping/id :build-command,
+   :mapping/values {:maps-to [:protocol.action/commit-root]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/actions,
+   :mapping/id :compare-commands,
+   :mapping/values
+   {:maps-to [:protocol.action/compare-configurations]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/actions,
+   :mapping/id :validate-command,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/entities,
+   :mapping/id :command-artifact,
+   :mapping/values {:maps-to [:protocol.entity/command]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/entities,
+   :mapping/id :command-hash,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/entities,
+   :mapping/id :command-include,
+   :mapping/values {:maps-to [:protocol.entity/include-directive]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/entities,
+   :mapping/id :command-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/entities,
+   :mapping/id :environment-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/entities,
+   :mapping/id :input-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/entities,
+   :mapping/id :output-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/entities,
+   :mapping/id :runner-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/entities,
+   :mapping/id :semantic-commitments,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/outcomes,
+   :mapping/id :command-mismatch,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/outcomes,
+   :mapping/id :command-valid,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/outcomes,
+   :mapping/id :commands-divergent,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/outcomes,
+   :mapping/id :commands-equivalent,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/roles,
+   :mapping/id :commander,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :framework/research-command,
+   :mapping/category :concept/roles,
+   :mapping/id :reproducer,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/actions,
+   :mapping/id :build-certificate,
+   :mapping/values {:maps-to [:protocol.action/build-registry]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/actions,
+   :mapping/id :finalise-certificate,
+   :mapping/values {:maps-to [:protocol.action/commit-root]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/actions,
+   :mapping/id :per-dimension-consensus,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/actions,
+   :mapping/id :per-theorem-consensus,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/actions,
+   :mapping/id :validate-certificate,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/entities,
+   :mapping/id :certificate-hash,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/entities,
+   :mapping/id :consensus-result,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/entities,
+   :mapping/id :replication-type,
+   :mapping/values {:maps-to [:protocol.entity/classification]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/entities,
+   :mapping/id :research-certificate,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/outcomes,
+   :mapping/id :certificate-divergent,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/outcomes,
+   :mapping/id :certificate-not-evaluable,
+   :mapping/values {:maps-to [:protocol.outcome/deferred]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/outcomes,
+   :mapping/id :certificate-replicated,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/roles,
+   :mapping/id :certificate-builder,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/roles,
+   :mapping/id :certificate-verifier,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/review-certificate,
+   :mapping/category :concept/roles,
+   :mapping/id :review-member,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :framework/review-member-canonical-indices,
+   :mapping/category :concept/actions,
+   :mapping/id :build-canonical-indices,
+   :mapping/values {:maps-to [:protocol.action/build-registry]}}
+  {:concept/id :framework/review-member-canonical-indices,
+   :mapping/category :concept/actions,
+   :mapping/id :lookup-member-index,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :framework/review-member-canonical-indices,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-canonical-indices,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :framework/review-member-canonical-indices,
+   :mapping/category :concept/entities,
+   :mapping/id :canonical-indices-artifact,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/review-member-canonical-indices,
+   :mapping/category :concept/entities,
+   :mapping/id :indices-hash,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/review-member-canonical-indices,
+   :mapping/category :concept/entities,
+   :mapping/id :member-index,
+   :mapping/values {:maps-to [:protocol.entity/index]}}
+  {:concept/id :framework/review-member-canonical-indices,
+   :mapping/category :concept/outcomes,
+   :mapping/id :indices-mismatch,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/review-member-canonical-indices,
+   :mapping/category :concept/outcomes,
+   :mapping/id :indices-valid,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/review-member-canonical-indices,
+   :mapping/category :concept/roles,
+   :mapping/id :index-verifier,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/review-member-canonical-indices,
+   :mapping/category :concept/roles,
+   :mapping/id :member,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :framework/review-member-canonical-indices,
+   :mapping/category :concept/roles,
+   :mapping/id :review-round-admin,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/actions,
+   :mapping/id :bind-commitment,
+   :mapping/values {:maps-to [:protocol.action/commit-root]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/actions,
+   :mapping/id :resolve-commitment,
+   :mapping/values {:maps-to [:protocol.action/reconcile-evidence]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-commitment,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/entities,
+   :mapping/id :assurance-commitment,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/entities,
+   :mapping/id :authorisation-commitment,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/entities,
+   :mapping/id :configuration-commitment,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/entities,
+   :mapping/id :economic-application-commitment,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/entities,
+   :mapping/id :research-execution-commitment,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/entities,
+   :mapping/id :scope-commitment,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/entities,
+   :mapping/id :semantic-commitments-artifact,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/outcomes,
+   :mapping/id :commitment-bound,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/outcomes,
+   :mapping/id :commitment-inconsistent,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/outcomes,
+   :mapping/id :commitment-unresolved,
+   :mapping/values {:maps-to [:protocol.outcome/deferred]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/roles,
+   :mapping/id :commitment-author,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :framework/semantic-commitments,
+   :mapping/category :concept/roles,
+   :mapping/id :commitment-verifier,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/source-creation,
+   :mapping/category :concept/actions,
+   :mapping/id :commit-source-creation,
+   :mapping/values {:maps-to [:protocol.action/commit-root]}}
+  {:concept/id :framework/source-creation,
+   :mapping/category :concept/actions,
+   :mapping/id :record-source-creation,
+   :mapping/values {:maps-to [:protocol.action/commit-root]}}
+  {:concept/id :framework/source-creation,
+   :mapping/category :concept/actions,
+   :mapping/id :validate-source-creation,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :framework/source-creation,
+   :mapping/category :concept/entities,
+   :mapping/id :source-creation-commitment,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :framework/source-creation,
+   :mapping/category :concept/entities,
+   :mapping/id :source-creation-field,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/source-creation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :source-creation-committed,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/source-creation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :source-creation-recorded,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :framework/source-creation,
+   :mapping/category :concept/roles,
+   :mapping/id :provenance-creator,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :framework/source-creation,
+   :mapping/category :concept/roles,
+   :mapping/id :provenance-verifier,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :governance/proposed-content-root,
+   :mapping/category :concept/actions,
+   :mapping/id :commit-root,
+   :mapping/values {:maps-to [:protocol.action/commit-root]}}
+  {:concept/id :governance/proposed-content-root,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-root,
+   :mapping/values {:maps-to [:protocol.action/verify-allocation]}}
+  {:concept/id :governance/proposed-content-root,
+   :mapping/category :concept/entities,
+   :mapping/id :canonical-projection,
+   :mapping/values {:maps-to [:protocol.entity/projection]}}
+  {:concept/id :governance/proposed-content-root,
+   :mapping/category :concept/entities,
+   :mapping/id :content-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :governance/proposed-content-root,
+   :mapping/category :concept/outcomes,
+   :mapping/id :root-committed,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :governance/proposed-content-root,
+   :mapping/category :concept/outcomes,
+   :mapping/id :root-mismatch,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :governance/proposed-content-root,
+   :mapping/category :concept/roles,
+   :mapping/id :proposer,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :governance/proposed-content-root,
+   :mapping/category :concept/roles,
+   :mapping/id :verifier,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :governance/proposed-content,
+   :mapping/category :concept/actions,
+   :mapping/id :submit-proposal,
+   :mapping/values {:maps-to [:protocol.action/submit-proposal]}}
+  {:concept/id :governance/proposed-content,
+   :mapping/category :concept/actions,
+   :mapping/id :withdraw-proposal,
+   :mapping/values {:maps-to [:protocol.action/withdraw-proposal]}}
+  {:concept/id :governance/proposed-content,
+   :mapping/category :concept/entities,
+   :mapping/id :proposal-package,
+   :mapping/values {:maps-to [:protocol.entity/proposal]}}
+  {:concept/id :governance/proposed-content,
+   :mapping/category :concept/entities,
+   :mapping/id :proposal-root,
+   :mapping/values {:maps-to [:protocol.entity/canonical-hash]}}
+  {:concept/id :governance/proposed-content,
+   :mapping/category :concept/outcomes,
+   :mapping/id :proposal-submitted,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :governance/proposed-content,
+   :mapping/category :concept/outcomes,
+   :mapping/id :proposal-withdrawn,
+   :mapping/values {:maps-to [:protocol.outcome/deferred]}}
+  {:concept/id :governance/proposed-content,
+   :mapping/category :concept/roles,
+   :mapping/id :proposer,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :governance/proposed-content,
+   :mapping/category :concept/roles,
+   :mapping/id :reviewer,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/actions,
+   :mapping/id :execute-force-authorisation,
+   :mapping/values
+   {:maps-to [:protocol.action/execute-authorised-action]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/actions,
+   :mapping/id :grant-force-authorisation,
+   :mapping/values {:maps-to [:protocol.action/grant-authorisation]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/actions,
+   :mapping/id :revoke-force-authorisation,
+   :mapping/values {:maps-to [:protocol.action/revoke-authorisation]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/actions,
+   :mapping/id :summarise-force-authorisation-lifecycle,
+   :mapping/values {:maps-to [:protocol.action/report]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-force-authorisation-lifecycle,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/entities,
+   :mapping/id :authorisation-scope,
+   :mapping/values {:maps-to [:protocol.entity/scope-map]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/entities,
+   :mapping/id :consumption-registry,
+   :mapping/values {:maps-to [:protocol.entity/consumption-registry]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/entities,
+   :mapping/id :force-authorisation-grant,
+   :mapping/values {:maps-to [:protocol.entity/authorisation-record]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :authorisation-expired,
+   :mapping/values {:maps-to [:protocol.outcome/expiry-enforced]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :authorisation-revoked,
+   :mapping/values {:maps-to [:protocol.outcome/revoked]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :lifecycle-consistent,
+   :mapping/values
+   {:maps-to
+    [:protocol.outcome/single-use-enforced
+     :protocol.outcome/scope-enforced]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :scope-drifted,
+   :mapping/values {:maps-to [:protocol.outcome/scope-violation]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :scope-enforced,
+   :mapping/values {:maps-to [:protocol.outcome/scope-enforced]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :single-use-enforced,
+   :mapping/values {:maps-to [:protocol.outcome/single-use-enforced]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/roles,
+   :mapping/id :force-executor,
+   :mapping/values
+   {:maps-to [:protocol.actor/keeper :protocol.actor/governance]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/roles,
+   :mapping/id :governance-authoriser,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :security/force-authorisation,
+   :mapping/category :concept/roles,
+   :mapping/id :scope-beneficiary,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/actions,
+   :mapping/id :check-invariant,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/check-invariant
+     :protocol.action/validate-invariant]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/actions,
+   :mapping/id :compare-with-attestation,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/compare-hashes :protocol.action/validate-claim]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/actions,
+   :mapping/id :compute-hash,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/canonical-hash :protocol.action/hash-bundle]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/actions,
+   :mapping/id :replay-scenario,
+   :mapping/values
+   {:maps-to [:protocol.action/replay :protocol.action/reproduce]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/actions,
+   :mapping/id :request-trace,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/export-trace :protocol.action/get-evidence]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-attestation,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/verify-signature
+     :protocol.action/validate-attestation]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-evidence-chain,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/verify-chain :protocol.action/validate-links]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/entities,
+   :mapping/id :attestation,
+   :mapping/values {:maps-to [:protocol.entity/attestation]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/entities,
+   :mapping/id :bundle-manifest,
+   :mapping/values {:maps-to [:protocol.entity/manifest]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/entities,
+   :mapping/id :canonical-hash,
+   :mapping/values {:maps-to [:protocol.entity/hash]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/entities,
+   :mapping/id :evidence-bundle,
+   :mapping/values {:maps-to [:protocol.entity/evidence-bundle]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/entities,
+   :mapping/id :evidence-chain,
+   :mapping/values {:maps-to [:protocol.entity/evidence-chain]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/entities,
+   :mapping/id :invariant-result,
+   :mapping/values {:maps-to [:protocol.entity/invariant-result]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/entities,
+   :mapping/id :trace-log,
+   :mapping/values {:maps-to [:protocol.entity/trace]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :attestation-forged,
+   :mapping/values {:maps-to [:protocol.outcome/forged]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :attestation-valid,
+   :mapping/values {:maps-to [:protocol.outcome/attested]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :evidence-incomplete,
+   :mapping/values {:maps-to [:protocol.outcome/inconclusive]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :outcome-verified-correct,
+   :mapping/values {:maps-to [:protocol.outcome/verified]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :outcome-verified-incorrect,
+   :mapping/values {:maps-to [:protocol.outcome/falsified]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :replay-consistent,
+   :mapping/values {:maps-to [:protocol.outcome/deterministic]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :replay-divergent,
+   :mapping/values {:maps-to [:protocol.outcome/non-deterministic]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/roles,
+   :mapping/id :auditor,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/roles,
+   :mapping/id :observer,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/roles,
+   :mapping/id :participant,
+   :mapping/values
+   {:maps-to [:protocol.role/sender :protocol.role/recipient],
+    :mapping/confidence :approximate,
+    :mapping/note
+    "Participant role depends on their original role in the interaction"}}
+  {:concept/id :verifiable-assurance/forensic-confidence,
+   :mapping/category :concept/roles,
+   :mapping/id :regulator,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}]}

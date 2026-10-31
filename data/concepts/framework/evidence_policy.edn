@@ -1,0 +1,68 @@
+{:concept/id :framework/evidence-policy
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Evidence policy"
+ :concept/summary
+ "An evidence policy declares which evidence is captured, how artifacts are included or filtered, and how long evidence is retained. It shapes the available record but does not establish that captured evidence is correct, authentic, complete, or sufficient for a claim."
+
+ :concept/stakeholder-question
+ "What evidence will this run capture and retain, and what does that policy leave out?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:framework/creation-provenance
+  :framework/source-creation
+  :framework/content-root
+  :framework/registry-entry-hash]
+
+ :concept/roles
+ {:policy-author {:description "Defines or selects the evidence capture and retention policy."}
+  :policy-consumer {:description "Applies the declared policy while producing or inspecting an evidence bundle."}}
+
+ :concept/entities
+ {:evidence-policy {:description "A versioned declaration of capture thresholds, inclusion flags, and retention rules."}
+  :evidence-record {:description "The evidence artifacts produced under a policy, subject to the policy's declared capture and retention rules."}}
+
+ :concept/actions
+ {:declare-evidence-policy {:description "Bind a named evidence policy to a run or evidence bundle."}
+  :apply-evidence-policy {:description "Select and retain evidence according to the declared policy."}
+  :verify-policy-binding {:description "Check the policy identity or committed policy root associated with the evidence."}}
+
+ :concept/outcomes
+ {:policy-bound {:description "A run or bundle identifies the evidence policy under which its evidence was collected."}
+  :evidence-filtered {:description "Artifacts were selected or retained according to the declared capture and retention rules."}
+  :policy-insufficient-for-claim {:description "The policy omits or discards information needed to verify a particular claim."}}
+
+ :concept/failure-modes
+ [{:failure/id :evidence-policy-omission
+   :failure/name "Evidence policy omits relevant artifacts"
+   :failure/summary "The capture policy excludes evidence needed to independently inspect or reproduce a claim."
+   :protocol-mechanisms [:evidence-policy :content-root]
+   :stakeholder-impact "A verifier may be unable to assess the claim even when the run completed successfully."}
+  {:failure/id :evidence-policy-misrepresentation
+   :failure/name "Evidence policy misrepresented"
+   :failure/summary "A bundle is described as complete or reproducible without disclosing its capture thresholds, exclusions, or retention limits."
+   :protocol-mechanisms [:evidence-policy :registry-entry-hash]
+   :stakeholder-impact "Reviewers may mistake a policy-limited record for a complete evidentiary record."}
+  {:failure/id :evidence-policy-confers-trust
+   :failure/name "Evidence policy treated as proof of correctness"
+   :failure/summary "The presence of a declared policy is treated as proof that evidence is authentic, correct, or sufficient."
+   :protocol-mechanisms [:evidence-policy]
+   :stakeholder-impact "Policy metadata is mistaken for independent verification of the resulting evidence."}]
+
+ :concept/assumptions
+ ["Policies describe evidence capture and retention; they do not determine the truth of claims supported by that evidence."
+  "A valid policy binding identifies the policy used but does not prove that the policy is adequate for every claim."
+  "Creation provenance and source creation provenance describe origins and remain distinct from evidence capture policy."]
+
+ :concept/metrics
+ {:policy-bound-run-count {:description "Number of runs or bundles with a resolvable evidence-policy binding."
+                           :source :derived-from-evidence}
+  :policy-coverage {:description "Coverage of required artifact classes under a named verification profile."
+                    :source :derived-from-evidence}}
+
+ :concept/out-of-scope
+ ["Proving that captured evidence is correct, authentic, or independently reproducible."
+  "Establishing claim sufficiency without a claim-specific verification method."
+  "Recording whether an artifact or its underlying source was created in-band or out-of-band; those are provenance concepts."]}

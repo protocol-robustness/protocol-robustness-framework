@@ -17,55 +17,55 @@
  :concept/roles
  {:progress-monitor
   {:description "Entity that observes whether the process advances."
-   :maps-to [:protocol.actor/verifier]}
+   }
   :progress-blocker
   {:description "Entity or condition that prevents advancement."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+   }
   :progress-unblocker
   {:description "Entity that can resolve a stall or timeout."
-   :maps-to [:protocol.actor/resolver :protocol.actor/governance]}}
+   }}
 
  :concept/entities
  {:timer
   {:description "Protocol clock measuring elapsed time against deadlines."
-   :maps-to [:protocol.entity/deadline]}
+   }
   :capacity-budget
   {:description "Limited pool of concurrent disputes a resolver can handle."
-   :maps-to [:protocol.entity/capacity]}
+   }
   :stall-condition
   {:description "Protocol state from which no action can advance."
-   :maps-to [:protocol.entity/stuck]}}
+   }}
 
  :concept/actions
  {:advance-process
   {:description "Take an action that moves the interaction forward."
-   :maps-to [:protocol.action/submit-evidence :protocol.action/resolve :protocol.action/settle]}
+   }
   :detect-stall
   {:description "Recognise that no progress has occurred within expected bounds."
-   :maps-to [:protocol.action/check-timeout :protocol.action/verify-liveness]}
+   }
   :trigger-timeout
   {:description "Automatically advance state because a deadline expired."
-   :maps-to [:protocol.action/auto-cancel :protocol.action/timeout-resolution]}
+   }
   :recover-from-stall
   {:description "Governance or resolver intervention to restart a stalled process."
-   :maps-to [:protocol.action/governance-intervention :protocol.action/capacity-bypass]}}
+   }}
 
  :concept/outcomes
  {:progressed-normally
   {:description "Process advanced within expected time bounds."
-   :maps-to [:protocol.outcome/resolved]}
+   }
   :timed-out
   {:description "A deadline expired before required action was taken."
-   :maps-to [:protocol.outcome/timeout]}
+   }
   :stalled
   {:description "Process halted with no available action to advance."
-   :maps-to [:protocol.outcome/stuck]}
+   }
   :capacity-exhausted
   {:description "Resolver reached maximum concurrent disputes and could not accept more."
-   :maps-to [:protocol.outcome/stuck]}
+   }
   :recovered
   {:description "A stalled or timed-out process was restarted by intervention."
-   :maps-to [:protocol.outcome/resolved]}}
+   }}
 
  :concept/failure-modes
  [{:failure/id :resolver-timeout

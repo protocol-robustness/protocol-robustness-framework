@@ -26,49 +26,49 @@
  :concept/roles
  {:claimant
   {:description "Party with a valid unpaid remainder after partial settlement."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+   }
   :allocation-engine
   {:description "Protocol logic that records and tracks deferred amounts."
-   :maps-to [:protocol.actor/resolution-module]}
+   }
   :auditor
   {:description "Party verifying that deferred claims were recorded faithfully."
-   :maps-to [:protocol.actor/verifier]}}
+   }}
 
  :concept/entities
  {:deferred-claim
   {:description "Unpaid remainder preserved for future recovery."
-   :maps-to [:protocol.entity/deferred-claim]}
+   }
   :claim-basis
   {:description "Original valid claim amount before shortfall adjustment."
-   :maps-to [:protocol.entity/claim]}
+   }
   :fulfilled-amount
   {:description "Amount already paid before deferral."
-   :maps-to [:protocol.entity/settlement]}
+   }
   :recovery-record
   {:description "Traceable record linking the deferred amount to later recovery."
-   :maps-to [:protocol.entity/evidence]}}
+   }}
 
  :concept/actions
  {:record-deferred-claim
   {:description "Persist the unpaid remainder after partial settlement."
-   :maps-to [:protocol.action/record-deferred-claim]}
+   }
   :verify-deferred-claim
   {:description "Check that deferred amount equals valid claim minus fulfilled amount."
-   :maps-to [:protocol.action/verify-allocation :protocol.action/check-invariant]}
+   }
   :recover-deferred-claim
   {:description "Apply future recovery to an existing deferred claim."
-   :maps-to [:protocol.action/settle :protocol.action/partial-fill]}}
+   }}
 
  :concept/outcomes
  {:claim-deferred
   {:description "Unpaid remainder is preserved for future recovery."
-   :maps-to [:protocol.outcome/deferred]}
+   }
   :claim-recovered
   {:description "Previously deferred amount is later recovered in full or in part."
-   :maps-to [:protocol.outcome/released]}
+   }
   :claim-lost
   {:description "Unpaid remainder is not preserved, blocking later recovery."
-   :maps-to [:protocol.outcome/stuck]}}
+   }}
 
  :concept/failure-modes
   [{:failure/id :deferred-claim-unclassified

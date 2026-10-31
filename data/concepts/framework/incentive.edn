@@ -19,39 +19,39 @@
 
  :concept/roles
  {:incentive-evaluator {:description "Entity that runs incentive evaluation and interprets results."
-                        :maps-to [:protocol.role/verifier]}
+                        }
   :incentive-designer {:description "Entity that defines the incentive model for a benchmark."
-                       :maps-to [:protocol.actor/resolution-module]}
+                       }
   :reviewer {:description "Entity that assesses incentive dimensions in a researcher position."
-             :maps-to [:protocol.role/verifier]}}
+             }}
 
  :concept/entities
  {:incentive-model {:description "Content-addressed incentive-model.v1 artifact describing the subject, participant roles, reward, penalty, cost, payoff interpretation, policy roots, and evaluator semantics that govern the analysed behaviour."
-                    :maps-to [:protocol.entity/model]}
+                    }
   :incentive-evaluation {:description "Result of evaluating incentive-relevant properties from scenario outcomes. Produces participant, strategy, and coalition assessments."
-                         :maps-to [:protocol.entity/evidence]}
+                         }
   :incentive-root {:description "Content root for the incentive evaluation result, committed as :outcomes/incentive-root in the benchmark outcome manifest. The incentive root is produced by a research command that includes :incentive and is committed in combination with that command's command-root (:execution/command-root) in the same :outcome-hashes projection. The incentive concept owns which fields and values enter this root's canonical projection; the generic canonical encoding of the resulting hash-preimage follows the verifiable-assurance canonical serialization rules."
-                   :maps-to [:protocol.entity/canonical-hash]}
+                   }
   :incentive-assessment {:description "Structured assessment of one incentive dimension — participants, strategies, or coalitions — used in researcher position review."
-                         :maps-to [:protocol.entity/evidence]}}
+                         }}
 
  :concept/actions
  {:evaluate-incentives {:description "Evaluate incentive-relevant properties from scenario outcomes, producing participant, strategy, and coalition assessments."
-                        :maps-to [:protocol.action/evaluate-claim]}
+                        }
   :compute-incentive-margin {:description "Compute U_honest - max(U_deviation) over the declared deviation types actually supplied to the evaluation (e.g. malicious, lazy, collusive). The margin is relative to that declared deviation domain only; a positive margin does not by itself establish incentive compatibility across all possible deviations."
-                             :maps-to [:protocol.action/check-invariant]}
+                             }
   :define-incentive-model {:description "Define, validate, and hash an incentive-model.v1 artifact. Canonical run-package registry publication remains the responsibility of the shared execution lifecycle."
-                           :maps-to [:protocol.action/commit-root]}}
+                           }}
 
  :concept/outcomes
  {:incentives-aligned {:description "All evaluated incentive properties are satisfied; honest behaviour is strictly or weakly preferred."
-                       :maps-to [:protocol.outcome/released]}
+                       }
   :incentives-misaligned {:description "A deviation produces equal or better payoff than honest behaviour."
-                          :maps-to [:protocol.outcome/adversarial-resolution]}
+                          }
   :incentives-inconclusive {:description "Incentive evaluation could not determine alignment due to missing or ambiguous evidence."
-                            :maps-to [:protocol.outcome/deferred]}
+                            }
   :incentive-root-committed {:description "Incentive evaluation result root is committed in the outcome manifest."
-                             :maps-to [:protocol.outcome/released]}}
+                             }}
 
  :concept/failure-modes
  [{:failure/id :incentive-model-root-mismatch

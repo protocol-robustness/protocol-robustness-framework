@@ -8,37 +8,37 @@
  :concept/frameworks #{:framework/prf}
   :concept/related [:verifiable-assurance/forensic-confidence :consensus/evidence]
  :concept/roles
- {:role/reviewer {:description "Evaluates whether benchmark results have adequate evidence, coverage, and determinism to support their claims." :maps-to []} :role/researcher {:description "Uses confidence dimensions to qualify benchmark findings and identify gaps." :maps-to []} :role/protocol-designer {:description "Uses confidence to assess whether invariant and benchmark results are trustworthy enough to inform protocol changes." :maps-to []}}
+ {:role/reviewer {:description "Evaluates whether benchmark results have adequate evidence, coverage, and determinism to support their claims." } :role/researcher {:description "Uses confidence dimensions to qualify benchmark findings and identify gaps." } :role/protocol-designer {:description "Uses confidence to assess whether invariant and benchmark results are trustworthy enough to inform protocol changes." }}
  :concept/entities
  {:entity/claim-result
   {:description "A structured outcome for a single claim tested by a scenario or benchmark."
-   :maps-to [:protocol.entity/claim-result]}
+   }
   :entity/evidence-artifact
   {:description "A hash-addressed artifact that supports a claim result (replay output, attestation, registry node)."
-   :maps-to [:protocol.entity/evidence]}
+   }
   :entity/benchmark-run
   {:description "A full execution of a benchmark pack producing a set of claim results with associated confidence values."
-   :maps-to [:protocol.entity/benchmark-run]}}
+   }}
  :concept/actions
  {:action/test-scenario
   {:description "Execute a scenario to produce a result for one or more claims."
-   :maps-to [:protocol.action/run-scenario]}
+   }
   :action/evaluate-claim
   {:description "Assess a claim result against expectations and theory, producing a pass/fail verdict."
-   :maps-to [:protocol.action/evaluate-claim]}
+   }
   :action/attest-result
   {:description "Produce an attestation for a claim result, linking evidence artifacts into a chain."
-   :maps-to [:protocol.action/attest]}}
+   }}
  :concept/outcomes
  {:outcome/high-confidence
   {:description "The claim result is supported by strong evidence, broad coverage, deterministic replay, and independent attestation."
-   :maps-to [:protocol.outcome/pass]}
+   }
    :outcome/medium-confidence
    {:description "The claim result is supported but has gaps in coverage, non-deterministic elements, or missing attestation."
-    :maps-to [:protocol.outcome/warn]}
+    }
   :outcome/low-confidence
   {:description "The claim result has significant evidence, coverage, or determinism gaps and should not be relied upon without further investigation."
-   :maps-to [:protocol.outcome/warn]}}
+   }}
  :concept/failure-modes
   [{:failure/id :failure/binary-pass-overclaim
     :failure/name "Binary-pass overclaim"

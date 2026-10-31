@@ -23,41 +23,41 @@
 
  :concept/roles
  {:commitment-author {:description "Entity that declares which semantic interpretation an outcome asserts."
-                      :maps-to [:protocol.actor/verifier]}
+                      }
   :commitment-verifier {:description "Entity that checks a commitment's references resolve and are consistent with the command."
-                        :maps-to [:protocol.role/verifier]}}
+                        }}
 
  :concept/entities
  {:semantic-commitments-artifact {:description "The outcome manifest's :evidence/semantic-commitments section binding category-specific roots to the outcome."
-                                  :maps-to [:protocol.entity/evidence]}
+                                  }
   :scope-commitment {:description "Binds the asserted relationship between artifacts (baseline/proposed/executed content roots, comparison class, scope policy)."
-                     :maps-to [:protocol.entity/evidence]}
+                     }
   :authorisation-commitment {:description "Binds the outcome to a specific authorised execution lifecycle by referencing the force-authorised-execution-evidence profile root. The profile already commits authorisation-hash, reservation-hash, consumption-receipt-hash, policy-hash, review-round-hash, and executed-content-root; the commitment references the profile root rather than reproducing those fields."
-                             :maps-to [:protocol.entity/evidence]}
+                             }
   :economic-application-commitment {:description "Binds the economic decision→effect→application→resulting-state pipeline (policy, decision, effect, application, state roots)."
-                                    :maps-to [:protocol.entity/evidence]}
+                                    }
   :assurance-commitment {:description "Binds the outcome to the limitation set, known gaps, and evidence profile under which it was produced."
-                         :maps-to [:protocol.entity/evidence]}
+                         }
   :configuration-commitment {:description "Binds the outcome to the declared/configured execution environment (module, oracle, policy), not to observed external behaviour."
-                             :maps-to [:protocol.entity/evidence]}
+                             }
   :research-execution-commitment {:description "Binds the outcome to an execution specification (sampling/case-generation context)."
-                                  :maps-to [:protocol.entity/evidence]}}
+                                  }}
 
  :concept/actions
  {:bind-commitment {:description "Declare a semantic category and reference its authoritative artifact roots."
-                    :maps-to [:protocol.action/commit-root]}
+                    }
   :verify-commitment {:description "Check that a commitment's referenced roots resolve and are consistent with the command-root and outcome."
-                      :maps-to [:protocol.action/verify-allocation]}
+                      }
   :resolve-commitment {:description "Resolve a commitment category's referenced artifact for inspection."
-                       :maps-to [:protocol.action/reconcile-evidence]}}
+                       }}
 
  :concept/outcomes
  {:commitment-bound {:description "The semantic category is declared and references resolve."
-                     :maps-to [:protocol.outcome/released]}
+                     }
   :commitment-inconsistent {:description "A commitment's references are inconsistent with the command or outcome."
-                            :maps-to [:protocol.outcome/adversarial-resolution]}
+                            }
   :commitment-unresolved {:description "A referenced root cannot be resolved."
-                          :maps-to [:protocol.outcome/deferred]}}
+                          }}
 
  :concept/failure-modes
  [{:failure/id :commitment-reference-unresolved
