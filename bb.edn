@@ -623,7 +623,7 @@ test:quick
    :task (shell "clojure" "-M:test" "-m" "scripts.scenarios.check-direct-writes")}
 
    validate {:doc "Structural validation pipeline: lint + notebook + SPEDS."
-             :task (clojure "-M:cli/sew" "validate")}
+             :task (shell "clojure" "-M:cli/sew" "validate")}
 
    doctor
    {:doc "Report the PRF research environment: toolchain, project revision, working tree, researcher paths, and whether canonical classpaths resolve."
@@ -1137,7 +1137,7 @@ test:integration:postgres {:doc "Run PostgreSQL resubmission admission and durab
              "yield-scenarios")
 
       (println "▶ backstop: CLI default gate")
-      (clojure "-M:cli/sew" "backstop"))}
+      (shell "clojure" "-M:cli/sew" "backstop"))}
 
    backstop:fast
    {:doc "Run the fast registered edit-loop review gate."

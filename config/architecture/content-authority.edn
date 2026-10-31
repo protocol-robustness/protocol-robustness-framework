@@ -40,6 +40,7 @@
 
  :governed-roots
  ["src/resolver_sim"
+  "yield_runtime_src/resolver_sim"
   "protocols_src"
   "scenarios/edn"
   "data/params"
@@ -58,6 +59,10 @@
  [{:path "src/resolver_sim/**"
    :authority :prf :content-kind :core-contract :support-status :normative
    :reason "generic protocol-robustness framework machinery"}
+
+  {:path "yield_runtime_src/resolver_sim/**"
+   :authority :prf :content-kind :core-contract :support-status :normative
+   :reason "portable yield-runtime model and accounting machinery"}
 
   {:path "protocols_src/**"
    :authority :protocol :content-kind :integration :support-status :supported

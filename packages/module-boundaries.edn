@@ -1,6 +1,7 @@
 {:schema "prf-module-boundaries.v1"
  :status :in-tree-enforced
- :source-location-convention {:resolver-sim "src/resolver_sim/<namespace path>.clj"
+ :source-location-convention {:resolver-sim "src/resolver_sim/<namespace path>.clj (excluding resolver-sim.yield.*)"
+                              :yield-runtime "yield_runtime_src/resolver_sim/yield/<namespace path>.clj"
                               :prf-canonical "https://github.com/protocol-robustness/prf-canonical.git at immutable :git/sha; deps root clj"
                               :prf-pro-rata-allocation "https://github.com/protocol-robustness/prf-pro-rata-allocation.git at immutable :git/sha; deps root clj"
                               :prf-coprocessor "https://github.com/protocol-robustness/prf-coprocessor.git at immutable revision in data/prf/external-repositories.json"

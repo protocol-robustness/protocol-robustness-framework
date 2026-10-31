@@ -61,7 +61,7 @@ The resolved 353-file closure includes these largest groups:
 | Source group | Files | What it indicates |
 | --- | ---: | --- |
 | `protocols_src/resolver_sim/protocols` | 77 | Sew implementation and shared adjudication adapters |
-| `src/resolver_sim/yield` | 28 | Yield runtime and accounting integration |
+| `yield_runtime_src/resolver_sim/yield` | 28 | Yield runtime and accounting integration |
 | `protocols_src/resolver_sim/research` | 25 | Sew-specific research analyses pulled into the closure |
 | `src/resolver_sim/sim` | 22 | Simulation support |
 | `src/resolver_sim/scenario` | 20 | Scenario evaluation and reporting |
@@ -139,6 +139,21 @@ Preparation should identify smaller stable entrypoints for:
 - Force-authorisation and governed-composition integrations.
 
 These are candidate ownership slices, not yet approved package boundaries.
+
+### Yield integration gate
+
+The `yield-runtime` component gives the generic yield runtime an independent
+owner and source root, but Sew still requires it. Direct yield API
+calls remain in the protocol root and in `sew.lifecycle`, `sew.resolution`, `sew.snapshot`,
+`sew.projection`, `sew.claimable-outcome`, and `sew.invariants`; Sew-specific
+yield policy and invariant namespaces also depend on the runtime. A source-level
+extraction therefore needs a core-owned capability boundary for initialization,
+stake deposits and withdrawals, deferred claims, accrual and settlement,
+snapshot validation, risk actions, and yield invariant/evidence projection.
+The no-yield profile must define explicit behavior for each operation before
+these calls can be removed from Sew core. Until then, `yield-runtime` is a
+separately selectable in-tree component, while the Sew profile still composes
+it and retains its 232-file closure.
 
 ### Pro-rata evaluation inside the Sew slash integration
 

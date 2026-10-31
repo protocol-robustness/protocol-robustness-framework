@@ -230,9 +230,9 @@ current positions.
 
 ### Expected files
 
-- Update `src/resolver_sim/yield/invariants.clj`
+- Update `yield_runtime_src/resolver_sim/yield/invariants.clj`
 - Confirm/reuse `canonical-hash-safe` from
-  `src/resolver_sim/yield/modules/liquid_lending.clj`
+  `yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj`
 - Update `test/resolver_sim/yield/pro_rata_accounting_test.clj`
 
 ### Implementation steps

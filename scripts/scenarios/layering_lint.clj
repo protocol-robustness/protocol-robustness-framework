@@ -68,7 +68,7 @@
            :forbidden req-ns})))))
 
 (defn -main [& _]
-  (let [files (src-files "src/resolver_sim")
+  (let [files (mapcat src-files ["src/resolver_sim" "yield_runtime_src/resolver_sim"])
         violations (vec (mapcat check-file files))]
     (if (empty? violations)
       (do (println (format "Layering lint passed (%d namespaces checked)." (count files)))

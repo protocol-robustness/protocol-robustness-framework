@@ -319,7 +319,7 @@
           (if-let [v (resolve (symbol (str ns-name "/" fname)))]
             (if (fn? @v)
               (if (= :completeness-clearing-escape behaviour)
-                (let [file (find-source-file ["src" "protocols_src"] ns-name)
+                (let [file (find-source-file ["src" "yield_runtime_src" "protocols_src"] ns-name)
                       form (some (fn [f] (when (= fname (fn-name f)) f))
                                  (when file (read-top-level-forms file)))]
                   (cond
@@ -416,7 +416,7 @@
 
 (defn -main
   [& args]
-  (let [roots (or (seq args) ["src" "protocols_src"])
+  (let [roots (or (seq args) ["src" "yield_runtime_src" "protocols_src"])
         files (mapcat source-files roots)
         allowlist-errors (vec (keep validate-allowlist-entry (keys allowlist)))
         private-mutator-error (check-canonical-private-mutator roots)
