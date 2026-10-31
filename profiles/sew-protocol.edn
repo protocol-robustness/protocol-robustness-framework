@@ -3,4 +3,5 @@
  :profile/status :candidate
  :profile/protocol :prf.protocol/sew
  :profile/extends :prf/framework-v1
- :profile/components [:prf/sew-core-v1]}
+ :profile/components [:prf/sew-core-v1
+                      :prf/sew-pro-rata-slashing-v1]}

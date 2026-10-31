@@ -68,10 +68,13 @@
       (catch java.io.FileNotFoundException _ nil))))
 
 (defn get-protocol
-  "Resolve an adapter by ID. If it is not registered by the core, attempt the
-   conventional optional bootstrap namespace
-   `resolver-sim.protocols.<extension>.extension`; missing extensions return nil."
+  "Resolve an adapter by ID. An explicitly registered extension takes
+   precedence; otherwise load the conventional optional bootstrap namespace
+   `resolver-sim.protocols.<extension>.extension` before resolving the core
+   adapter. Missing optional bootstraps fall back to the core registry."
   [protocol-id]
-  (or (resolve-var-value (get (protocol-symbol-registry) protocol-id))
-      (do (bootstrap-extension! protocol-id)
-          (resolve-var-value (get (protocol-symbol-registry) protocol-id)))))
+  (if-let [extension (get @extension-protocol-symbol-registry protocol-id)]
+    (resolve-var-value extension)
+    (do
+      (bootstrap-extension! protocol-id)
+      (resolve-var-value (get (protocol-symbol-registry) protocol-id)))))
