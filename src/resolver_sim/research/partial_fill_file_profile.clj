@@ -108,6 +108,7 @@
                                   (:submission/submitter-root submission)
                                   (:submission/root submission)])
                    (canonical-roots? (:submission/source-roots submission))
+                   (seq (:submission/source-roots submission))
                    (= (:submission/root submission) (submission-root submission))
                    (= (:operation/root operation) (:submission/operation-root submission))
                    (= (:operation/asset-root operation) (:submission/asset-root submission))
@@ -682,16 +683,28 @@
         (let [state (refresh-state! ledger channel)
               submission (get-in state [:submissions
                                         (:preparation/submission-root preparation)])
-              prep-root (:preparation/root preparation)]
+              prep-root (:preparation/root preparation)
+              prior (get-in state [:preparations prep-root])]
           (when-not (and submission
-                         (not (contains? (:admissions state)
-                                         (:preparation/submission-root preparation)))
                          (valid-preparation? (:operation state) submission preparation))
             (throw (ex-info "Preparation is stale or not bound to this submission snapshot"
                             {:reason :partial-fill-file/stale-preparation
                              :preparation/root prep-root})))
-          (if-let [prior (get-in state [:preparations prep-root])]
+          (cond
+            (and prior (= prior preparation))
             {:status :duplicate :preparation/root (:preparation/root prior)}
+
+            prior
+            (throw (ex-info "Preparation root is already bound to different content"
+                            {:reason :partial-fill-file/preparation-conflict
+                             :preparation/root prep-root}))
+
+            (contains? (:admissions state) (:preparation/submission-root preparation))
+            (throw (ex-info "Cannot add a preparation after admission"
+                            {:reason :partial-fill-file/stale-preparation
+                             :preparation/root prep-root}))
+
+            :else
             (do
               (ensure-open! state)
               (let [next-state (write-event! ledger channel state :prepared preparation)]

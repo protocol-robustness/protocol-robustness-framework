@@ -148,6 +148,10 @@
                                   submissions)
             before (profile/economic-projection (profile/ledger-state ledger))
             bytes-before (Files/readAllBytes path)]
+        (is (= :duplicate
+               (:status (profile/prepare! ledger
+                                          (preparation-for ledger (first submissions) \6))))
+            "lost preparation acknowledgement remains retryable after admission")
         (is (= :partial-fill-file/stale-preparation
                (exception-reason #(profile/prepare!
                                    ledger (preparation-for ledger (first submissions) \5)))))
@@ -212,6 +216,36 @@
           {:projection-root (profile/economic-projection-root state)
            :journal-root (:journal/root state)
            :commit-roots (mapv :commit/root commits)}))
+      (finally (delete-tree! directory)))))
+
+(deftest submissions-require-at-least-one-recorded-source
+  (let [operation (fixture-operation)
+        {:keys [directory path ledger]} (temp-ledger operation)
+        valid (submission-for operation \1 \a)
+        body (assoc valid :submission/source-roots [])
+        without-sources (assoc body :submission/root (profile/submission-root body))
+        before (Files/readAllBytes path)]
+    (try
+      (is (= :partial-fill-file/invalid-submission
+             (exception-reason #(profile/submit! ledger without-sources))))
+      (is (= (seq before) (seq (Files/readAllBytes path))))
+      (is (empty? (profile/submissions ledger)))
+      (finally (delete-tree! directory)))))
+
+(deftest journal-replay-rejects-a-re-rooted-source-free-submission
+  (let [operation (fixture-operation)
+        {:keys [directory path authority-root]} (empty-temp-ledger operation)
+        genesis (profile/create-ledger! path operation authority-root)
+        valid (submission-for operation \1 \a)
+        body (assoc valid :submission/source-roots [])
+        source-free (assoc body :submission/root (profile/submission-root body))
+        record (rechain-record 1 (:journal/root (profile/ledger-state genesis))
+                               authority-root :submission source-free)]
+    (try
+      ;; Bypass submit!, as if an externally edited journal had been re-rooted.
+      (append-record! path record)
+      (is (= :partial-fill-file/invalid-submission
+             (exception-reason #(profile/create-ledger! path operation authority-root))))
       (finally (delete-tree! directory)))))
 
 (deftest six-admission-and-commit-orders-converge-but-retain-distinct-history

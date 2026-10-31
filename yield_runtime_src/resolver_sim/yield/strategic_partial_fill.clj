@@ -6,14 +6,16 @@
    bounded strategic manipulation by comparing allocations before and after
    claim transformations (split, merge, permute, sybil, inflate).
 
-   All checks operate through exhaustive enumeration over small integer
-   claim sets (1-5 claims, request values 0-20, liquidity 0-20) and remain
-   deterministic — no stochastic sampling, no state explosion beyond the
-   configured scope."
+   Checks search bounded integer claim sets. The artifact records whether
+   its configured state generator is exhaustive or sampled, and its evaluation
+   budget. No search result establishes a universal equilibrium claim."
   (:require
 
    [resolver-sim.validation.deviation-contract :as dc]
-   [resolver-sim.validation.enumeration :as enum]))
+   [resolver-sim.validation.enumeration :as enum]
+   [resolver-sim.hash.canonical :as hc]
+   [resolver-sim.yield.strategic-execution :as execution]
+   [resolver-sim.signed-external-decision :as signed-decision]))
 
 ;; ---------------------------------------------------------------------------
 ;; Allocation helper
@@ -106,6 +108,130 @@
    :penalty-cost
    :continuation-value
    :discount-factor-bps])
+
+(def recovery-game-assumption-attestation-domain
+  "resolver-sim/partial-fill-recovery-game-assumptions.v1")
+
+(def recovery-game-assumption-attestation-role
+  :recovery-game-assumptions-authority)
+
+(def recovery-game-action-permission-domain
+  "resolver-sim/partial-fill-recovery-game-action-permissions.v1")
+
+(def recovery-game-action-permission-role
+  :recovery-game-action-permission-authority)
+
+(defn recovery-game-model-root
+  "Content root for all recovery-game inputs, including utilities and declared
+   feasible actions. The signature is excluded to avoid a self-reference."
+  [model]
+  (hc/domain-hash :projection-artifact
+                  {:artifact/kind :partial-fill-recovery-game-model.v1
+                   :model (dissoc model :assumption-attestation
+                                  :action-permission-attestation)}))
+
+(defn sign-recovery-game-assumptions
+  "Attach an Ed25519 authority attestation to the complete model. The signing
+   key must be trusted by verifiers under the recovery-game assumptions role."
+  [model private-key key-id]
+  (let [envelope {:schema-version "partial-fill-recovery-game-attestation.v1"
+                  :game/id (:game/id model)
+                  :model/root (recovery-game-model-root model)}]
+    (assoc model :assumption-attestation
+           (signed-decision/sign-envelope envelope
+                                           recovery-game-assumption-attestation-domain
+                                           private-key key-id))))
+
+(defn verify-recovery-game-assumptions
+  "Verify the complete model attestation against an explicit trusted-key
+   policy. A self-hash alone never establishes authority."
+  [model trust-policy]
+  (let [attestation (:assumption-attestation model)
+        expected-root (recovery-game-model-root model)
+        signature-result (if (map? trust-policy)
+                           (signed-decision/verify-envelope
+                            attestation recovery-game-assumption-attestation-domain
+                            trust-policy recovery-game-assumption-attestation-role)
+                           {:valid? false :reason :trust-policy-required})
+        binding-valid? (and (map? attestation)
+                            (= "partial-fill-recovery-game-attestation.v1"
+                               (:schema-version attestation))
+                            (= (:game/id model) (:game/id attestation))
+                            (= expected-root (:model/root attestation)))]
+    (if (and binding-valid? (:valid? signature-result))
+      {:valid? true
+       :key-id (:key-id signature-result)
+       :model/root expected-root
+       :attestation-role recovery-game-assumption-attestation-role}
+      {:valid? false
+       :reason (if-not binding-valid? :assumption-model-binding-mismatch
+                       (:reason signature-result))
+       :signature-result signature-result
+       :model/root expected-root})))
+
+(defn- action-permission-claims-root [model]
+  (hc/domain-hash :projection-artifact
+                  {:artifact/kind :partial-fill-recovery-game-action-permissions.v1
+                   :game/id (:game/id model)
+                   :claims (:action-permission-claims model)}))
+
+(defn sign-recovery-game-action-permissions
+  "Attach a protocol-authority signature to explicit per-player action claims.
+   Each claim must include a source root and :permission/status :permitted."
+  [model private-key key-id]
+  (let [envelope {:schema-version "partial-fill-recovery-game-permissions.v1"
+                  :game/id (:game/id model)
+                  :claims/root (action-permission-claims-root model)}]
+    (assoc model :action-permission-attestation
+           (signed-decision/sign-envelope envelope
+                                           recovery-game-action-permission-domain
+                                           private-key key-id))))
+
+(defn verify-recovery-game-action-permissions
+  "Verify signed per-player action claims and return the authorized action sets."
+  [model trust-policy]
+  (let [claims (:action-permission-claims model)
+        players (set (map :player/id (:players model)))
+        candidates (set (:candidate-deviations model))
+        claim-keys (mapv (juxt :player/id :action) claims)
+        claims-valid? (and (vector? claims)
+                           (seq claims)
+                           (every? (fn [claim]
+                                     (let [player-id (:player/id claim)
+                                           action (:action claim)
+                                           source-root (:source/root claim)]
+                                       (and (players player-id)
+                                            (candidates action)
+                                            (= :permitted (:permission/status claim))
+                                            (string? source-root)
+                                            (re-matches #"(?:sha256:)?[0-9a-f]{64}" source-root))))
+                                   claims)
+                           (= (count claim-keys) (count (distinct claim-keys))))
+        attestation (:action-permission-attestation model)
+        signature-result (if (map? trust-policy)
+                           (signed-decision/verify-envelope
+                            attestation recovery-game-action-permission-domain
+                            trust-policy recovery-game-action-permission-role)
+                           {:valid? false :reason :trust-policy-required})
+        binding-valid? (and (= "partial-fill-recovery-game-permissions.v1"
+                               (:schema-version attestation))
+                            (= (:game/id model) (:game/id attestation))
+                            (= (action-permission-claims-root model)
+                               (:claims/root attestation)))]
+    (if (and claims-valid? binding-valid? (:valid? signature-result))
+      {:valid? true
+       :key-id (:key-id signature-result)
+       :claims/root (:claims/root attestation)
+       :permitted-actions (reduce (fn [result claim]
+                                    (update result (:player/id claim) (fnil conj #{})
+                                            (:action claim)))
+                                  {} claims)}
+      {:valid? false
+       :reason (cond
+                 (not claims-valid?) :action-permission-claims-invalid
+                 (not binding-valid?) :action-permission-binding-mismatch
+                 :else (:reason signature-result))
+       :signature-result signature-result})))
 
 (defn- valid-candidate-action-profile? [profile model]
   (let [entitlement (some #(when (= (:entitlement/id %) (:entitlement/id profile)) %)
@@ -534,6 +660,531 @@
                                                            [:by-player player :utility])}])
                                    evaluations))}]))})))
 
+(defn analyze-finite-normal-form-game
+  "Find every pure-strategy Nash equilibrium in an explicit finite normal-form
+   game. The payoff table must contain exactly one utility vector per joint
+   action profile. Utilities are caller-supplied assumptions; this verifies the
+   equilibrium relation to that table, not the truth or authority of its inputs.
+
+   Returns :inconclusive for malformed, incomplete, or over-budget tables."
+  ([game] (analyze-finite-normal-form-game game {}))
+  ([{:keys [game/id players actions payoffs]}
+    {:keys [max-profiles] :or {max-profiles 10000}}]
+   (let [players (vec players)
+         action-map (if (map? actions) actions {})
+         action-vectors (mapv (fn [player]
+                                (let [choices (get action-map player)]
+                                  (if (vector? choices) choices [])))
+                              players)
+         payoff-rows (if (vector? payoffs) payoffs [])
+         expected-count (reduce *' 1 (map count action-vectors))
+         profiles (reduce (fn [profiles [player choices]]
+                            (for [profile profiles
+                                  choice choices]
+                              (assoc profile player choice)))
+                          [{}]
+                          (map vector players action-vectors))
+         profile-key (fn [profile] (into {} (map (fn [player] [player (get profile player)]) players)))
+         payoff-by-profile (into {} (map (fn [{:keys [actions utilities]}]
+                                           [(profile-key actions) utilities]) payoff-rows))
+         valid-players? (and (seq players)
+                             (= (count players) (count (distinct players)))
+                             (every? some? players))
+         valid-actions? (and (map? actions)
+                             (= (set players) (set (keys action-map)))
+                             (every? (fn [choices]
+                                       (and (seq choices)
+                                            (= (count choices) (count (distinct choices)))))
+                                     action-vectors))
+         budget-valid? (and (integer? max-profiles) (pos? max-profiles))
+         within-budget? (and budget-valid? (<= expected-count max-profiles))
+         profile-shapes-valid? (and (vector? payoffs)
+                                    (= (count payoff-rows) (count payoff-by-profile))
+                                    (every? (fn [{:keys [actions utilities]}]
+                                              (and (map? actions)
+                                                   (= (set players) (set (keys actions)))
+                                                   (every? (fn [[player choice]]
+                                                             (some #{choice} (get action-map player)))
+                                                           actions)
+                                                   (map? utilities)
+                                                   (= (set players) (set (keys utilities)))
+                                                   (every? #(or (integer? %) (ratio? %))
+                                                           (vals utilities))))
+                                            payoff-rows))
+         complete? (and within-budget? valid-players? valid-actions? profile-shapes-valid?
+                        (= (set profiles) (set (keys payoff-by-profile))))
+         best-response-report
+         (when complete?
+           (mapv (fn [profile]
+                   (let [utilities (get payoff-by-profile profile)
+                         deviations (vec
+                                     (for [player players
+                                           choice (get action-map player)
+                                           :when (not= choice (get profile player))
+                                           :let [deviation (assoc profile player choice)
+                                                 utility (get-in payoff-by-profile
+                                                                 [deviation player])]
+                                           :when (> utility (get utilities player))]
+                                       {:player player
+                                        :from (get profile player)
+                                        :to choice
+                                        :current-utility (get utilities player)
+                                        :deviation-utility utility
+                                        :gain (- utility (get utilities player))}))]
+                     {:actions profile
+                      :utilities utilities
+                      :profitable-deviations deviations
+                      :pure-nash? (empty? deviations)}))
+                 profiles))]
+     (cond
+       (not (and (integer? max-profiles) (pos? max-profiles)))
+       {:status :inconclusive :reason :invalid-profile-budget :game/id id
+        :equilibrium-concept :pure-nash}
+
+       (> expected-count max-profiles)
+       {:status :inconclusive :reason :profile-budget-exceeded :game/id id
+        :expected-profile-count expected-count :max-profiles max-profiles
+        :equilibrium-concept :pure-nash}
+
+       (not complete?)
+       {:status :inconclusive :reason :invalid-or-incomplete-payoff-table :game/id id
+        :expected-profile-count expected-count :observed-profile-count (count payoff-rows)
+        :equilibrium-concept :pure-nash}
+
+       :else
+       (let [equilibria (mapv :actions (filter :pure-nash? best-response-report))]
+         {:status :analyzed
+          :game/id id
+          :equilibrium-concept :pure-nash
+          :profile-count expected-count
+          :equilibria equilibria
+          :pure-equilibrium-exists? (boolean (seq equilibria))
+          :profile-analysis best-response-report
+          :evidence {:complete-payoff-table? true
+                     :utilities-authenticated? false
+                     :profile-enumeration :exhaustive}})))))
+
+(defn- nonempty-subsets [items]
+  (->> (reduce (fn [subsets item]
+                 (into subsets (map #(conj % item) subsets)))
+               [[]] items)
+       (remove empty?)
+       vec))
+
+(defn- solve-exact-linear-system [equations variable-count]
+  (let [matrix (mapv vec equations)
+        row-count (count matrix)
+        rref (loop [column 0
+                    pivot-row 0
+                    matrix matrix
+                    pivots {}]
+               (if (or (= column variable-count) (= pivot-row row-count))
+                 {:matrix matrix :pivots pivots}
+                 (if-let [selected (first (filter #(not (zero? (nth (nth matrix %) column)))
+                                                  (range pivot-row row-count)))]
+                   (let [matrix (assoc matrix pivot-row (nth matrix selected)
+                                       selected (nth matrix pivot-row))
+                         pivot (nth (nth matrix pivot-row) column)
+                         normalized (mapv #(/ % pivot) (nth matrix pivot-row))
+                         matrix (assoc matrix pivot-row normalized)
+                         matrix (mapv (fn [index row]
+                                        (if (= index pivot-row)
+                                          row
+                                          (let [factor (nth row column)]
+                                            (if (zero? factor)
+                                              row
+                                              (mapv - row (mapv #(* factor %) normalized))))))
+                                      (range row-count) matrix)]
+                     (recur (inc column) (inc pivot-row) matrix
+                            (assoc pivots column pivot-row)))
+                   (recur (inc column) pivot-row matrix pivots))))
+        inconsistent? (some (fn [row]
+                              (and (every? zero? (take variable-count row))
+                                   (not (zero? (nth row variable-count)))))
+                            (:matrix rref))]
+    (cond
+      inconsistent? {:kind :inconsistent}
+      (< (count (:pivots rref)) variable-count) {:kind :underdetermined}
+      :else {:kind :unique
+             :solution (mapv (fn [column]
+                               (nth (nth (:matrix rref) (get (:pivots rref) column))
+                                    variable-count))
+                             (range variable-count))})))
+
+(defn analyze-two-player-mixed-equilibria
+  "Enumerate exact mixed-strategy Nash equilibria in a finite two-player game.
+
+   Support enumeration solves indifference systems over integer/rational
+   utilities. Unique exact support solutions are checked against every
+   out-of-support deviation. Degenerate supports with non-unique feasible
+   solutions return :inconclusive rather than asserting completeness."
+  ([game] (analyze-two-player-mixed-equilibria game {}))
+  ([{:keys [players actions payoffs] :as game}
+    {:keys [max-profiles max-support-pairs]
+     :or {max-profiles 10000 max-support-pairs 10000}}]
+   (let [base (analyze-finite-normal-form-game game {:max-profiles max-profiles})
+         players (vec players)
+         action-map (if (map? actions) actions {})
+         action-vectors (mapv #(get action-map %) players)
+         support-pair-count (when (= 2 (count players))
+                              (*' (dec (reduce *' 1 (repeat (count (first action-vectors)) 2)))
+                                  (dec (reduce *' 1 (repeat (count (second action-vectors)) 2)))))]
+     (cond
+       (not= :analyzed (:status base))
+       (assoc base :equilibrium-concept :mixed-nash :pure-equilibria (:equilibria base))
+
+       (not= 2 (count players))
+       {:status :inconclusive :reason :two-player-game-required
+        :game/id (:game/id game) :equilibrium-concept :mixed-nash}
+
+       (not (and (integer? max-support-pairs) (pos? max-support-pairs)))
+       {:status :inconclusive :reason :invalid-support-budget
+        :game/id (:game/id game) :equilibrium-concept :mixed-nash}
+
+       (> support-pair-count max-support-pairs)
+       {:status :inconclusive :reason :support-budget-exceeded
+        :game/id (:game/id game) :support-pair-count support-pair-count
+        :max-support-pairs max-support-pairs :equilibrium-concept :mixed-nash}
+
+       :else
+       (let [[player-a player-b] players
+             actions-a (first action-vectors)
+             actions-b (second action-vectors)
+             payoff-by-profile (into {} (map (fn [{:keys [actions utilities]}]
+                                               [actions utilities]) payoffs))
+             supports-a (nonempty-subsets actions-a)
+             supports-b (nonempty-subsets actions-b)
+             candidates
+             (for [support-a supports-a
+                   support-b supports-b
+                   :let [reference-a (first support-a)
+                         reference-b (first support-b)
+                         equations-b (conj
+                                      (mapv (fn [action-a]
+                                              (conj (mapv (fn [action-b]
+                                                            (- (get-in payoff-by-profile
+                                                                       [{player-a action-a player-b action-b}
+                                                                        player-a])
+                                                               (get-in payoff-by-profile
+                                                                       [{player-a reference-a player-b action-b}
+                                                                        player-a])))
+                                                          support-b)
+                                                    0))
+                                            (rest support-a))
+                                      (conj (vec (repeat (count support-b) 1)) 1))
+                         equations-a (conj
+                                      (mapv (fn [action-b]
+                                              (conj (mapv (fn [action-a]
+                                                            (- (get-in payoff-by-profile
+                                                                       [{player-a action-a player-b action-b}
+                                                                        player-b])
+                                                               (get-in payoff-by-profile
+                                                                       [{player-a action-a player-b reference-b}
+                                                                        player-b])))
+                                                          support-a)
+                                                    0))
+                                            (rest support-b))
+                                      (conj (vec (repeat (count support-a) 1)) 1))
+                         solve-b (solve-exact-linear-system equations-b (count support-b))
+                         solve-a (solve-exact-linear-system equations-a (count support-a))]]
+               (cond
+                 (or (= :inconsistent (:kind solve-a))
+                     (= :inconsistent (:kind solve-b)))
+                 {:kind :none}
+
+                 (or (= :underdetermined (:kind solve-a))
+                     (= :underdetermined (:kind solve-b)))
+                 {:kind :underdetermined :support-a support-a :support-b support-b}
+
+                 :else
+                 (let [prob-a (:solution solve-a)
+                       prob-b (:solution solve-b)
+                       positive? (fn [probabilities]
+                                   (and (every? pos? probabilities)
+                                        (= 1 (reduce + 0 probabilities))))
+                       utility-a (fn [action-a]
+                                   (reduce + 0
+                                           (map (fn [action-b probability]
+                                                  (* probability
+                                                     (get-in payoff-by-profile
+                                                             [{player-a action-a player-b action-b}
+                                                              player-a])))
+                                                actions-b
+                                                (map #(or (get (zipmap support-b prob-b) %) 0)
+                                                     actions-b))))
+                       utility-b (fn [action-b]
+                                   (reduce + 0
+                                           (map (fn [action-a probability]
+                                                  (* probability
+                                                     (get-in payoff-by-profile
+                                                             [{player-a action-a player-b action-b}
+                                                              player-b])))
+                                                actions-a
+                                                (map #(or (get (zipmap support-a prob-a) %) 0)
+                                                     actions-a))))
+                       support-utility-a (utility-a reference-a)
+                       support-utility-b (utility-b reference-b)
+                       best-response? (and (positive? prob-a) (positive? prob-b)
+                                           (every? #(<= (utility-a %) support-utility-a) actions-a)
+                                           (every? #(<= (utility-b %) support-utility-b) actions-b))]
+                   (if best-response?
+                     {:kind :equilibrium
+                      :strategies {player-a (zipmap support-a prob-a)
+                                   player-b (zipmap support-b prob-b)}
+                      :expected-utilities {player-a support-utility-a
+                                           player-b support-utility-b}}
+                     {:kind :none}))))
+             unresolved? (some #(= :underdetermined (:kind %)) candidates)
+             equilibria (->> candidates
+                             (filter #(= :equilibrium (:kind %)))
+                             (map #(select-keys % [:strategies :expected-utilities]))
+                             distinct vec)]
+         {:status (if unresolved? :inconclusive :analyzed)
+          :reason (when unresolved? :degenerate-support-needs-polytope)
+          :game/id (:game/id game)
+          :equilibrium-concept :mixed-nash
+          :pure-equilibria (:equilibria base)
+          :equilibria equilibria
+          :equilibrium-exists? (boolean (seq equilibria))
+          :support-pair-count support-pair-count
+          :support-enumeration :exhaustive
+          :utilities-authenticated? false})))))
+
+(defn analyze-recovery-game-profiles
+  "Evaluate explicit terminal outcomes for each joint action profile, then
+   solve the resulting finite pure-strategy game. Deterministic models provide
+   :outcome per profile; stochastic models provide :outcomes-by-id, keyed by
+   the model's declared outcome IDs. All outcomes remain caller-supplied.
+   `opts` is passed to the bounded normal-form solver."
+  ([prepared game] (analyze-recovery-game-profiles prepared game {}))
+  ([prepared {:keys [actions profiles]} opts]
+   (let [model (:model prepared)
+         players (mapv :player/id (:players model))
+         max-profiles (get opts :max-profiles 10000)
+         trust-policy (:assumption-trust-policy opts)
+         permission-trust-policy (:action-permission-trust-policy opts)
+         require-authenticated? (true? (:require-authenticated-assumptions? opts))
+         attestation-check (when trust-policy
+                             (verify-recovery-game-assumptions model trust-policy))
+         permission-check (when permission-trust-policy
+                            (verify-recovery-game-action-permissions
+                             model permission-trust-policy))
+         action-map (if (map? actions) actions {})
+         action-vectors (mapv #(get action-map %) players)
+         action-domain-valid? (and (map? actions)
+                                   (= (set players) (set (keys actions)))
+                                   (every? (fn [choices]
+                                             (and (vector? choices) (seq choices)
+                                                  (= (count choices) (count (distinct choices)))))
+                                           action-vectors))
+         expected-profiles (when action-domain-valid?
+                             (reduce *' 1 (map count action-vectors)))
+         supplied-profiles (when (vector? profiles) (count profiles))
+         profile-actions (when (vector? profiles) (mapv :actions profiles))
+         profile-table-valid? (and expected-profiles supplied-profiles
+                                   (= expected-profiles supplied-profiles)
+                                   (every? (fn [profile]
+                                             (and (map? profile)
+                                                  (= (set players) (set (keys (:actions profile))))
+                                                  (every? (fn [[player choice]]
+                                                            (some #{choice} (get action-map player)))
+                                                          (:actions profile))))
+                                           profiles)
+                                   (= supplied-profiles
+                                      (count (distinct profile-actions))))
+         action-domain-authorized? (and (:valid? permission-check)
+                                        (every? (fn [[player choices]]
+                                                  (every? (get-in permission-check
+                                                                  [:permitted-actions player] #{})
+                                                          choices))
+                                                action-map))
+         preflight-reason
+         (cond
+           (not= :complete (:parameterization/status prepared)) :recovery-model-incomplete
+           (:require-validated-execution? opts) :validated-execution-unavailable
+           (not (and (integer? max-profiles) (pos? max-profiles))) :invalid-profile-budget
+           (or (and expected-profiles (> expected-profiles max-profiles))
+               (and supplied-profiles (> supplied-profiles max-profiles)))
+           :profile-budget-exceeded
+           (not profile-table-valid?) :invalid-or-incomplete-payoff-table
+           (and trust-policy (not (:valid? attestation-check)))
+           :assumption-attestation-invalid
+           (and require-authenticated? (nil? trust-policy))
+           :assumption-trust-policy-required
+           (and permission-trust-policy (not (:valid? permission-check)))
+           :action-permission-attestation-invalid
+           (and permission-trust-policy (not action-domain-authorized?))
+           :action-permission-not-authorized
+           (and require-authenticated? (nil? permission-trust-policy))
+           :action-permission-trust-policy-required
+           :else nil)]
+     (if preflight-reason
+       {:status :inconclusive
+        :reason preflight-reason
+        :game/id (:game/id prepared)
+        :expected-profile-count expected-profiles
+        :observed-profile-count supplied-profiles
+        :max-profiles max-profiles
+        :equilibrium-concept :pure-nash}
+       (let [stochastic? (= :explicit-probabilities
+                            (get-in model [:recovery-process :probability-model]))
+             evaluated (mapv (fn [{:keys [actions] :as profile}]
+                               (let [result (if stochastic?
+                                              (evaluate-recovery-game-distribution
+                                               prepared (:outcomes-by-id profile))
+                                              (evaluate-recovery-game-outcome
+                                               prepared (:outcome profile)))
+                                     utility-key (if (= :expected-payoffs-evaluated (:status result))
+                                                   :expected-utility :utility)
+                                     utilities (when (#{:payoffs-evaluated
+                                                        :expected-payoffs-evaluated}
+                                                      (:status result))
+                                                 (into {} (map (fn [player]
+                                                                 [player (get-in result
+                                                                                 [:by-player player utility-key])])
+                                                               players)))]
+                                 {:actions actions
+                                  :utilities utilities
+                                  :evaluation result})) profiles)
+             failed (filterv #(nil? (:utilities %)) evaluated)]
+         (if (seq failed)
+           {:status :inconclusive
+            :reason :profile-outcome-incomplete
+            :game/id (:game/id prepared)
+            :profile-evaluations evaluated
+            :equilibrium-concept :pure-nash}
+           (let [analysis (analyze-finite-normal-form-game
+                           {:game/id (:game/id prepared)
+                            :players players :actions action-map
+                            :payoffs (mapv #(select-keys % [:actions :utilities]) evaluated)}
+                           opts)]
+             (assoc analysis
+                    :source-model :recovery-game
+                    :execution-assurance {:outcome-source :caller-supplied
+                                          :settlement-replayed? false
+                                          :outcomes-authenticated? false
+                                          :state-dependent-permissions-verified? false}
+                    :utility-assumptions-authenticated? (boolean (:valid? attestation-check))
+                    :action-permissions-authenticated? (boolean action-domain-authorized?)
+                    :assumption-attestation attestation-check
+                    :action-permission-attestation permission-check
+                    :outcome-evaluations (mapv (fn [{:keys [actions evaluation]}]
+                                                 {:actions actions :result evaluation})
+                                               evaluated)))))))))
+
+(defn analyze-two-player-recovery-game-profiles
+  "Evaluate a complete recovery-game profile table and solve its exact
+   two-player mixed Nash equilibria. All budget, outcome, and trust checks from
+   `analyze-recovery-game-profiles` apply before mixed-support enumeration."
+  ([prepared game] (analyze-two-player-recovery-game-profiles prepared game {}))
+  ([prepared game opts]
+   (if (not= 2 (count (get-in prepared [:model :players])))
+     {:status :inconclusive
+      :reason :two-player-game-required
+      :game/id (:game/id prepared)
+      :equilibrium-concept :mixed-nash}
+     (let [pure-analysis (analyze-recovery-game-profiles prepared game opts)]
+       (if (not= :analyzed (:status pure-analysis))
+         (assoc pure-analysis :equilibrium-concept :mixed-nash)
+         (let [players (mapv :player/id (get-in prepared [:model :players]))
+               normal-form {:game/id (:game/id prepared)
+                            :players players
+                            :actions (:actions game)
+                            :payoffs (mapv #(select-keys % [:actions :utilities])
+                                           (:profile-analysis pure-analysis))}
+               mixed-analysis (analyze-two-player-mixed-equilibria normal-form opts)]
+           (assoc mixed-analysis
+                  :source-model :recovery-game
+                  :execution-assurance (:execution-assurance pure-analysis)
+                  :utility-assumptions-authenticated?
+                  (:utility-assumptions-authenticated? pure-analysis)
+                  :action-permissions-authenticated?
+                  (:action-permissions-authenticated? pure-analysis)
+                  :assumption-attestation (:assumption-attestation pure-analysis)
+                  :action-permission-attestation (:action-permission-attestation pure-analysis)
+                  :outcome-evaluations (:outcome-evaluations pure-analysis))))))))
+
+(defn analyze-replayed-recovery-game-profiles
+  "Replay every profile and branch before solving an exact finite game.
+   Game profiles contain :actions and :traces-by-id. Execution models supply
+   fixed public plans, explicit credits and zero costs; other semantics fail closed."
+  [prepared execution-model {:keys [actions profiles] :as game} opts]
+  (let [prepared (prepare-recovery-game-model (:model prepared))
+        model (execution/prepare-execution-model prepared execution-model)
+        players (mapv :player/id (get-in prepared [:model :players]))
+        budget (get opts :max-profiles 10000)
+        branch-budget (get opts :max-replays 10000)
+        branches (:branches execution-model)
+        trust-policy (:assumption-trust-policy opts)
+        attestation (when trust-policy (verify-recovery-game-assumptions (:model prepared) trust-policy))
+        domain (if (= :verified (:status model))
+                 (into {} (map (fn [[player plans]] [player (vec (keys plans))]) (:plans execution-model))) {})
+        count-expected (reduce *' 1 (map #(count (get domain %)) players))
+        valid-table? (and (= :verified (:status model)) (pos-int? budget) (pos-int? branch-budget)
+                          (vector? profiles) (<= (count profiles) budget)
+                          (<= count-expected budget)
+                          (<= (*' count-expected (count branches)) branch-budget)
+                          (map? actions) (= (set players) (set (keys actions)))
+                          (= (into {} (map (fn [[k v]] [k (set v)]) actions))
+                             (into {} (map (fn [[k v]] [k (set v)]) domain)))
+                          (every? #(and (vector? %) (seq %) (= (count %) (count (distinct %)))) (vals actions))
+                          (vector? profiles) (= count-expected (count profiles))
+                          (= (count profiles) (count (distinct (map :actions profiles))))
+                          (every? (fn [profile]
+                                    (and (map? profile) (map? (:actions profile)) (map? (:traces-by-id profile))
+                                         (= (set players) (set (keys (:actions profile))))
+                                         (every? (fn [[p a]] (contains? (set (get domain p)) a)) (:actions profile))
+                                         (= (set (map :branch/id branches)) (set (keys (:traces-by-id profile)))))) profiles))]
+    (cond
+      (not= :verified (:status model)) model
+      (not (and (pos-int? budget) (pos-int? branch-budget)))
+      {:status :inconclusive :reason :invalid-profile-budget}
+      (or (> count-expected budget) (and (vector? profiles) (> (count profiles) budget))
+          (> (*' count-expected (count branches)) branch-budget))
+      {:status :inconclusive :reason :profile-budget-exceeded}
+      (not valid-table?) {:status :inconclusive :reason :invalid-or-incomplete-payoff-table}
+      (and (:require-authenticated-assumptions? opts) (nil? trust-policy))
+      {:status :inconclusive :reason :assumption-trust-policy-required}
+      (and trust-policy (not (:valid? attestation)))
+      {:status :inconclusive :reason :assumption-attestation-invalid}
+      :else
+      (let [replays (mapv (fn [profile]
+                            {:actions (:actions profile)
+                             :branches (mapv (fn [branch]
+                                               {:branch/id (:branch/id branch)
+                                                :result (execution/replay-profile
+                                                         model (:actions profile) (:branch/id branch)
+                                                         (get-in profile [:traces-by-id (:branch/id branch)]) opts)}) branches)}) profiles)
+            failures (vec (for [profile replays branch (:branches profile)
+                                :when (not= :verified (get-in branch [:result :status]))]
+                            {:actions (:actions profile) :branch/id (:branch/id branch)
+                             :reason (get-in branch [:result :reason])}))]
+        (if (seq failures)
+          {:status :inconclusive :reason :profile-execution-invalid :failures failures}
+          (let [stochastic? (= :explicit-probabilities (get-in prepared [:model :recovery-process :probability-model]))
+                derived (assoc game :profiles
+                               (mapv (fn [profile]
+                                       (let [outcomes (into {} (map (fn [b] [(:branch/id b) (get-in b [:result :outcome])]) (:branches profile)))]
+                                         (if stochastic?
+                                           {:actions (:actions profile) :outcomes-by-id outcomes}
+                                           {:actions (:actions profile) :outcome (get outcomes :deterministic)}))) replays))
+                analyzer (if (:mixed? opts) analyze-two-player-recovery-game-profiles analyze-recovery-game-profiles)
+                analysis (analyzer prepared derived (dissoc opts :require-validated-execution?
+                                                            :require-authenticated-assumptions?
+                                                            :action-permission-trust-policy))]
+            (assoc analysis
+                   :source-model :replayed-recovery-game
+                   :execution-assurance {:outcome-source :verified-replay
+                                         :settlement-replayed? true
+                                         :outcomes-authenticated? false
+                                         :state-dependent-permissions-verified? true}
+                   :execution-evidence/root
+                   (execution/content-root :partial-fill-game-execution-evidence.v1
+                                            {:model/root (recovery-game-model-root (:model prepared))
+                                             :execution/root (:execution/root model)
+                                             :initial-state/root (execution/state-root (execution/initial-state model))
+                                             :actions actions :replays replays}))))))))
+
 (defn- enumerate-policies
   "Generate the policy variants to test."
   []
@@ -572,19 +1223,6 @@
   [claims perm]
   (vec (map (fn [i] (nth claims i)) perm)))
 
-(defn- sybil-claims
-  "Split each claim into `k` sybil identities with equal shares.
-   Total requested amount is preserved; number of identities multiplies by k."
-  [claims k]
-  (vec (mapcat (fn [c]
-                 (let [n (long c)
-                       base (quot n k)
-                       rem (- n (* base k))
-                       splits (concat (repeat rem (inc base))
-                                      (repeat (- k rem) base))]
-                   (remove zero? splits)))
-               claims)))
-
 (defn- inflate-claim
   "Increase claim at index `idx` by `delta`."
   [claims idx delta]
@@ -603,7 +1241,6 @@
    Returns vector of violation maps."
   [claims available policy]
   (let [filled (allocate claims available policy)
-        original-total (reduce + 0 (vals filled))
         violations (atom [])]
     (doseq [idx (range (count claims))
             :let [n (nth claims idx)]
@@ -612,7 +1249,9 @@
             :when (>= n parts)]
       (let [split-claims (split-claim claims idx parts)
             split-filled (allocate split-claims available policy)
-            split-total (reduce + 0 (vals split-filled))
+            original-total (get filled (str "c" idx) 0)
+            split-total (reduce + 0 (map #(get split-filled (str "c" %) 0)
+                                         (range idx (+ idx parts))))
             error (- split-total original-total)]
         (when (not= split-total original-total)
           (swap! violations conj
@@ -660,45 +1299,29 @@
               (range n)))))
 
 (defn check-permutation-invariance
-  "Verify that reordering claims does not change total allocation.
-   Tests all permutations for up to 5 claims (max 120 permutations)."
+  "Compare each original claimant's allocation after mapping permuted positions
+   back to the same claimant. Supports up to five claims."
   [claims available policy]
-  (let [n (count claims)
-        original-filled (allocate claims available policy)
-        original-total (reduce + 0 (vals original-filled))
-        violations (atom [])]
-    (if (<= n 5)
-      (let [all-perms (permutations (range n))]
-        (doseq [perm all-perms
-                :let [perm-claims (permute-claims claims (vec perm))
-                      perm-filled (allocate perm-claims available policy)
-                      perm-total (reduce + 0 (vals perm-filled))]]
-          (when (not= original-total perm-total)
-            (swap! violations conj
-                   {:original-claims claims :permuted perm-claims
-                    :original-total original-total
-                    :permuted-total perm-total
-                    :permutation perm})))))
-    @violations))
+  (when (> (count claims) 5)
+    (throw (ex-info "Permutation scope exceeds five claims" {:claim-count (count claims)})))
+  (let [baseline (:allocations (allocation-report claims available policy))]
+    (vec (for [perm (permutations (range (count claims)))
+               :let [changed (:allocations (allocation-report (permute-claims claims perm) available policy))]
+               [new-index original-index] (map-indexed vector perm)
+               :let [before (nth baseline original-index)
+                     after (nth changed new-index)]
+               :when (not= before after)]
+           {:claim original-index :permutation (vec perm)
+            :original-allocation before :permuted-allocation after
+            :error (- after before)}))))
 
 (defn check-sybil-invariance
-  "Verify that splitting a claim into k sybil identities (same total)
-   does not improve total allocation."
+  "Search for profitable unilateral splits, preserving the owner's identity
+   across its child claims while every other claimant stays unchanged."
   [claims available policy]
-  (let [filled (allocate claims available policy)
-        violations (atom [])]
-    (doseq [k [2 3]]
-      (let [sybil-claims (sybil-claims claims k)
-            sybil-filled (allocate sybil-claims available policy)]
-        (when (> (reduce + 0 (vals sybil-filled))
-                 (reduce + 0 (vals filled)))
-          (swap! violations conj
-                 {:original-total (reduce + 0 (vals filled))
-                  :sybil-count k
-                  :sybil-total (reduce + 0 (vals sybil-filled))
-                  :gain (- (reduce + 0 (vals sybil-filled))
-                           (reduce + 0 (vals filled)))}))))
-    @violations))
+  (vec (for [violation (check-split-invariance claims available policy)
+             :when (pos? (:error violation))]
+         (assoc violation :gain (:error violation)))))
 
 (defn check-request-monotonicity
   "Verify that increasing a claim's requested amount does not decrease
@@ -899,8 +1522,11 @@
   (let [contract-registry (or contract-registry dc/default-deviation-contract-registry)
         contract (when contract-id (dc/get-contract contract-registry contract-id))
         deviations (or (when contract (dc/deviations-in-contract contract-registry contract-id))
-                       (vec deviations)
-                       (:deviations default-scope))
+                       (when (some? deviations) (vec deviations))
+                       (vec (sort (keys registered-deviation-generators))))
+        _ (when (or (empty? deviations) (empty? policies) (not (pos-int? max-states)))
+            (throw (ex-info "Strategic validation requires deviations, policies and a positive evaluation budget"
+                            {:reason :empty-strategic-validation})))
         generators (resolve-deviation-generators deviations
                                                  :extra-generators extra-generators)
         generator-by-property (into {} (map (fn [g] [(:property g) g])) generators)
@@ -932,11 +1558,24 @@
           policy-identifiers (mapv (fn [p] (select-keys p [:mode :rounding-policy]))
                                    policies)
           state-policy-evaluations @state-policy-count
-          distinct-states-examined (count @distinct-states)]
+          distinct-states-examined (count @distinct-states)
+          [cc-lo cc-hi] (get-in scope [:dimensions :claim-count])
+          [rq-lo rq-hi] (get-in scope [:dimensions :request])
+          [lq-lo lq-hi] (get-in scope [:dimensions :liquidity])
+          request-width (inc (- rq-hi rq-lo))
+          domain-cardinality (*' (inc (- lq-hi lq-lo))
+                                 (reduce +' 0 (map (fn [n]
+                                                     (reduce *' 1 (repeat n request-width)))
+                                                   (range cc-lo (inc cc-hi)))))
+          complete? (and (= :exhaustive (:sampling scope))
+                         (= state-policy-evaluations
+                            (*' domain-cardinality (count policies))))]
       {:artifact/kind :strategic-closed-form-validation
        :mechanism :yield/partial-fill
        :contract-id contract-id
        :strategic-model {:mechanism :yield/partial-fill
+                         :allocator :amount-only-ordinal-reference
+                         :production-allocator-validated? false
                          :allocation-mode :pro-rata
                          :rounding-policies policy-identifiers
                          :actions [:honest-request
@@ -983,6 +1622,12 @@
                                             :side-payments
                                             :continuation-values]}
        :validation-scope {:dimensions (:dimensions scope)
+                          :domain-cardinality domain-cardinality
+                          :complete? complete?
+                          :incompleteness-reason (when-not complete?
+                                                   (if (= :exhaustive (:sampling scope))
+                                                     :enumeration-or-evaluation-budget
+                                                     :sampling))
                           :sampling (:sampling scope)
                           :policies policy-identifiers
                           :max-state-policy-evaluations max-states
@@ -991,7 +1636,8 @@
                           :states-examined state-policy-evaluations
                           :diagnostic-transformations (vec (sort deviations))
                           :declared-property-ids (vec (sort declared-property-ids))}
-       :epistemic-scope {:scope/kind :bounded-exhaustive
+       :epistemic-scope {:scope/kind (if (= :exhaustive (:sampling scope))
+                                       :bounded-exhaustive :bounded-sampled)
                          :scope/universal-claim? false
                          :scope/falsification? true
                          :scope/coverage :validation-scope
@@ -1037,4 +1683,4 @@
                  :total-checks total-checks
                  :verified verified
                  :violated violated
-                 :valid? (zero? violated)}})))
+                 :valid? (and (pos? total-checks) (zero? violated))}})))
