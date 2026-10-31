@@ -42,12 +42,67 @@
   {:component/plane :protocol
    :component/requires [:prf/framework-v1
                         :prf/sew-escrow-kernel-v1
+                        :prf/yield-runtime-v1
                         :prf/sew-pro-rata-economics-v1]
    :component/owned-namespaces
    [resolver-sim.protocols.sew
     resolver-sim.protocols.sew.slash-evidence]
    :component/entry-namespaces
    [resolver-sim.protocols.sew]}
+
+  ;; Shared yield state and operations are a reusable runtime subsystem. Sew
+  ;; composes it for stake, accrual, settlement, risk, and evidence behavior.
+  :prf/yield-runtime-v1
+  {:component/plane :runtime-domain
+   :component/requires [:prf/framework-v1 :prf/ideal-pro-rata-v1]
+   :component/owned-namespaces
+   [resolver-sim.yield.accounting
+    resolver-sim.yield.accrual
+    resolver-sim.yield.commitment-projection
+    resolver-sim.yield.evidence
+    resolver-sim.yield.exact-math
+    resolver-sim.yield.expectations
+    resolver-sim.yield.invariant-catalog
+    resolver-sim.yield.invariants
+    resolver-sim.yield.invariants-transition
+    resolver-sim.yield.loss
+    resolver-sim.yield.market-state
+    resolver-sim.yield.model
+    resolver-sim.yield.module
+    resolver-sim.yield.modules.adversarial
+    resolver-sim.yield.modules.fixed
+    resolver-sim.yield.modules.liquid-lending
+    resolver-sim.yield.modules.none
+    resolver-sim.yield.ops
+    resolver-sim.yield.partial-fill
+    resolver-sim.yield.position
+    resolver-sim.yield.pro-rata-propagation-policy
+    resolver-sim.yield.protocols
+    resolver-sim.yield.registry
+    resolver-sim.yield.risk
+    resolver-sim.yield.risk-monitor
+    resolver-sim.yield.schedule
+    resolver-sim.yield.token
+    resolver-sim.yield.transition-basis]
+   :component/entry-namespaces
+   [resolver-sim.yield.accounting
+    resolver-sim.yield.accrual
+    resolver-sim.yield.commitment-projection
+    resolver-sim.yield.evidence
+    resolver-sim.yield.exact-math
+    resolver-sim.yield.expectations
+    resolver-sim.yield.invariants
+    resolver-sim.yield.invariants-transition
+    resolver-sim.yield.module
+    resolver-sim.yield.ops
+    resolver-sim.yield.partial-fill
+    resolver-sim.yield.protocols
+    resolver-sim.yield.risk
+    resolver-sim.yield.schedule
+    resolver-sim.yield.transition-basis]
+   :component/material
+   [{:path "test/resolver_sim/yield" :kind :test-source}
+    {:path "test/resolver_sim/protocols/yield_test.clj" :kind :test-source}]}
 
   ;; State representation and guarded escrow transitions form a small Sew
   ;; kernel. The full reference protocol composes this with optional systems.
