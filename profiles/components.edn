@@ -58,13 +58,16 @@
    :component/owned-namespaces
    [resolver-sim.yield.accounting
     resolver-sim.yield.accrual
+    resolver-sim.yield.accrual-properties
     resolver-sim.yield.commitment-projection
+    resolver-sim.yield.conservation
     resolver-sim.yield.evidence
     resolver-sim.yield.exact-math
     resolver-sim.yield.expectations
     resolver-sim.yield.invariant-catalog
     resolver-sim.yield.invariants
     resolver-sim.yield.invariants-transition
+    resolver-sim.yield.liquidity
     resolver-sim.yield.loss
     resolver-sim.yield.market-state
     resolver-sim.yield.model
@@ -76,12 +79,16 @@
     resolver-sim.yield.ops
     resolver-sim.yield.partial-fill
     resolver-sim.yield.position
+    resolver-sim.yield.presets
+    resolver-sim.yield.pro-rata-claims
     resolver-sim.yield.pro-rata-propagation-policy
     resolver-sim.yield.protocols
     resolver-sim.yield.registry
     resolver-sim.yield.risk
     resolver-sim.yield.risk-monitor
+    resolver-sim.yield.scenario-commitment
     resolver-sim.yield.schedule
+    resolver-sim.yield.strategic-partial-fill
     resolver-sim.yield.token
     resolver-sim.yield.transition-basis]
    :component/entry-namespaces
