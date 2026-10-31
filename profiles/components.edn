@@ -6,13 +6,19 @@
     resolver-sim.hash.reference
     resolver-sim.evidence.node
     resolver-sim.config.defaults
-    resolver-sim.execution.budget]
+    resolver-sim.execution.budget
+    resolver-sim.logging
+    resolver-sim.time.context
+    resolver-sim.time.deadlines]
    :component/entry-namespaces
    [resolver-sim.hash.canonical
     resolver-sim.hash.reference
     resolver-sim.evidence.node
     resolver-sim.config.defaults
-    resolver-sim.execution.budget]
+    resolver-sim.execution.budget
+    resolver-sim.logging
+    resolver-sim.time.context
+    resolver-sim.time.deadlines]
    :component/material
    [{:path "config" :kind :runtime-configuration}]}
 
@@ -34,11 +40,28 @@
 
   :prf/sew-core-v1
   {:component/plane :protocol
-   :component/requires [:prf/framework-v1 :prf/sew-pro-rata-slashing-v1]
+   :component/requires [:prf/framework-v1
+                        :prf/sew-escrow-kernel-v1
+                        :prf/sew-pro-rata-slashing-v1]
    :component/owned-namespaces
    [resolver-sim.protocols.sew]
    :component/entry-namespaces
    [resolver-sim.protocols.sew]}
+
+  ;; State representation and guarded escrow transitions form a small Sew
+  ;; kernel. The full reference protocol composes this with optional systems.
+  :prf/sew-escrow-kernel-v1
+  {:component/plane :protocol-kernel
+   :component/requires [:prf/framework-v1]
+   :component/owned-namespaces
+   [resolver-sim.protocols.sew.kernel
+    resolver-sim.protocols.sew.types
+    resolver-sim.protocols.sew.state-machine]
+   :component/entry-namespaces
+   [resolver-sim.protocols.sew.kernel]
+   :component/material
+   [{:path "protocols_src/test/resolver_sim/protocols/sew/kernel_test.clj"
+     :kind :test-source}]}
 
   :prf/ideal-pro-rata-v1
   {:component/plane :semantic
