@@ -198,6 +198,17 @@
                          :paths ["src" "protocols_src" "pro_rata_contract_src" "resources"]
                          :aliases {:profile/check {:extra-paths ["test"]}})))))
 
+(defn symlink-local-dependencies! [view-root]
+  (let [deps (:deps (read-edn (fs/path repo-root "deps.edn")))]
+    (doseq [[_ dependency] deps
+            :let [local-root (:local/root dependency)]
+            :when local-root]
+      (let [source (fs/path repo-root local-root)]
+        (when-not (fs/exists? source)
+          (throw (ex-info "Local dependency declared by deps.edn is missing"
+                          {:local/root local-root})))
+        (symlink! view-root source)))))
+
 (defn resolved-profile [name]
   (let [profiles (profiles-by-id)
         profile (merge-profile profiles (profile-by-name name))
@@ -283,6 +294,7 @@
         runtime-profile (runtime-profile profile)]
     (clear-directory! view-root)
     (doseq [source source-files] (symlink! view-root source))
+    (symlink-local-dependencies! view-root)
     (doseq [{:keys [path kind repository] :as material} materials]
       (when-not (keyword? kind)
         (throw (ex-info "Profile material requires a kind" {:material material})))

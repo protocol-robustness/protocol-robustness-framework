@@ -33,6 +33,14 @@ state-transition API in a 30-file source closure. It is a narrow protocol
 kernel, not a complete Sew implementation; settlement, yield, evidence, and
 runtime composition remain outside this profile.
 
+Yield is now modeled as `:prf/yield-runtime-v1`, a reusable component required
+by Sew core. Its `yield-runtime` candidate profile resolves 69 source files,
+owns all 28 yield namespaces in that closure, reports zero component crossings,
+and passes the isolated profile load check. The Sew closure remains unchanged
+at 232 files because Sew still composes the yield runtime. This is an explicit
+ownership boundary, not a claim that yield has been published as an independent
+package.
+
 This audit describes current PRF ownership and extraction blockers. It does not
 propose changes to protocol semantics or qualify an independently packaged Sew
 implementation.
@@ -41,8 +49,8 @@ implementation.
 
 `profiles/sew-core.edn` selects `:prf/runner-v1`, `:prf/sew-core-v1`, and the
 Sew pro-rata slash-evidence adapter. The runner component owns scenario, server,
-replay and CLI entrypoints. Sew core requires the framework, escrow kernel, and
-slash economics component; it does not require the evidence adapter. The
+replay and CLI entrypoints. Sew core requires the framework, escrow kernel,
+yield runtime, and slash economics components; it does not require the evidence adapter. The
 separately selectable evidence adapter installs the builder and artifact writer
 through a core-owned hook contract, and depends on core, slash economics, and
 pro-rata evaluation. The Sew pro-rata settlement adapter is separate and
@@ -104,6 +112,12 @@ The component registry now represents these edges explicitly. The portable
 pro-rata allocator no longer requires Sew; the Sew settlement adapter depends
 on both. This removes the component cycle while retaining the real integration
 dependency in profile composition.
+
+The yield runtime now has explicit ownership and a candidate profile. Its
+direct component requirements include framework services and portable pro-rata
+semantics used by yield claims and partial-fill accounting. Profile generation
+links declared local-root dependencies into the constrained view so the
+candidate's isolated load check resolves the repository's accounting package.
 
 ## Source-level blockers
 
