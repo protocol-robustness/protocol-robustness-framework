@@ -17,65 +17,65 @@
  :concept/roles
  {:decider
    {:description "Entity that issues the binding decision."
-    :maps-to [:protocol.actor/resolver :protocol.actor/governance]
-    :mapping/confidence :approximate
-    :mapping/note "Decider may be a resolver module or governance depending on context"}
+    
+    
+    }
    :decision-subject
   {:description "Party whose outcome is decided."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+   }
   :module
   {:description "Programmatic resolution logic that may override or guide the decider."
-   :maps-to [:protocol.actor/resolution-module]}
+   }
   :oversight
   {:description "Entity that can review, replace, or override the decider."
-   :maps-to [:protocol.actor/governance]}}
+   }}
 
  :concept/entities
  {:authority-grant
    {:description "The mechanism or rule that confers decision power."
-    :maps-to [:protocol.entity/resolver-binding :protocol.entity/governance-role]
-    :mapping/confidence :approximate
-    :mapping/note "Authority may derive from resolver assignment or governance role"}
+    
+    
+    }
    :decision
   {:description "The binding output of the authority."
-   :maps-to [:protocol.entity/settlement]}
+   }
   :capture-evidence
   {:description "Signals that authority was exercised improperly."
-   :maps-to [:protocol.entity/evidence]}}
+   }}
 
  :concept/actions
  {:appoint-decider
   {:description "Assign decision authority to a resolver or module."
-   :maps-to [:protocol.action/create-escrow :protocol.action/set-resolver]}
+   }
   :rotate-decider
   {:description "Replace the decider mid-process."
-   :maps-to [:protocol.action/governance-rotate-resolver]}
+   }
   :exercise-authority
   {:description "Issue a binding decision."
-   :maps-to [:protocol.action/resolve :protocol.action/settle]}
+   }
   :challenge-authority
   {:description "Contest whether the decider was properly authorised."
-   :maps-to [:protocol.action/appeal :protocol.action/escalate]}
+   }
   :override-decision
   {:description "Governance or higher authority reverses the decider's outcome."
-   :maps-to [:protocol.action/governance-intervention]}}
+   }}
 
  :concept/outcomes
  {:independent-decision
   {:description "Decider was free from conflict and properly authorised."
-   :maps-to [:protocol.outcome/resolved]}
+   }
   :captured-decision
   {:description "Decider was aligned with one party or had undisclosed conflict."
-   :maps-to [:protocol.outcome/adversarial-resolution]}
+   }
   :authority-contested
   {:description "Decision authority was challenged and the challenge was processed."
-   :maps-to [:protocol.outcome/appealed]}
+   }
   :authority-overridden
   {:description "Governance or higher authority reversed the decision."
-   :maps-to [:protocol.outcome/governance-override]}
+   }
   :default-authority
   {:description "Decision was reached by default rule, not active deliberation."
-   :maps-to [:protocol.outcome/default-resolution]}}
+   }}
 
  :concept/failure-modes
  [{:failure/id :resolver-capture

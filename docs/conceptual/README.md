@@ -8,18 +8,15 @@ semantics.
 ## Architecture
 
 ```
-Concept language                                (data/concepts/*.edn)
-  ecommerce purchase
-  event deposit
-  spending account
+Stakeholder concept definition                  (data/concepts/)
         ↓
-Concept metadata / templates / projections      (docs/concepts/)
+Canonical registry: owner + applicability        (data/concepts/registry.edn)
         ↓
-Scenario annotations                            (suites/*/scenarios/*.edn)
+Shared mappings + selected protocol mappings     (data/concept-mappings/)
         ↓
-Protocol adapter                                (src/resolver_sim/protocols/)
+Scenario annotations / report enrichment        (suites/*/scenarios/, reports)
         ↓
-Replay, invariants, traces, evidence            (resolution / evidence chain)
+Protocol adapters, replay, evidence               (src/resolver_sim/protocols/)
 ```
 
 The protocol remains the source of truth. Concepts are an interpretation
@@ -29,8 +26,9 @@ layer that makes simulation results explainable to stakeholders.
 
 | Path | Purpose |
 |------|---------|
-| `data/concepts/registry.edn` | Concept registry index |
-| `data/concepts/*.edn` | Individual concept definitions |
+| `data/concepts/registry.edn` | Canonical concept index, semantic owner, and protocol applicability |
+| `data/concepts/{allocation,assurance,decision-quality,framework,...}/*.edn` | Individual concept definitions grouped by semantic domain |
+| `data/concept-mappings/{shared,prf,sew-v1}.edn` | Shared mappings plus protocol-specific mappings from concept roles, entities, actions, and outcomes to protocol vocabulary |
 | `docs/conceptual/README.md` | This file |
 | `docs/conceptual/incentive-property-semantics.md` | Incentive property → concept ownership / coverage matrix |
 | `docs/conceptual/GLOSSARY.md` | General project glossary |
@@ -42,7 +40,23 @@ layer that makes simulation results explainable to stakeholders.
 
 ## Current Concepts
 
-The full catalogue is indexed by `data/concepts/registry.edn` (49 concepts).
+The full catalogue is indexed by `data/concepts/registry.edn`.
+Each registry entry declares `:concept/owner` (`:shared`, `:protocol/sew-v1`,
+or `:protocol/prf`) separately from `:concept/protocols`, which lists every
+protocol context where the concept applies. A concept may be owned by one
+protocol and still be applicable to another; applicability does not imply
+ownership. Directories remain organized by semantic domain rather than by
+protocol, so shared concepts have one canonical definition and ID.
+
+Concept definitions hold stakeholder meaning and narrative descriptions.
+Protocol mapping sets hold `:maps-to` labels and mapping qualifications, keyed
+by concept ID, mapping category, and mapping ID. The shared set is the common
+baseline; SEW and PRF sets contain protocol-owned mappings or overrides.
+`concepts-for-protocol` combines the shared baseline with the selected protocol
+set. The ordinary registry result retains the owner's mapping for existing
+consumers. Keep mappings out of concept definitions so shared concepts can
+have distinct SEW and PRF interpretations without duplicating their identity
+or stakeholder explanation.
 Select concepts most relevant to the incentive-property layer:
 
 | Concept | Status | Stakeholder Question |

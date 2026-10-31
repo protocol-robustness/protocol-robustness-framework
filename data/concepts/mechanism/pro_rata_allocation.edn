@@ -2,6 +2,7 @@
  :concept/name "Deterministic pro-rata allocation"
  :concept/type :mechanism
  :concept/layer :protocol
+ :concept/protocols #{:protocol/sew-v1}
 
  :concept/summary
  "Deterministically distributes a constrained integer quantity across weighted,
