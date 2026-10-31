@@ -17,57 +17,57 @@
  :concept/roles
  {:finality-beneficiary
   {:description "Party that benefits from the final outcome."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+   }
   :finality-enforcer
   {:description "Entity that executes the final settlement."
-   :maps-to [:protocol.actor/resolver :protocol.actor/governance]}
+   }
   :finality-challenger
   {:description "Party that attempts to prevent or reverse finality."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+   }}
 
  :concept/entities
  {:settlement
   {:description "The executed transfer that makes an outcome binding."
-   :maps-to [:protocol.entity/settlement]}
+   }
   :finality-deadline
   {:description "Time after which finality cannot be challenged."
-   :maps-to [:protocol.entity/deadline]}
+   }
   :finality-block
   {:description "Condition that prevents settlement from executing."
-   :maps-to [:protocol.entity/dispute]}}
+   }}
 
  :concept/actions
  {:reach-finality
   {:description "Execute the settlement that makes the outcome binding."
-   :maps-to [:protocol.action/settle :protocol.action/release :protocol.action/refund]}
+   }
   :block-finality
   {:description "Prevent settlement from executing through dispute or appeal."
-   :maps-to [:protocol.action/dispute :protocol.action/appeal :protocol.action/challenge]}
+   }
   :reverse-finality
   {:description "Undo a settlement after it was executed."
-   :maps-to [:protocol.action/governance-intervention]}
+   }
   :confirm-finality
   {:description "Verify that a settlement is final and irreversible."
-   :maps-to [:protocol.action/verify-finality]}}
+   }}
 
  :concept/outcomes
  {:finality-reached
    {:description "Settlement executed and challenge window expired."
-    :maps-to [:protocol.outcome/released :protocol.outcome/refunded]
-    :mapping/confidence :approximate
-    :mapping/note "Finality covers both release to recipient and refund to sender"}
+    
+    
+    }
    :finality-blocked
   {:description "Settlement could not execute due to dispute, appeal, or capacity lock."
-   :maps-to [:protocol.outcome/stuck]}
+   }
   :finality-premature
   {:description "Settlement executed before challenge window expired or while appeal was pending."
-   :maps-to [:protocol.outcome/adversarial-resolution]}
+   }
   :finality-reversed
   {:description "A finalised settlement was later undone by governance."
-   :maps-to [:protocol.outcome/governance-override]}
+   }
   :finality-deferred
   {:description "Settlement delayed past expected time but eventually executed."
-   :maps-to [:protocol.outcome/resolved]}}
+   }}
 
  :concept/failure-modes
  [{:failure/id :finality-blocked-permanently
