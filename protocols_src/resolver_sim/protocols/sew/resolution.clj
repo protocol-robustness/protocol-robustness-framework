@@ -34,7 +34,7 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as ref]
-            [resolver-sim.protocols.sew.evidence.slashing :as slashing-ev]
+            [resolver-sim.protocols.sew.pro-rata.evidence :as slashing-ev]
             [resolver-sim.logging :as log]))
 
 (declare finalize handle-reversal-slashing handle-fraud-slashing update-unavailability)

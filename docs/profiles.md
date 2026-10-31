@@ -58,16 +58,17 @@ the artifact tested with `java -jar`.
 | --- | --- | --- |
 | `framework` | supported | portable canonical/framework base only |
 | `runner` | supported | framework + runnable application/runner assembly |
-| `sew-core` | supported | runner + Sew protocol |
-| `pro-rata` | supported | Sew + ideal pro-rata |
+| `sew-core` | supported | runner + Sew protocol + pro-rata slash-evidence integration |
+| `sew-protocol` | candidate | framework + Sew protocol composition without runner assembly |
+| `pro-rata` | supported | Sew + portable pro-rata core + Sew settlement adapter |
 | `pro-rata-bounty` | supported | pro-rata + semantic bounty |
 | `pro-rata-claimant-options` | supported | pro-rata + runtime-only claimant execution controls |
 | `pro-rata-full` | supported | pro-rata + bounty + claimant runtime controls + pro-rata verifier |
 
 `runner-v1` owns runnable/application assembly such as scenario execution, replay,
 server/session integration, and CLI runners. It is intentionally not part of the
-minimal `framework` profile. The existing source locations are unchanged; the
-component/profile boundary is expressed through the generated source view.
+minimal `framework` profile. Component boundaries are expressed through the
+generated source view and explicit namespace ownership.
 
 `claimant-options` is an implemented runtime abstraction in
 `resolver-sim.execution.context`, not a source/package component. Its profile
@@ -84,13 +85,28 @@ from semantic claimant inputs. The claimant-options profile therefore has the
 same component and Clojure source closure as `pro-rata`; it changes runtime
 metadata, not source visibility or semantic implementation composition.
 
-`pro-rata-full` demonstrates the three profile planes:
+`pro-rata-full` declares the three profile planes:
 
 ```text
 semantic:   ideal-pro-rata + bounty
 runtime:    claimant-options
 assurance:  pro-rata-verifier
 ```
+
+The portable `ideal-pro-rata` component no longer depends on Sew. Sew slash
+allocation/evidence and the state-application adapter are separate components,
+with their source-owned test material declared in `profiles/components.edn`.
+The verifier is also in the `sew-core` source closure because the slash-evidence
+integration builds verified pro-rata result artifacts. Consequently,
+`pro-rata-full` explicitly selects the verifier but does not add its source over
+`pro-rata`; `profile:diff pro-rata pro-rata-full` shows bounty as the only added
+source component. Isolating verification from ordinary Sew slash evaluation
+remains follow-up work.
+
+`sew-protocol` is an extraction-preparation view, not a release-qualified
+package. It removes runner entrypoints from the composition, but its current
+transitive source closure still includes Sew research, yield, benchmark,
+scenario, and shared PRF framework internals.
 
 ## Adding a component
 
