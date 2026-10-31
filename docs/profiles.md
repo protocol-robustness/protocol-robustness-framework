@@ -58,8 +58,9 @@ the artifact tested with `java -jar`.
 | --- | --- | --- |
 | `framework` | supported | portable canonical/framework base only |
 | `runner` | supported | framework + runnable application/runner assembly |
-| `sew-core` | supported | runner + Sew protocol + pro-rata slash-evidence integration |
-| `sew-protocol` | candidate | framework + Sew protocol composition without runner assembly |
+| `sew-core` | supported | runner + Sew core + pro-rata slash-evidence adapter |
+| `sew-protocol` | candidate | framework + Sew core + slash-evidence adapter, without runner assembly |
+| `sew-protocol-core` | candidate | Sew core and slash economics without optional pro-rata slash evidence; slash execution fails closed |
 | `sew-kernel` | candidate | framework + Sew escrow world and guarded state-transition kernel |
 | `pro-rata` | supported | Sew + portable pro-rata core + Sew settlement adapter |
 | `pro-rata-bounty` | supported | pro-rata + semantic bounty |
@@ -97,12 +98,18 @@ assurance:  pro-rata-verifier
 The portable `ideal-pro-rata` component no longer depends on Sew. Sew slash
 allocation/evidence and the state-application adapter are separate components,
 with their source-owned test material declared in `profiles/components.edn`.
-The verifier is also in the `sew-core` source closure because the slash-evidence
-integration builds verified pro-rata result artifacts. Consequently,
+The verifier remains in the `sew-core` source closure through the Sew slash
+economics/evaluation dependency. The pro-rata slash-evidence adapter is now a
+separately selectable component; the supported `sew-core` and candidate
+`sew-protocol` compositions select it to preserve their evidence behavior.
+`sew-protocol-core` omits that adapter and its runtime bootstrap, and resolves
+232 source files compared with 237 for `sew-protocol`. In this candidate,
+evidence-producing slash execution fails before side effects if attempted; the
+small closure difference shows that most remaining code is shared
+Sew/economics infrastructure.
 `pro-rata-full` explicitly selects the verifier but does not add its source over
 `pro-rata`; `profile:diff pro-rata pro-rata-full` shows bounty as the only added
-source component. Isolating verification from ordinary Sew slash evaluation
-remains follow-up work.
+source component.
 
 `sew-protocol` is an extraction-preparation view, not a release-qualified
 package. It removes runner entrypoints from the composition, but its current

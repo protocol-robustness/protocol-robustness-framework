@@ -1,21 +1,32 @@
 # Sew standalone boundary audit
 
 Status: preparation; local source responsibilities have been separated, but no
-source has been moved out of PRF and no protocol semantics have changed.
+source has been moved out of PRF. The supported composed profiles preserve the
+existing Sew behavior; the new core-only candidate intentionally omits optional
+pro-rata slash evidence.
 
 ## Summary
 
 The current `sew-core` profile is not a standalone protocol package boundary.
-At the current workspace state, `bb profile:describe sew-core` resolves 351
-Clojure source files. The profile descriptor selects `runner` and `sew-core`.
+At the current workspace state, `bb profile:describe sew-core` resolves 353
+Clojure source files. The profile descriptor selects `runner`, `sew-core`, and
+the optional Sew pro-rata slash-evidence adapter.
 The initial audit found four undeclared component crossings. The component
-registry now separates the Sew slash-evidence adapter, pro-rata evaluation,
-portable allocator, verifier, and Sew settlement adapter. The current `sew-core`
-and `pro-rata` profile reports have zero undeclared component crossings, though
-their transitive source closures remain large. A new `sew-protocol` candidate
-profile excludes runner assembly and resolves to 235 source files with zero
+registry now separates Sew slash economics, slash evidence, pro-rata evaluation,
+portable allocation, verification, and Sew settlement. The slash-evidence
+adapter is separately selectable; the supported `sew-core` and candidate
+`sew-protocol` compositions include it to preserve the current evidence
+contract. These profile reports have zero undeclared component crossings, but
+their source closures remain large. The `sew-protocol` candidate excludes
+runner assembly and resolves to 237 source files with zero
 component crossings. That candidate closure is still too broad to count as a
 standalone package.
+
+The `sew-protocol-core` candidate omits the optional slash-evidence adapter
+and its runtime bootstrap, and resolves to 232 source files. Evidence-producing
+slash execution fails before side effects if the adapter is unavailable. The
+four-file difference confirms a selectable boundary while showing that most of
+the closure is shared Sew and allocation-economics code.
 
 A `sew-kernel` candidate isolates the escrow world representation and guarded
 state-transition API in a 30-file source closure. It is a narrow protocol
@@ -28,19 +39,20 @@ implementation.
 
 ## Current composition
 
-`profiles/sew-core.edn` selects `:prf/runner-v1` and `:prf/sew-core-v1`.
-The runner component owns scenario, server, replay and CLI entrypoints. The Sew
-component declares only `resolver-sim.protocols.sew` as its entry namespace and
-requires the framework plus the explicit Sew pro-rata slashing adapter. That
-adapter depends on pro-rata evaluation, which in turn depends on the portable
-allocator and exact verifier. The Sew pro-rata settlement adapter is separate
-and selected by the `pro-rata` profile.
+`profiles/sew-core.edn` selects `:prf/runner-v1`, `:prf/sew-core-v1`, and the
+Sew pro-rata slash-evidence adapter. The runner component owns scenario, server,
+replay and CLI entrypoints. Sew core requires the framework, escrow kernel, and
+slash economics component; it does not require the evidence adapter. The
+separately selectable evidence adapter installs the builder and artifact writer
+through a core-owned hook contract, and depends on core, slash economics, and
+pro-rata evaluation. The Sew pro-rata settlement adapter is separate and
+selected by the `pro-rata` profile.
 
-The resolved 351-file closure includes these largest groups:
+The resolved 353-file closure includes these largest groups:
 
 | Source group | Files | What it indicates |
 | --- | ---: | --- |
-| `protocols_src/resolver_sim/protocols` | 75 | Sew implementation and shared adjudication adapters |
+| `protocols_src/resolver_sim/protocols` | 77 | Sew implementation and shared adjudication adapters |
 | `src/resolver_sim/yield` | 28 | Yield runtime and accounting integration |
 | `protocols_src/resolver_sim/research` | 25 | Sew-specific research analyses pulled into the closure |
 | `src/resolver_sim/sim` | 22 | Simulation support |
@@ -50,7 +62,7 @@ The resolved 351-file closure includes these largest groups:
 
 These are dependency-closure counts, not a proposed package manifest.
 
-The `sew-protocol` candidate omits the runner component and has a 235-file
+The `sew-protocol` candidate omits the runner component and has a 237-file
 closure. Its largest groups remain Sew protocol sources (57), yield (28),
 scenario (14), benchmark (14), and contract-model replay (12). This is the
 better starting view for further separation, but the remaining groups show
@@ -63,6 +75,14 @@ constructors for an initial escrow world, the transition graph, and guarded
 escrow transitions. The component declares its framework dependency and kernel
 contract test. The profile is intentionally narrower than `sew-protocol` and
 does not claim the full protocol's settlement or evidence behavior.
+
+The `sew-protocol-core` candidate selects Sew core and slash economics without
+the optional pro-rata slash-evidence adapter. `resolution` calls a core-owned
+evidence hook; the adapter installs the existing builder and artifact writer
+when selected. The full `sew-core` and `sew-protocol` profiles include the
+adapter and extension bootstrap. The protocol registry loads that bootstrap on
+`get-protocol "sew-v1"`. `bb profile:diff sew-protocol-core sew-protocol`
+reports the adapter and five added source files.
 
 ## Concrete component crossings
 
@@ -106,28 +126,31 @@ Preparation should identify smaller stable entrypoints for:
 
 These are candidate ownership slices, not yet approved package boundaries.
 
-### Pro-rata evaluation inside Sew slash evidence
+### Pro-rata evaluation inside the Sew slash integration
 
 `protocols_src/resolver_sim/protocols/sew/pro_rata/evidence.clj` imports
 `resolver-sim.pro-rata.evaluation`. That namespace deliberately composes the
 pro-rata allocator, redistribution engine, and independent exact verifier to
 produce canonical result artifacts. This is an application integration, not a
-generic protocol primitive. Decide whether Sew core should depend on a narrow
-allocation/evidence contract or whether slash-allocation support belongs in a
-separate Sew integration component.
+generic protocol primitive. The evidence adapter is now independently
+selectable behind a Sew-owned hook, while core still depends on pro-rata slash
+economics and its evaluation/verifier chain. The exact verifier therefore
+remains in the adapter-free core closure; removing that dependency is a
+separate follow-up.
 
-The slash-allocation and slash-evidence code now has explicit
+The slash-allocation and slash-evidence code has explicit
 `resolver-sim.protocols.sew.pro-rata.*` namespaces. The general Sew economics
 namespace no longer imports PRF's pro-rata evaluator directly. The profile-view
 dependency scanner was also extended to include literal lazy namespace
 references; this exposed 41 additional source files compared with the earlier
-require-only audit. The old
-`sew.economics` and `sew.evidence.slashing` entrypoints remain compatibility
-facades; Sew resolution calls the named pro-rata evidence adapter. This makes
-ownership visible in source, and the declared component graph now has no
-crossings for the audited profiles. The adapter remains on the `sew-core`
-runtime path, so the source closure is not yet smaller or independently
-packageable.
+require-only audit. The old `sew.economics` and `sew.evidence.slashing`
+entrypoints remain compatibility facades; Sew resolution calls a core-owned
+multimethod contract, and the adapter installs its implementation when loaded.
+This makes ownership visible in source, and the declared component graph now
+has no crossings for the audited profiles. The slash-evidence adapter is no
+longer a direct dependency of the Sew core component. Full Sew compositions
+select it alongside core; the adapter-free candidate is only five source files
+smaller, so the broader protocol closure remains the main extraction blocker.
 
 ### Local PRF framework APIs
 
@@ -148,8 +171,9 @@ separate review. Its generated `deps.edn` copies the repository dependency map,
 so it does not define a minimal Sew dependency set. Sew tests and test material
 also live across
 `test/`, `protocols_src/test/`, `protocols_src/`, and shared fixture/resource
-directories. The slash-evidence adapter now declares its tests and conformance
-vector, but the core Sew component still lacks a curated self-contained test
+directories. The slash-evidence adapter declares its tests, and the slash
+economics component declares the allocation conformance vector. The core Sew
+component still lacks a curated self-contained test
 closure. A package candidate needs an explicit dependency manifest and complete
 test/fixture closure.
 
@@ -157,15 +181,14 @@ test/fixture closure.
 
 1. Keep the current `sew-core` profile documented as the composed runtime; do
    not label its current closure standalone.
-2. Preserve the new component split and inventory direct imports from Sew
+2. Preserve the split between Sew core, slash economics, and the optional
+   slash-evidence adapter; inventory direct imports from Sew
    namespaces, classifying each as protocol core, framework API, or optional
    integration.
-3. Determine whether the pro-rata slash adapter can be selected independently
-   without changing Sew's current evidence/result contract.
-4. Reduce the `sew-protocol` candidate's 235-file closure by removing unselected
+3. Reduce the `sew-protocol` candidate's 237-file closure by removing unselected
    research, benchmark, scenario, yield, DB, and replay integrations from the
    protocol entry namespace.
-5. Only after the constrained profile is small and tests/material are
+4. Only after the constrained profile is small and tests/material are
    self-contained, prepare a separate repository package with its own
    dependency manifest, source provenance, compatibility vectors, and
    independently reproducible acceptance commands.
