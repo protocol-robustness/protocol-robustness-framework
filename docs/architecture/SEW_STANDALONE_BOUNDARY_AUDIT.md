@@ -6,16 +6,21 @@ source has been moved out of PRF and no protocol semantics have changed.
 ## Summary
 
 The current `sew-core` profile is not a standalone protocol package boundary.
-At the current workspace state, `bb profile:describe sew-core` resolves 350
+At the current workspace state, `bb profile:describe sew-core` resolves 351
 Clojure source files. The profile descriptor selects `runner` and `sew-core`.
 The initial audit found four undeclared component crossings. The component
 registry now separates the Sew slash-evidence adapter, pro-rata evaluation,
 portable allocator, verifier, and Sew settlement adapter. The current `sew-core`
 and `pro-rata` profile reports have zero undeclared component crossings, though
 their transitive source closures remain large. A new `sew-protocol` candidate
-profile excludes runner assembly and resolves to 234 source files with zero
+profile excludes runner assembly and resolves to 235 source files with zero
 component crossings. That candidate closure is still too broad to count as a
 standalone package.
+
+A `sew-kernel` candidate isolates the escrow world representation and guarded
+state-transition API in a 30-file source closure. It is a narrow protocol
+kernel, not a complete Sew implementation; settlement, yield, evidence, and
+runtime composition remain outside this profile.
 
 This audit describes current PRF ownership and extraction blockers. It does not
 propose changes to protocol semantics or qualify an independently packaged Sew
@@ -31,11 +36,11 @@ adapter depends on pro-rata evaluation, which in turn depends on the portable
 allocator and exact verifier. The Sew pro-rata settlement adapter is separate
 and selected by the `pro-rata` profile.
 
-The resolved 350-file closure includes these largest groups:
+The resolved 351-file closure includes these largest groups:
 
 | Source group | Files | What it indicates |
 | --- | ---: | --- |
-| `protocols_src/resolver_sim/protocols` | 74 | Sew implementation and shared adjudication adapters |
+| `protocols_src/resolver_sim/protocols` | 75 | Sew implementation and shared adjudication adapters |
 | `src/resolver_sim/yield` | 28 | Yield runtime and accounting integration |
 | `protocols_src/resolver_sim/research` | 25 | Sew-specific research analyses pulled into the closure |
 | `src/resolver_sim/sim` | 22 | Simulation support |
@@ -45,12 +50,19 @@ The resolved 350-file closure includes these largest groups:
 
 These are dependency-closure counts, not a proposed package manifest.
 
-The `sew-protocol` candidate omits the runner component and has a 234-file
-closure. Its largest groups remain Sew protocol sources (56), yield (28),
+The `sew-protocol` candidate omits the runner component and has a 235-file
+closure. Its largest groups remain Sew protocol sources (57), yield (28),
 scenario (14), benchmark (14), and contract-model replay (12). This is the
 better starting view for further separation, but the remaining groups show
 that the Sew entry namespace still pulls research, yield, scenario, benchmark,
 and shared framework services into its runtime closure.
+
+The `sew-kernel` candidate has a 30-file closure and zero component crossings.
+Its public entrypoint is `resolver-sim.protocols.sew.kernel`; it exposes
+constructors for an initial escrow world, the transition graph, and guarded
+escrow transitions. The component declares its framework dependency and kernel
+contract test. The profile is intentionally narrower than `sew-protocol` and
+does not claim the full protocol's settlement or evidence behavior.
 
 ## Concrete component crossings
 
@@ -150,7 +162,7 @@ test/fixture closure.
    integration.
 3. Determine whether the pro-rata slash adapter can be selected independently
    without changing Sew's current evidence/result contract.
-4. Reduce the candidate profile's 234-file closure by removing unselected
+4. Reduce the `sew-protocol` candidate's 235-file closure by removing unselected
    research, benchmark, scenario, yield, DB, and replay integrations from the
    protocol entry namespace.
 5. Only after the constrained profile is small and tests/material are

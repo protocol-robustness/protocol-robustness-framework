@@ -60,6 +60,7 @@ the artifact tested with `java -jar`.
 | `runner` | supported | framework + runnable application/runner assembly |
 | `sew-core` | supported | runner + Sew protocol + pro-rata slash-evidence integration |
 | `sew-protocol` | candidate | framework + Sew protocol composition without runner assembly |
+| `sew-kernel` | candidate | framework + Sew escrow world and guarded state-transition kernel |
 | `pro-rata` | supported | Sew + portable pro-rata core + Sew settlement adapter |
 | `pro-rata-bounty` | supported | pro-rata + semantic bounty |
 | `pro-rata-claimant-options` | supported | pro-rata + runtime-only claimant execution controls |
@@ -107,6 +108,13 @@ remains follow-up work.
 package. It removes runner entrypoints from the composition, but its current
 transitive source closure still includes Sew research, yield, benchmark,
 scenario, and shared PRF framework internals.
+
+`sew-kernel` is a smaller candidate view of the escrow state model and guarded
+state transitions. Its public API can construct a world containing a valid
+initial escrow, and the component declares its framework dependency and kernel
+contract test. Its 30-file closure provides a concrete starting point for the
+optional integration split, but it does not implement the full Sew settlement,
+evidence, or yield behavior.
 
 ## Adding a component
 
