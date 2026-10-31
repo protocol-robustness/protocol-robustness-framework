@@ -13,22 +13,31 @@ Framework-owned concepts live in `data/concepts/`. Benchmark-local overlays live
 under `benchmarks/concepts/` and may shadow global concept IDs only when
 they explicitly declare `:concept/shadows-global? true`.
 
+The canonical registry assigns each concept a semantic `:concept/owner` and a
+set of applicable `:concept/protocols`. Stakeholder definitions live under
+`data/concepts/`; mapping labels live separately under `data/concept-mappings/`.
+The shared mapping set supplies common mappings, and a protocol mapping set may
+override those mappings for that protocol.
+
 Use-cases are not a framework registry category. Supply them explicitly through
 an external `:prf/use-case-registry.v1` registry; PRF never searches the
 classpath, current directory, or a default use-case location. The shipped
 `examples/use-cases/ecommerce/registry.edn` bundle is illustrative content and
 uses exactly the same loader contract as third-party registries.
 
-**Concepts must never affect:**
+**Concepts do not affect:**
 - Protocol execution (scenario running, dispute resolution, settlement)
 - Evidence capture (trace collection, hashing, attestation)
-- Canonical hashing or bundle root computation
+- Protocol outcome hashing or evidence-bundle content-root computation
 - Protocol validity, correctness, or invariant checks
 - Benchmark results, scoring, or claim evaluation
 - Any registry or pipeline that feeds into the above
 
-Concept enrichment is added **after** all protocol computation and
-hashing are complete. It is a cosmetic overlay on reports.
+Concept enrichment is added **after** protocol computation and outcome-root
+construction. Concept definitions and mapping files are included in the
+declared source-tree hash so their exact explanatory interpretation can be
+reproduced; they do not enter protocol outcome or evidence-bundle content roots.
+They remain a presentation and interpretation layer.
 
 ### Non-Normative Status
 
@@ -126,6 +135,7 @@ data/concepts/
 │   ├── verifiable_assurance.edn          ← forensic confidence
 │   ├── attestation.edn                   ← attestation verification
 │   ├── evidence_chain.edn                ← forensic evidence chain
+│   ├── pro_rata_evm_v2.edn               ← Pro-rata EVM V2 assurance
 │   └── evidence_backed_classification.edn← evidence-backed sensitivity classification
 ├── allocation/
 │   ├── partial_fill.edn                  ← partial fill allocation
@@ -150,6 +160,9 @@ data/concepts/
 │   ├── research_command.edn              ← research command
 │   ├── research_assignment.edn           ← research assignment
 │   ├── held_custody.edn                  ← held custody
+│   ├── creation_provenance.edn            ← artifact creation context
+│   ├── evidence_policy.edn                ← evidence capture and retention policy
+│   ├── source_creation.edn                ← source material creation context
 │   ├── review_certificate.edn            ← review certificate
 │   ├── review_member_canonical_indices.edn← review-member canonical indices
 │   ├── procedure_execution_witness.edn   ← procedure execution witness
@@ -161,6 +174,15 @@ data/concepts/
 │   └── force_authorisation.edn           ← force-authorisation
 └── yield/
     └── yield_bearing.edn                 ← yield-bearing position
+```
+
+Protocol mapping files are stored separately:
+
+```
+data/concept-mappings/
+├── shared.edn                            ← common mappings for shared concepts
+├── prf.edn                               ← PRF-owned mappings and overrides
+└── sew-v1.edn                            ← SEW-owned mappings and overrides
 ```
 
 `incentive/` (empty) is reserved for future incentive-type concepts; the current
@@ -184,7 +206,7 @@ Each concept file is a single EDN map with these keys:
 | `:concept/actions` | Map of action keywords to action maps |
 | `:concept/outcomes` | Map of outcome keywords to outcome maps |
 | `:concept/failure-modes` | Vector of failure mode maps |
-| `:concept/metrics` | Map of metric keyword to metric definition |
+| `:concept/metrics` | Optional map of metric keyword to metric definition |
 | `:concept/assumptions` | Vector of assumption strings |
 | `:concept/out-of-scope` | Vector of out-of-scope statements |
 | `:concept/related` | Vector of related concept keyword IDs (may be extended to typed maps in future) |
@@ -193,18 +215,21 @@ Each concept file is a single EDN map with these keys:
 | `:concept/known-gaps` | Vector of known mapping gaps or incomplete outcomes |
 | `:concept/evidence` | Map with `:scenarios`, `:benchmarks`, `:claims` keyed to sets |
 
-Each role, entity, action, and outcome map may contain:
+Concept role, entity, action, and outcome maps contain their identity and
+stakeholder description. Protocol mappings are stored in the mapping set
+registered for the relevant protocol, using `:concept/id`,
+`:mapping/category`, and `:mapping/id` to refer to that definition. Mapping
+values may contain:
 
 | Key | Purpose |
 |-----|---------|
 | `:maps-to` | Vector of `:protocol.*` keyword mappings |
 | `:mapping/confidence` | `:approximate` if mapping is not 1:1 |
 | `:mapping/note` | Explanation of an approximate mapping |
-| `:description` | Human-readable description |
 
 ## Mapping Vocabulary
 
-Concept layer `:maps-to` values use a consistent keyword taxonomy:
+Mapping-set `:maps-to` values use a consistent keyword taxonomy:
 
 | Namespace | Used In | Example |
 |-----------|---------|---------|
@@ -241,12 +266,16 @@ Runs as part of the docs-as-code pipeline via `make docs-as-code-check`.
 
 Checks that:
 - Every EDN file under `data/concepts/` parses correctly
+- Mapping files registered by `data/concepts/registry.edn` parse and use the declared protocol
+- Mapping records resolve to an existing concept, category, and mapping ID
 - Required concept keys are present
 - Registry entries reference existing files
+- Registry ownership and protocol applicability are valid
 - File concept IDs match registry IDs
 - Concept IDs are unique in the registry
 - `:concept/related` references resolve to registered concept IDs
 - Protocols are known (`:protocol/sew-v1`, `:protocol/prf`)
+- Concept-file protocol applicability matches the canonical registry
 - Files live in the subdirectory matching their `:concept/type`
-- `:maps-to` values use keyword (not string) form with recognized namespaces
+- `:maps-to` values in mapping sets use keyword (not string) form with recognized namespaces
 - `:concept/known-gaps` and `:concept/evidence` are not yet validated by this script

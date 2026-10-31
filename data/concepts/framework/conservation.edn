@@ -10,43 +10,43 @@
  :concept/benchmark-domains #{:domain/protocol-value-conservation}
  :concept/benchmark-concepts [:robustness/protocol-value-conservation]
  :concept/roles
- {:role/reviewer {:description "Evaluates whether the result is understandable, reproducible, and appropriately qualified." :maps-to []} :role/researcher {:description "Uses the concept to interpret benchmark results and compare protocol behavior across scenarios." :maps-to []} :role/protocol-designer {:description "Uses the concept to reason about protocol mechanisms, invariants, and failure modes." :maps-to []}}
+ {:role/reviewer {:description "Evaluates whether the result is understandable, reproducible, and appropriately qualified." } :role/researcher {:description "Uses the concept to interpret benchmark results and compare protocol behavior across scenarios." } :role/protocol-designer {:description "Uses the concept to reason about protocol mechanisms, invariants, and failure modes." }}
  :concept/entities
  {:entity/token
   {:description "A fungible asset tracked by the protocol across state transitions."
-   :maps-to [:protocol.entity/token]}
+   }
   :entity/escrow
   {:description "A workflow-bound escrow with balance, status, and resolver assignment."
-   :maps-to [:protocol.entity/escrow]}
+   }
   :entity/stake
   {:description "Resolver-staked collateral subject to slashing."
-   :maps-to [:protocol.entity/stake]}
+   }
   :entity/claim
   {:description "A right to a future amount, tracked as deferred or recognized liability."
-   :maps-to [:protocol.entity/claim]}}
+   }}
  :concept/actions
  {:action/release
   {:description "Release escrow principal to the recipient, finalising the transfer."
-   :maps-to [:protocol.action/release]}
+   }
   :action/cancel
   {:description "Cancel an escrow, returning principal to the sender."
-   :maps-to [:protocol.action/cancel]}
+   }
   :action/slash
   {:description "Deduct resolver stake and distribute according to protocol rules."
-   :maps-to [:protocol.action/slash]}
+   }
   :action/allocate
   {:description "Distribute available funds across claimants in proportion to their claims."
-   :maps-to [:protocol.action/allocate]}}
+   }}
  :concept/outcomes
  {:outcome/accounted
   {:description "The quantity is fully accounted for with no residual or deficit."
-   :maps-to [:protocol.outcome/pass]}
+   }
   :outcome/unaccounted
   {:description "A deficit or surplus exists that is not explained by explicit sinks, sources, or liabilities."
-   :maps-to [:protocol.outcome/fail]}
+   }
   :outcome/residual
   {:description "A small remainder exists due to integer rounding and is explicitly tracked as residual."
-   :maps-to [:protocol.outcome/warn]}}
+   }}
  :concept/failure-modes
  [{:failure/id :failure/unmodelled-sink
    :failure/name "Unmodelled sink"
