@@ -1,0 +1,5 @@
+{:profile/id :prf/yield-runtime-candidate-v1
+ :profile/version 1
+ :profile/status :candidate
+ :profile/extends :prf/framework-v1
+ :profile/components [:prf/yield-runtime-v1]}
