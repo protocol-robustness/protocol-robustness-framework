@@ -58,10 +58,11 @@ the artifact tested with `java -jar`.
 | --- | --- | --- |
 | `framework` | supported | portable canonical/framework base only |
 | `runner` | supported | framework + runnable application/runner assembly |
-| `sew-core` | supported | runner + Sew core + pro-rata slash-evidence adapter |
+| `sew-core` | supported | runner + Sew core (escrow kernel, yield runtime, slash economics) + pro-rata slash-evidence adapter |
 | `sew-protocol` | candidate | framework + Sew core + slash-evidence adapter, without runner assembly |
 | `sew-protocol-core` | candidate | Sew core and slash economics without optional pro-rata slash evidence; slash execution fails closed |
 | `sew-kernel` | candidate | framework + Sew escrow world and guarded state-transition kernel |
+| `yield-runtime` | candidate | framework + portable yield state, accounting, modules, risk, and evidence runtime |
 | `pro-rata` | supported | Sew + portable pro-rata core + Sew settlement adapter |
 | `pro-rata-bounty` | supported | pro-rata + semantic bounty |
 | `pro-rata-claimant-options` | supported | pro-rata + runtime-only claimant execution controls |
@@ -115,6 +116,13 @@ source component.
 package. It removes runner entrypoints from the composition, but its current
 transitive source closure still includes Sew research, yield, benchmark,
 scenario, and shared PRF framework internals.
+
+`yield-runtime` gives the 28 yield namespaces used by Sew an explicit component
+owner and a standalone candidate profile. The profile resolves 69 Clojure
+source files with zero declared component crossings and passes its isolated
+profile load check. Sew still depends on this component, so the Sew source
+closure remains 232 files; this boundary makes yield ownership independently
+selectable without claiming that a published package is ready.
 
 `sew-kernel` is a smaller candidate view of the escrow state model and guarded
 state transitions. Its public API can construct a world containing a valid
