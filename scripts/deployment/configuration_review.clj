@@ -154,41 +154,90 @@
            :errors (cond-> (:errors authentication)
                      (not action-valid?) (conj "trusted action is not approve-initial-inputs")))))
 
+(defn initial-input-approval-preflight
+  "Check whether independently supplied public trust context is ready to sign
+  this exact v3 manifest. This reads and verifies the source lock but never
+  loads a private key, signs, or writes an approval."
+  [manifest packages trusted-context key-id]
+  (let [{:keys [source-revision source-tree-sha256 source-root source-lock-path
+                principal trust-policy action]} trusted-context
+        content (validate-review-bindings manifest packages source-revision principal)
+        source-check (try
+                       {:valid? true
+                        :identity (source-identity/verify-source-lock
+                                   {:source-root source-root
+                                    :source-lock-path source-lock-path
+                                    :expected-tree-sha256 source-tree-sha256
+                                    :expected-parent source-revision})}
+                       (catch Exception error
+                         {:valid? false :error (.getMessage error)}))
+        source-tree-matches? (= source-tree-sha256 (:manifest/source-tree-sha256 manifest))
+        trust-keys (:trusted-keys trust-policy)
+        trust-key-ids (mapv :key/id trust-keys)
+        trust-policy-unambiguous? (and (vector? trust-keys)
+                                       (every? some? trust-key-ids)
+                                       (= (count trust-key-ids) (count (distinct trust-key-ids))))
+        matching-keys (filterv #(= key-id (:key/id %)) trust-keys)
+        trusted-key (when (= 1 (count matching-keys)) (first matching-keys))
+        checks {:manifest-v3? (= "local-configuration-review-manifest.v3"
+                                 (:manifest/schema manifest))
+                :manifest-content-matches? (:valid? content)
+                :source-lock-valid? (:valid? source-check)
+                :source-tree-matches-manifest? source-tree-matches?
+                :action-is-initial-input-approval? (= "approve-initial-inputs" action)
+                :principal-valid? (genesis/valid-evm-address? principal)
+                :principal-matches-manifest? (= principal (:manifest/approval-authority manifest))
+                :trust-policy-unambiguous? trust-policy-unambiguous?
+                :trusted-key-unique? (= 1 (count matching-keys))
+                :trusted-key-active? (= :active (:key/status trusted-key))
+                :trusted-key-role-valid? (= approval-role (:key/role trusted-key))
+                :trusted-key-principal-matches? (= principal (:approval/principal trusted-key))
+                :trusted-key-public-valid? (boolean (and (string? (:key/public trusted-key))
+                                                         (re-matches #"(?i)[0-9a-f]{64}"
+                                                                     (:key/public trusted-key))))}
+        valid? (every? true? (vals checks))]
+    {:schema "prf-local-initial-input-approval-preflight.v1"
+     :valid? valid?
+     :qualification (if valid? "ready-for-authorized-signature-not-approved" "blocked")
+     :manifestRoot (when (map? manifest) (manifest-root manifest))
+     :sourceIdentity (when (:valid? source-check) (:identity source-check))
+     :approval {:action action
+                :principal principal
+                :keyId key-id
+                :keyRole (:key/role trusted-key)
+                :keyStatus (:key/status trusted-key)}
+     :checks checks
+     :errors (cond-> []
+               (not (:valid? content)) (into (:errors content))
+               (not (:valid? source-check)) (conj (or (:error source-check) "source lock verification failed"))
+               (not source-tree-matches?) (conj "trusted source-tree digest differs from manifest")
+               (not= "approve-initial-inputs" action) (conj "trusted action is not approve-initial-inputs")
+               (not trust-policy-unambiguous?) (conj "trusted-key policy is missing or ambiguous")
+               (not= 1 (count matching-keys)) (conj "trusted key ID must resolve to exactly one key")
+               (not= :active (:key/status trusted-key)) (conj "trusted key is not active")
+               (not= approval-role (:key/role trusted-key)) (conj "trusted key role is not the initial-input approver role")
+               (not= principal (:approval/principal trusted-key)) (conj "trusted key principal differs from manifest principal")
+               (not (and (string? (:key/public trusted-key))
+                         (re-matches #"(?i)[0-9a-f]{64}" (:key/public trusted-key))))
+               (conj "trusted key must provide a raw 32-byte Ed25519 public key in hex"))
+     :privateKeyRead false
+     :signatureCreated false
+     :approvalWritten false}))
+
 (defn sign-initial-input-approval
   "Create initial-input approval only after checking the source-bound manifest,
   independently supplied source lock, fixed action, principal, and active
   trusted-key binding. The caller supplies an externally held private key; this
   function never persists or returns key material."
   [manifest packages trusted-context private-key key-id]
-  (let [{:keys [source-revision source-tree-sha256 source-root source-lock-path
-                principal trust-policy action]} trusted-context
-        content (validate-review-bindings manifest packages source-revision principal)
-        source-check (try
-                       (let [identity (source-identity/verify-source-lock
-                                       {:source-root source-root
-                                        :source-lock-path source-lock-path
-                                        :expected-tree-sha256 source-tree-sha256
-                                        :expected-parent source-revision})]
-                         (if (= source-tree-sha256 (:manifest/source-tree-sha256 manifest))
-                           {:valid? true :identity identity}
-                           {:valid? false :error "manifest source-tree identity differs from trusted context"}))
-                       (catch Exception error
-                         {:valid? false :error (.getMessage error)}))
-        trusted-key (some #(when (= key-id (:key/id %)) %) (:trusted-keys trust-policy))
-        trust-binding-valid? (and (= principal (:manifest/approval-authority manifest))
-                                  (= approval-role (:key/role trusted-key))
-                                  (= :active (:key/status trusted-key))
-                                  (= principal (:approval/principal trusted-key))) ]
-    (when-not (and (= "local-configuration-review-manifest.v3" (:manifest/schema manifest))
-                   (= "approve-initial-inputs" action)
-                   (:valid? content) (:valid? source-check) trust-binding-valid?)
+  (let [preflight (initial-input-approval-preflight manifest packages trusted-context key-id)
+        {:keys [trust-policy]} trusted-context]
+    (when-not (:valid? preflight)
       (throw (ex-info "initial-input approval preflight rejected"
-                      {:content content :source source-check
-                       :trust-binding-valid? (boolean trust-binding-valid?)
-                       :action action})))
+                      {:preflight preflight})))
     (let [envelope (approval-envelope manifest "approve-initial-inputs" private-key key-id)
           authentication (verify-initial-input-approval-envelope
-                          envelope manifest trust-policy action)]
+                          envelope manifest trust-policy "approve-initial-inputs")]
       (when-not (:valid? authentication)
         (throw (ex-info "private key does not match the independently trusted approval key"
                         {:authentication authentication :key-id key-id})))
@@ -232,6 +281,22 @@
                        "manifest-v2" (review-manifest-v2 packages source-revision principal)
                        "manifest-v3" (review-manifest-v3 packages source-revision source-tree-sha256 principal))]
         (prn manifest)))
+    "preflight-initial-inputs"
+    (let [[_ manifest-path packages-path trusted-context-path key-id-text & extra] args]
+      (when (or (nil? manifest-path) (nil? packages-path) (nil? trusted-context-path)
+                (nil? key-id-text) (seq extra))
+        (binding [*out* *err*]
+          (println "Usage: clojure -M:test -m scripts.deployment.configuration-review preflight-initial-inputs <manifest.edn> <packages.edn> <trusted-context.edn> <key-id-keyword>"))
+        (System/exit 2))
+      (let [manifest (edn/read-string (slurp (io/file manifest-path)))
+            packages (edn/read-string (slurp (io/file packages-path)))
+            trusted-context (edn/read-string (slurp (io/file trusted-context-path)))
+            key-id (edn/read-string key-id-text)]
+        (when-not (keyword? key-id)
+          (throw (ex-info "key ID must be an EDN keyword" {:key-id key-id-text})))
+        (let [result (initial-input-approval-preflight manifest packages trusted-context key-id)]
+          (println (json/write-str (json-safe result)))
+          (when-not (:valid? result) (System/exit 1)))))
     "sign-initial-inputs"
     (let [[_ manifest-path packages-path trusted-context-path private-key-path key-id-text output-path & extra] args]
       (when (or (nil? manifest-path) (nil? packages-path) (nil? trusted-context-path)
@@ -303,5 +368,5 @@
         (when-not (:valid? result) (System/exit 1))))
     (do
       (binding [*out* *err*]
-        (println "Usage: clojure -M:test -m scripts.deployment.configuration-review <manifest-v1|manifest-v2|manifest-v3|sign-initial-inputs|verify|verify-json> ..."))
+        (println "Usage: clojure -M:test -m scripts.deployment.configuration-review <manifest-v1|manifest-v2|manifest-v3|preflight-initial-inputs|sign-initial-inputs|verify|verify-json> ..."))
       (System/exit 2))))

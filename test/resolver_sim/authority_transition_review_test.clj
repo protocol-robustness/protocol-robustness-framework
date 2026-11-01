@@ -56,6 +56,12 @@
                                :key/role authority/transition-validator-role :key/status :active}]}]
     [request trust]))
 
+(defn- request-inputs [request]
+  (assoc (select-keys request
+                      [:previous-state :successor-state :current-policy :successor-policy
+                       :chain-instance])
+         :decision-preimages (get-in request [:envelope :authority-transition/decision-preimages])))
+
 (deftest policy-v3-authority-transition-review-binds-c1-and-eip191-signature
   (let [[request trust] (fixture-request-and-context)
         result (review/verify-request request {:authority-transition-trust-policy trust})]
@@ -65,6 +71,52 @@
     (is (= (:authority-transition/execution-commitment (:envelope request))
            (get-in result [:scope :execution-commitment])))
     (is (= (get-in request [:envelope :signature :signature-bytes]) (:attestation result)))))
+
+(deftest authority-transition-request-builder-reuses-canonical-envelope-derivation
+  (let [[request _] (fixture-request-and-context)
+        inputs (request-inputs request)
+        built (review/build-request inputs)]
+    (is (= request (assoc built :envelope
+                          (authority/attach-authority-transition-ecdsa-attestation
+                           (:envelope built) (:current-policy built)
+                           (get-in request [:envelope :signature :signature-bytes])))))
+    (is (= "0x" (subs (get-in built [:envelope :authority-transition/execution-commitment]) 0 2)))
+    (is (nil? (get-in built [:envelope :signature])))))
+
+(deftest authority-transition-request-builder-rejects-incomplete-or-invalid-inputs
+  (let [[request _] (fixture-request-and-context)
+        inputs (request-inputs request)]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"exactly the six declared semantic inputs"
+                          (review/build-request (dissoc inputs :chain-instance))))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"independent semantic validation"
+                          (review/build-request
+                           (update inputs :successor-state assoc :authority/revision 7))))))
+
+(deftest authority-transition-request-builder-cli-does-not-overwrite
+  (let [[request _] (fixture-request-and-context)
+        inputs (request-inputs request)
+        input-file (java.io.File/createTempFile "prf-authority-transition-input-" ".edn")
+        output-file (java.io.File/createTempFile "prf-authority-transition-output-" ".edn")
+        _ (.delete output-file)]
+    (try
+      (spit input-file (pr-str inputs))
+      (let [output (with-out-str
+                     (review/-main "build" (.getAbsolutePath input-file)
+                                   (.getAbsolutePath output-file)))
+            parsed-output (json/read-str output :key-fn keyword)
+            written (clojure.edn/read-string (slurp output-file))]
+        (is (= "unsigned-derived-not-approved" (:qualification parsed-output)))
+        (is (= (get-in request [:envelope :authority-transition/execution-commitment])
+               (:executionCommitment parsed-output)))
+        (is (nil? (get-in written [:envelope :signature])))
+        (is (thrown? java.nio.file.FileAlreadyExistsException
+                     (review/-main "build" (.getAbsolutePath input-file)
+                                   (.getAbsolutePath output-file)))))
+      (finally
+        (.delete input-file)
+        (.delete output-file)))))
 
 (deftest authority-transition-review-cli-returns-abi-ready-json
   (let [[request trust] (fixture-request-and-context)

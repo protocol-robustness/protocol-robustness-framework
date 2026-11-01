@@ -214,6 +214,15 @@
     (:claim-map (claim-registry/load-claim-registry nil))
     (catch Exception _ nil)))
 
+(defn- global-concept-ids [errors manifest-path]
+  (try
+    (let [load-registry (requiring-resolve 'resolver-sim.concepts.registry/load-registry)]
+      (set (map :concept/id (:concepts (load-registry)))))
+    (catch Exception error
+      (swap! errors conj (str "Global concept registry load failed for " manifest-path
+                              ": " (.getMessage error) " " (pr-str (ex-data error))))
+      nil)))
+
 (defn- validate-manifest
   [errors manifest manifest-path bid status-from-registry]
   (let [suite-key (:benchmark/scenario-suite manifest)
@@ -266,14 +275,11 @@
                                            (let [d (read-edn f)]
                                              (map :concept/id (:concepts d))))
                                          concept-files-list))
-          global-concept-ids (try
-                               (let [load-registry (requiring-resolve 'resolver-sim.concepts.registry/load-registry)
-                                     global-concepts (:concepts (load-registry))]
-                                 (set (map :concept/id global-concepts)))
-                               (catch Exception _ #{}))
-          all-concept-ids (set/union local-concept-ids global-concept-ids)]
+          global-concept-ids (global-concept-ids errors manifest-path)
+          all-concept-ids (when global-concept-ids
+                            (set/union local-concept-ids global-concept-ids))]
       (doseq [cid (:benchmark/concepts manifest)]
-        (when-not (contains? all-concept-ids cid)
+        (when (and all-concept-ids (not (contains? all-concept-ids cid)))
           (swap! errors conj (str "Unknown concept " cid " referenced from " manifest-path)))))
     ;; Scenario references in manifest
     (let [scenarios (:benchmark/scenarios manifest)]
@@ -292,13 +298,10 @@
                                                        (let [d (read-edn f)]
                                                          (map :concept/id (:concepts d))))
                                                      concept-files-list))
-                      global-concept-ids (try
-                                           (let [load-registry (requiring-resolve 'resolver-sim.concepts.registry/load-registry)
-                                                 global-concepts (:concepts (load-registry))]
-                                             (set (map :concept/id global-concepts)))
-                                           (catch Exception _ #{}))
-                      all-concept-ids (set/union local-concept-ids global-concept-ids)]
-                  (when-not (contains? all-concept-ids dim)
+                      global-concept-ids (global-concept-ids errors manifest-path)
+                      all-concept-ids (when global-concept-ids
+                                        (set/union local-concept-ids global-concept-ids))]
+                  (when (and all-concept-ids (not (contains? all-concept-ids dim)))
                     (swap! errors conj (str "Unknown scenario dimension " dim " in " manifest-path))))
                 (when-not (contains? (set (:benchmark/concepts manifest)) dim)
                   (swap! errors conj (str "Scenario dimension " dim " not declared in :benchmark/concepts in " manifest-path))))))))

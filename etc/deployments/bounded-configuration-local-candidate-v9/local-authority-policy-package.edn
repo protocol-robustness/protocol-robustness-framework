@@ -1,0 +1,19 @@
+{:package/schema "prf-local-authority-policy-package.v3",
+ :package/status :candidate-owner-approval-required,
+ :local-authority-policy
+ {:authority-policy/schema "local-authority-policy.v3",
+  :protocol/genesis-root
+  "sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775",
+  :execution/chain-id 31337,
+  :authority/governor "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  :authority/capabilities
+  ["authorise-decision"
+   "revoke-decision"
+   "set-proof-mode"
+   "update-authority-state"],
+  :authority/transition-validator-key-id
+  "bounded-local-transition-validator-v2",
+  :authority/transition-validator-address
+  "0xea2dd67de25f8046b3ba4483a8de2330d22e9413"},
+ :local-authority-policy/root
+ "sha256:2d0028af8aadc60fac7734326d2ec6d187078a6f056cab24d6005f2f9ab474b6"}
