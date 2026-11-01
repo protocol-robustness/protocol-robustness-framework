@@ -151,14 +151,14 @@ def snapshot_source(repo_root: Path, run_dir: Path) -> dict:
         info["included-roots"] = included_roots
         info["source-hash"] = ch
         info["source-hash-algorithm"] = SOURCE_TREE_HASH_ALGORITHM
-        info["source-hash-roots"] = included_roots
+        info["source-hash-roots"] = list(PRF_SOURCE_ROOTS)
     except Exception:
         info["code-hash"] = "unknown"
         info["code-hash-algorithm"] = "unknown"
         info["included-roots"] = []
         info["source-hash"] = "unknown"
         info["source-hash-algorithm"] = "unknown"
-        info["source-hash-roots"] = []
+        info["source-hash-roots"] = list(PRF_SOURCE_ROOTS)
 
     return info
 
