@@ -14,6 +14,7 @@
             [resolver-sim.evidence.node :as ev-node]
             [resolver-sim.io.results  :as results]
             [resolver-sim.sim.batch   :as batch]
+            [resolver-sim.protocols.sew.runner-extension]
             [resolver-sim.sim.sweep   :as sweep]
             [resolver-sim.sim.multi-epoch       :as multi-epoch]
             [resolver-sim.sim.waterfall         :as waterfall]
@@ -514,3 +515,6 @@
                        (fn [_p _] (phase-e/run-phase-e-sweep))]
    :phase-m-dr        ["\n⚖️  Running Phase M: Dispute Resolution Fairness Analysis"
                        (fn [_p _] (phase-m/run-phase-m-sweep))]})
+
+;; Register execution modes after the runner entrypoint vars above are defined.
+(require 'resolver-sim.definitions.runner-execution-registry)

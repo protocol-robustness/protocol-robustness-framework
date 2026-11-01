@@ -1,0 +1,36 @@
+{:source/revision "17bf2f0693367bfa3909a5aa186f4e806a76a5ea"
+ :source/contract "contracts/core/SewCoreVault.sol"
+ :source/test "test/foundry/core/SewCoreVaultProfile.t.sol"
+ :source/modules {:registry :module-snapshot-registry
+                  :resolution-module :default-resolution-module
+                  :release-strategy :default-release-strategy}
+ ;; Amounts are normalized integer token units. The Solidity tests use ether
+ ;; scaled values but assert the same fee and settlement relationships.
+ :cases
+ {:release {:source/test-function "test_create_release_and_pull_settlement_conserves_fee"
+            :gross 100000
+            :fee-bps 100
+            :net 99000
+            :fee 1000
+            :state :released
+            :claimant "0xSeller"}
+  :dispute-resolution {:source/test-function "test_single_resolver_dispute_settles_immediately_without_appeal_path"
+                       :gross 100000
+                       :fee-bps 0
+                       :net 100000
+                       :state :released
+                       :claimant "0xSeller"}
+  :timeout {:source/test-function "test_timeout_refunds_after_max_dispute_duration"
+            :gross 100000
+            :fee-bps 0
+            :net 100000
+            :state :refunded
+            :claimant "0xBuyer"
+            :elapsed-seconds 7776001}
+  :pull-settlement {:source/test-function "test_create_release_and_pull_settlement_conserves_fee"
+                    :gross 100000
+                    :fee-bps 100
+                    :net 99000
+                    :fee 1000
+                    :state :released
+                    :claimant "0xSeller"}}}

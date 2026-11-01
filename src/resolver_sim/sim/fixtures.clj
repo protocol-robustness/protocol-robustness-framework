@@ -22,7 +22,6 @@
             [resolver-sim.stochastic.params :as stoch-params]
             [resolver-sim.stochastic.types :as stoch-types]
             [resolver-sim.stochastic.rng :as rng]
-            [resolver-sim.protocols.sew.invariant-scenarios :as sew-scenarios]
             [resolver-sim.governance.rules :as gov-rules]
             [resolver-sim.io.fixtures :as io-fix]
             [resolver-sim.config.paths :as paths]
@@ -354,15 +353,28 @@
 ;; MC batch runner: drives scenario protocol-params → stochastic batch analysis
 ;; ──────────────────────────────────────────────────────────────────────────────
 
+(defonce ^:private scenario-catalogs (atom {}))
+
+(defn register-scenario-catalog!
+  "Install a protocol-owned scenario catalog for ID-based MC fixture runs.
+   Catalog entries are [label scenario-or-vector] pairs."
+  [protocol-id catalog]
+  (when-not (and (string? protocol-id) (sequential? catalog))
+    (throw (ex-info "Scenario catalog registration requires a protocol ID and catalog"
+                    {:protocol-id protocol-id :catalog-type (type catalog)})))
+  (swap! scenario-catalogs assoc protocol-id (vec catalog))
+  protocol-id)
+
 (defn- lookup-scenario
-  "Find a scenario map by its :scenario-id string in the Sew invariant scenario registry.
-   Handles paired scenarios (e.g. S12) where the entry value is a vector of two maps."
+  "Find a scenario map by its :scenario-id in the active protocol catalog.
+   Handles paired scenarios where a catalog entry contains multiple scenarios."
   [scenario-id]
-  (some (fn [[_ v]]
-          (if (vector? v)
-            (some (fn [s] (when (= scenario-id (:scenario-id s)) s)) v)
-            (when (= scenario-id (:scenario-id v)) v)))
-        sew-scenarios/all-scenarios))
+  (when-let [catalog (get @scenario-catalogs (str preg/default-protocol-id))]
+    (some (fn [[_ v]]
+            (if (vector? v)
+              (some (fn [s] (when (= scenario-id (:scenario-id s)) s)) v)
+              (when (= scenario-id (:scenario-id v)) v)))
+          catalog)))
 
 (defn scenario->mc-params
   "Compute a complete MC param map from a scenario.

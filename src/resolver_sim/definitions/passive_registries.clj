@@ -611,55 +611,9 @@
 ;; ── Execution Registry ─────────────────────────────────────────────────
 
 (def execution-registry-definitions
-  "EXECUTION_REGISTRY_SPEC_V1 entries: registered execution modes."
-  [{:id :execution/simulation
-    :version entry-version
-    :kind :simulation
-    :runner :phase-runner
-    :entry 'resolver-sim.core.phases/run-simulation
-    :execution/type :simulation
-    :execution/mode :full
-    :description "Full Monte Carlo simulation from protocol params."
-    :claims #{:deterministic-replay :evidence-completeness}}
-   {:id :execution/replay
-    :version entry-version
-    :kind :replay
-    :runner :scenario-runner
-    :entry 'resolver-sim.io.scenario-runner/run-and-report
-    :execution/type :replay
-    :execution/mode :deterministic
-    :description "Deterministic replay from recorded trace."
-    :claims #{:deterministic-replay :trace-fidelity}}
-   {:id :execution/server
-    :version entry-version
-    :kind :service
-    :runner :grpc-server
-    :entry 'resolver-sim.server.grpc/start!
-    :execution/type :server
-    :execution/mode :long-running
-    :description "Long-running gRPC server for interactive simulation."
-    :claims #{:evidence-completeness}}
-   {:id :execution/batch
-    :version entry-version
-    :kind :batch
-    :runner :phase-runner
-    :entry 'resolver-sim.core.phases/run-sweep
-    :execution/type :batch
-    :execution/mode :sweep
-    :depends-on [:execution/simulation]
-    :description "Parameter sweep or batch execution over multiple trials."
-    :claims #{:deterministic-replay}}
-   {:id :execution/diff
-    :version entry-version
-    :kind :differential
-    :runner :differential-runner
-    :entry 'resolver-sim.io.diff-runner/run-diff-traces!
-    :execution/type :diff
-    :execution/mode :comparison
-    :depends-on [:execution/replay]
-    :description "Trace diff between two simulation runs."
-    :claims #{:trace-fidelity}}
-   {:id :execution/validation
+  "Framework-owned execution modes. Runner modes are contributed by the
+   selected runner component through register-execution-registry-extension!."
+  [{:id :execution/validation
     :version entry-version
     :kind :validation
     :runner :registry-validator
@@ -695,15 +649,7 @@
     :execution/mode :inline
     :description "Per-event yield accounting delta emitted during deterministic replay."
     :claims #{:conservation :trace-fidelity}}
-   {:id :evidence/commitment-root
-    :version entry-version
-    :kind :commitment-root
-    :runner :scenario-runner
-    :entry 'resolver-sim.io.scenario-runner/run-and-report
-    :execution/type :commitment-root
-    :execution/mode :inline
-    :description "Evidence commitment root node — post-hoc DAG anchor committing to the execution node, evidence chain cursor, and bundle root hash. This is the externally meaningful evidence anchor for a run."
-    :claims #{}}])
+   ])
 
 (def execution-registry
   {:registry-version registry-version
@@ -1182,6 +1128,34 @@
                         {:registry registry-name
                          :cycle cycle})))
              (keys graph)))))))
+
+(defonce ^:private execution-registry-extensions (atom (sorted-map)))
+
+(defn resolved-execution-registry
+  "Return the framework execution registry plus entries contributed by loaded
+   optional components. Consumers that need a runnable mode use this view; the
+   passive registry itself remains loadable without the runner component."
+  []
+  (assoc execution-registry
+         :executions (into (vec execution-registry-definitions)
+                           (mapcat val @execution-registry-extensions))))
+
+(defn register-execution-registry-extension!
+  "Register validated execution entries from an optional component.
+   Registration is explicit and checks the full combined dependency graph."
+  [component-id entries]
+  (when-not (and (keyword? component-id) (vector? entries))
+    (throw (ex-info "Execution registry extension requires a component keyword and vector"
+                    {:component-id component-id :entries-type (type entries)})))
+  (let [other-entries (mapcat val (dissoc @execution-registry-extensions component-id))
+        candidate (into (into (vec execution-registry-definitions) other-entries) entries)
+        errors (validate-execution-registry-entries
+                :execution-registry candidate :entry-validation-mode :strict)]
+    (when (seq errors)
+      (throw (ex-info "Execution registry extension failed validation"
+                      {:component-id component-id :errors errors})))
+    (swap! execution-registry-extensions assoc component-id entries)
+    (resolved-execution-registry)))
 
 ;; ── Projection Definition Registry Validation ───────────────────────────
 ;; PROJECTION_DEFINITION_REGISTRY_SPEC_V1: startup SHALL fail on:

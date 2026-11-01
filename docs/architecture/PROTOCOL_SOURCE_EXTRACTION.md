@@ -39,26 +39,68 @@ one release/change history. A namespace can therefore cross the boundary by
 accident, and the build does not yet model Sew as an independently consumable
 artifact.
 
-## Proposed intermediate experiment: separate workspaces and `deps.edn`
+## Intermediate experiment: separate workspaces and `deps.edn`
 
-A practical next experiment is to use different workspaces, each with a
-workspace-local dependency file selecting the intended classpath:
+`workspaces/framework/deps.edn` and `workspaces/sew/deps.edn` now select two
+workspace-local classpaths. Both reuse the root project's pinned dependencies
+and framework paths through a local-root dependency; only the Sew workspace
+adds `protocols_src` and its tests. Run commands from the matching directory
+with `-Srepro` so home-level Clojure configuration cannot add paths or deps:
 
-- a framework workspace whose `deps.edn` exposes `src/` and excludes
-  `protocols_src/`;
-- a Sew workspace whose `deps.edn` exposes the framework source plus
-  `protocols_src/` (or, later, a checked-out/published framework dependency).
+```bash
+(cd workspaces/framework && clojure -Srepro -Spath)
+(cd workspaces/sew && clojure -Srepro -Spath)
+(cd workspaces/framework && clojure -Srepro -M -e "(require 'resolver-sim.pro-rata.allocation)")
+(cd workspaces/sew && clojure -Srepro -M -e "(require 'resolver-sim.protocols.sew.kernel)")
+```
 
-This gives each editor, REPL, and CI job an unambiguous classpath and makes
-accidental reverse dependencies easier to detect. It is useful scaffolding for
-repository extraction, but it is not sufficient as the final solution: local
-path references remain implicit, versioning is still coupled, and the two
-workspaces can drift unless their dependency inputs and validation commands
-are pinned.
+This is scaffolding only: both workspaces still consume the same local project,
+so source versions and most dependency inputs remain coupled. The next package
+boundary experiment should replace the local-root dependency with an immutable
+framework artifact or an explicit sibling checkout.
 
-If implemented, the experiment should preserve a single source of truth for
-commands and record the exact invocation for each workspace. It must not rely
-on a developer's home-level `~/.clojure/deps.edn` or on an ambient classpath.
+The initial namespace probe showed that `resolver-sim.core` is an application
+runner, not a framework API: it loads Sew research and simulation phases. The
+runner component now declares its Sew and slash-evidence dependencies, owns
+the fixture and reference-validation entrypoints, and includes the protocol
+fixtures they need. The generic fixture and reference-validation namespaces
+now use registered scenario catalogs and protocol capabilities rather than
+loading Sew implementation namespaces directly. The Sew cancellation
+projection and resolver-ring batch implementation now live under
+`protocols_src`; the generic batch runner invokes ring simulation through a
+registered runner adapter. Sew dispute-context case-bundle and model-only
+fixture utilities, plus the protocol-finality command, also moved under
+`protocols_src` and are owned by the runner profile. The portable framework
+profile remains the framework-only load boundary. The Sew invariant-suite
+command also moved under `protocols_src` and is declared as runner-owned.
+The Sew appeal-bond transition receipt now lives in a Sew replay adapter,
+registered through the protocol capability registry. Appeal-bond projection,
+finalization metrics, and receipt validation now live in that adapter too;
+shared replay requests it only for results containing Sew escrow or bond state.
+
+The workspace probes pass with 120 framework classpath entries and 121 Sew
+entries; the only additional entries are `protocols_src` and
+`protocols_src/test`. `bb profile:check framework` and
+`bb profile:check sew-kernel` pass. The full `sew-protocol-model-core` profile check
+previously failed during view generation because the exact-verifier component
+declared an absent `coprocessor/core` Rust crate. That stale material entry has
+been removed; profile generation now succeeds. `runner` and supported
+`sew-protocol-model` profile boundary/load checks pass. The runner profile declares its
+protocol fixture data and test material. Profile link generation verifies
+that destinations remain inside `.profile-view` and cannot overwrite source
+paths. The runner-free `sew-protocol-model-core` candidate still
+reports unresolved runner entries in the execution registry, so resolve that
+profile/registry composition before treating the candidate as package-qualified.
+
+The runner-free `sew-protocol` candidate now resolves to 199 files with no
+component crossings. Replay and batch reporting are runner capabilities;
+researcher authorization and scenario analysis are separately selectable Sew
+integrations. The Sew model exposes yield operations through an internal
+capability adapter over shared yield runtime. The remaining broad groups are
+yield, benchmark/research, and shared framework code. Keep research models and runner assembly out of the
+initial `prf-sew` runtime package. The exact pro-rata
+verifier remains a candidate for a separate optional assurance package later,
+once its dependency contract is independently qualified.
 
 ## Target approach: multiple repositories
 
@@ -103,14 +145,16 @@ The remaining P0 work is to keep this contract visible and protected:
 
 This prevents further coupling while the current layout remains in use.
 
-### P1 — next planned slice / medium urgency: workspace experiment
+### P1 — next planned slice / medium urgency: qualify the workspace boundary
 
-- Create documented framework-only and Sew-enabled workspace profiles with
-  explicit `deps.edn` inputs.
-- Run the same narrow tests in both profiles and compare packaging/runner
-  behaviour.
-- Identify the minimal public framework API that Sew actually consumes.
-- Decide whether shared schemas/canonical code need a small foundational package.
+- Replace the workspace local-root dependency with an immutable framework
+  artifact or explicit sibling checkout.
+- Identify and remove the remaining runner/research reverse dependencies from
+  framework-owned namespaces.
+- Reconcile stale exact-verifier component material so full Sew profiles can
+  be generated and qualified.
+- Identify the minimal public framework API that Sew consumes and decide
+  whether shared schemas/canonical code need a small foundational package.
 
 This is valuable engineering preparation, but should not block feature delivery
 unless a new protocol or consumer requires isolation.

@@ -27,6 +27,12 @@
                                         :projection/reason-is-time-dependent-declared-on-operation)
    :dispute-timestamps (unsupported-scope :projection/dispute-timestamps
                                           :projection/reason-is-world-level-declared-on-operation)
+   :dispute-resolver (unsupported-scope :projection/dispute-resolver
+                                        :projection/reason-is-world-level-declared-on-operation)
+   :max-dispute-duration (unsupported-scope :projection/max-dispute-duration
+                                            :projection/reason-is-snapshot-configuration)
+   :resolver-response-window (unsupported-scope :projection/resolver-response-window
+                                                :projection/reason-is-snapshot-configuration)
    :caller/identity (unsupported-scope :projection/caller-identity
                                        :projection/reason-is-authorization-bound)})
 
@@ -119,7 +125,9 @@
      :projection/snapshot snap
      :projection/declared (select-keys declared-outside-scope
                                        [:cancel-strategy :auto-cancel-time
-                                        :dispute-timestamps :caller/identity])
+                                        :dispute-timestamps :dispute-resolver
+                                        :max-dispute-duration :resolver-response-window
+                                        :caller/identity])
      :projection/admissibility
      (case path
        :sender-cancel
@@ -198,8 +206,8 @@
         by (case path
              :sender-cancel :sender
              :recipient-cancel :recipient
-             :auto-cancel-disputed-escrow :sender
-             :auto-cancel-disputed-on-auto-time :sender)]
+             :auto-cancel-disputed-escrow :keeper
+             :auto-cancel-disputed-on-auto-time :keeper)]
     (-> (effect kind by)
         (assoc :effects/final? final?
                :effects/slash-declared-outside-scope
@@ -255,12 +263,13 @@
         declared (set (keys (:projection/declared inputs)))
         consulted (case path
                     (:sender-cancel :recipient-cancel)
-                    #{:escrow-state :sender-status :recipient-status :both-agreed}
+                    #{:escrow/state :sender/cancellation-status
+                      :recipient/cancellation-status :both-agreed}
                     (:auto-cancel-disputed-escrow :auto-cancel-disputed-on-auto-time)
                     #{:dispute-active :pending-settlement :dispute-timeout-exceeded
                       :auto-cancel-due-on-disputed :dispute-resolver
                       :max-dispute-duration :resolver-response-window
-                      :dispute-timestamp :auto-cancel-time})
+                      :dispute-timestamps :auto-cancel-time})
         gaps (->> consulted
                   (remove (fn [f]
                             (or (contains? carried f)
