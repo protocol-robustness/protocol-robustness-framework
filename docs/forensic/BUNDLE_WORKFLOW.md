@@ -218,7 +218,7 @@ files. See `docs/forensic/FORENSIC_HARDENING.md` for the full reference.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PRF_SOURCE_ROOTS` | `src,protocols_src,benchmarks,data/concepts,data/concept-mappings,scenarios,suites,resources` | Replay-critical source dirs for `code-hash` |
+| `PRF_SOURCE_ROOTS` | `src,yield_runtime_src,protocols_src` | Replay-critical source dirs for `code-hash` |
 | `PRF_CODE_HASH_ALGORITHM` | `source-tree-hash.v1.path-content-sha256` | Hash algorithm name |
 | `PRF_RUNS_ROOT` | `~/prf-runs` | Output directory base |
 | `PRF_ARTIFACT_DIR` | `results/test-artifacts` | Clojure artifact dir |
@@ -228,7 +228,7 @@ files. See `docs/forensic/FORENSIC_HARDENING.md` for the full reference.
 Example:
 
 ```bash
-PRF_SOURCE_ROOTS="src,protocols_src,benchmarks,data/concepts,data/concept-mappings,scenarios,suites,resources" \
+PRF_SOURCE_ROOTS="src,yield_runtime_src,protocols_src,benchmarks,data/concepts,data/concept-mappings,scenarios,suites,resources" \
 PRF_RUNS_ROOT=/mnt/evidence-archive \
 PRF_EVIDENCE_USER=dedicated-runner \
   bb forensic:run
