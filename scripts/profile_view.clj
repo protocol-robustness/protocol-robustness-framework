@@ -15,7 +15,7 @@
 
 (def repo-root (fs/path (System/getProperty "user.dir")))
 (def profiles-dir (fs/path repo-root "profiles"))
-(def source-roots ["src" "yield_runtime_src" "protocols_src" "pro_rata_contract_src"])
+(def source-roots ["yield_runtime_src" "src" "protocols_src" "pro_rata_contract_src"])
 
 (defn read-edn [path] (edn/read-string (slurp (str path))))
 (defn profile-files [] (fs/glob profiles-dir "*.edn"))
