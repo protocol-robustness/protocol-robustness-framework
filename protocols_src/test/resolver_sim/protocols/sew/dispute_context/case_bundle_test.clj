@@ -24,11 +24,16 @@
         :economic-effects/status :unverified}]
       :case/appeal-bond-world
       {:appeal-bond/records
-       {"bond-a" {:bond/id "bond-a" :workflow/id workflow :dispute/id "dispute-0042"
-                  :appeal/ordinal 0 :asset :USDC :bond/posted-amount 100
+       {"appeal-bond:workflow-a:appellant:0"
+        {:bond/id "appeal-bond:workflow-a:appellant:0"
+                  :workflow/id workflow :dispute/id (str "dispute:" workflow)
+                  :appeal/ordinal 0 :escalation/from-level 0 :escalation/to-level 1
+                  :asset :USDC :bond/posted-amount 100
                   :bond/posting-fee 5 :bond/custodied-amount 95
                   :bond/payer "appellant" :bond/funder "appellant"
-                  :posting-operation/id "post-bond-a" :bond/status :open
+                  :posting-operation/id "post-bond-a" :posting-cause/type :appeal
+                  :posting-cause/root (root :posting-cause)
+                  :bond/status :open
                   :bond/remaining-custody 95}}}
       :case/research-history research-history
       :case/research-history-anchor (bundle/research-history-root research-history)
@@ -53,7 +58,8 @@
     (is (= :unverified (get-in view [:verification :verification/frames])))
     (is (= :verified (get-in view [:verification :verification/bonds])))
     (is (= :unverified (get-in view [:verification :verification/bond-disposition])))
-    (is (= 100 (get-in view [:case/appeal-bonds :appeal-bond/records "bond-a"
+    (is (= 100 (get-in view [:case/appeal-bonds :appeal-bond/records
+                             "appeal-bond:workflow-a:appellant:0"
                              :bond/posted-amount])))
     (is (= :partial (get-in view [:verification :verification/completeness])))
     (is (= :linked-unverified (get-in view [:verification :verification/incentives])))
@@ -70,7 +76,8 @@
         omitted-dissent (assoc-in artifact [:case/research-history] [])
         swapped-alias (assoc artifact :case/alias "dispute-9999")
         wrong-case-bond (assoc-in artifact
-                                  [:case/appeal-bond-world :appeal-bond/records "bond-a" :workflow/id]
+                                  [:case/appeal-bond-world :appeal-bond/records
+                                   "appeal-bond:workflow-a:appellant:0" :workflow/id]
                                   "workflow-z")
         forged-payment (assoc-in artifact [:case/incentive-state :payment] :paid)
         forged-pointer (assoc artifact :case/current-pointer

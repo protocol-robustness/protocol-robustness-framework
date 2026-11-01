@@ -1,0 +1,5 @@
+;; Development overlay for the separately selectable Sew model package.
+{:deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        org.protocol-robustness/prf-sew-protocol-model
+        {:local/root "../../packages/sew-protocol-model"}}
+ :paths ["../../protocols_src/test"]}

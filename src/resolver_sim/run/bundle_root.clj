@@ -153,7 +153,8 @@
    Uses lazy resolution to avoid hard dependencies on every registry namespace.
    Returns a map suitable for :registry/snapshot in the bundle root."
   []
-  (let [exec-reg (lazy-resolve 'resolver-sim.definitions.passive-registries/execution-registry)
+  (let [exec-reg-fn (lazy-resolve 'resolver-sim.definitions.passive-registries/resolved-execution-registry)
+        exec-reg (when exec-reg-fn (exec-reg-fn))
         ep-reg   (lazy-resolve 'resolver-sim.definitions.passive-registries/evidence-policy-registry)
         att-reg  (lazy-resolve 'resolver-sim.definitions.passive-registries/attestor-registry)
         cd-reg   (lazy-resolve 'resolver-sim.definitions.passive-registries/claim-definition-registry)
