@@ -116,9 +116,9 @@
    Re-normalizing arbitrary values must not turn them into accepted identity."
   [plan]
   (let [expected-keys #{:schema-version :programme/id :allocation-request-root
-                       :semantic-ids :stages :validation-profile-root
-                       :statement-profile-root :proof-profile-id
-                       :admission-profile-id}]
+                        :semantic-ids :stages :validation-profile-root
+                        :statement-profile-root :proof-profile-id
+                        :admission-profile-id}]
     (when-not (= expected-keys (set (keys plan)))
       (throw (ex-info "Canonical programme plan has an invalid field set"
                       {:expected expected-keys :actual (set (keys plan))}))))

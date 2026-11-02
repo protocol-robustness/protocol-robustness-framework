@@ -125,7 +125,7 @@
 
 (defn- append-torn-tail! [path]
   (Files/write path (.getBytes "{:partial-record true" StandardCharsets/UTF_8)
-              (into-array StandardOpenOption [StandardOpenOption/APPEND])))
+               (into-array StandardOpenOption [StandardOpenOption/APPEND])))
 
 (defn- execute-order [digits]
   (let [operation (fixture-operation)
@@ -458,8 +458,8 @@
         malformed-path (.resolve directory "malformed-genesis.edn")]
     (try
       (Files/write torn-path (java.util.Arrays/copyOf genesis-bytes 12)
-                  (into-array StandardOpenOption [StandardOpenOption/CREATE_NEW
-                                                  StandardOpenOption/WRITE]))
+                   (into-array StandardOpenOption [StandardOpenOption/CREATE_NEW
+                                                   StandardOpenOption/WRITE]))
       (let [recovered (profile/create-ledger! torn-path operation authority-root)
             state (profile/ledger-state recovered)
             original (profile/create-ledger! path operation authority-root)]
@@ -467,8 +467,8 @@
         (is (= (:journal/root (profile/ledger-state original)) (:journal/root state)))
         (is (.endsWith (slurp (.toFile torn-path)) "\n")))
       (Files/write malformed-path (.getBytes "{not-the-genesis" StandardCharsets/UTF_8)
-                  (into-array StandardOpenOption [StandardOpenOption/CREATE_NEW
-                                                  StandardOpenOption/WRITE]))
+                   (into-array StandardOpenOption [StandardOpenOption/CREATE_NEW
+                                                   StandardOpenOption/WRITE]))
       (is (= :partial-fill-file/malformed-record
              (exception-reason #(profile/create-ledger! malformed-path operation authority-root))))
       (finally (delete-tree! directory)))))
@@ -479,7 +479,7 @@
     (try
       (profile/submit! ledger (submission-for operation \1 \a))
       (Files/write path (.getBytes "\n" StandardCharsets/UTF_8)
-                  (into-array StandardOpenOption [StandardOpenOption/APPEND]))
+                   (into-array StandardOpenOption [StandardOpenOption/APPEND]))
       (is (= :partial-fill-file/malformed-record
              (exception-reason #(profile/create-ledger! path operation authority-root))))
       (finally (delete-tree! directory)))))
@@ -493,7 +493,7 @@
       (let [{:keys [directory path authority-root]} (empty-temp-ledger operation)]
         (try
           (Files/write path (.getBytes (str (pr-str scalar) "\n") StandardCharsets/UTF_8)
-                      (into-array StandardOpenOption [StandardOpenOption/APPEND]))
+                       (into-array StandardOpenOption [StandardOpenOption/APPEND]))
           (is (= :partial-fill-file/malformed-record
                  (exception-reason #(profile/create-ledger! path operation authority-root))))
           (finally (delete-tree! directory)))))
@@ -627,14 +627,14 @@
       (profile/submit! ledger submission)
       (let [expected-root (:journal/root (profile/ledger-state ledger))]
         (Files/write path (.getBytes "{:truncated true" StandardCharsets/UTF_8)
-                    (into-array StandardOpenOption [StandardOpenOption/APPEND]))
+                     (into-array StandardOpenOption [StandardOpenOption/APPEND]))
         (let [recovered (profile/create-ledger! path operation authority-root)]
           (is (= expected-root (:journal/root (profile/ledger-state recovered))))
           (is (.endsWith (slurp (.toFile path)) "\n")))
         (is (= :partial-fill-file/journal-owner-mismatch
                (exception-reason #(profile/create-ledger! path operation (root \7)))))
         (Files/write path (.getBytes "{:corrupt true}\n" StandardCharsets/UTF_8)
-                    (into-array StandardOpenOption [StandardOpenOption/APPEND]))
+                     (into-array StandardOpenOption [StandardOpenOption/APPEND]))
         (is (= :partial-fill-file/malformed-record
                (exception-reason #(profile/create-ledger! path operation authority-root)))))
       (finally (delete-tree! directory)))))

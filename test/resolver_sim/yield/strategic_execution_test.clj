@@ -29,69 +29,69 @@
 (defn- replay-fixture
   ([] (replay-fixture nil))
   ([retry-mode]
-  (let [catalog (edn/read-string (slurp (io/resource "yield/partial-fill-recovery-game-fixtures.edn")))
-        prepared (strategic/prepare-recovery-game-model
-                  (merge (:defaults catalog) (first (:cases catalog))))
-        base-row (assoc (row :alice :alice 10) :entitlement/id :alice-right)
-        step0 {:round/index 0 :submission/id :s0 :action :claim-now :row base-row}
-        step1 {:round/index 1 :submission/id :s1 :action :claim-now
-               :row (assoc base-row :owed 5 :weight 5 :cap 5)}
-        policy {:mode :pro-rata :rounding-policy :largest-remainder}
-        model {:schema-version "partial-fill-strategic-execution.v1"
-               :recovery-model/root (strategic/recovery-game-model-root (:model prepared))
-               :ordering :fixed-public-order :cost-schedule :zero :initial-cash 5
-               :policy policy :submission-order [:s0 :s1]
-               :plans {:alice {:claim (if retry-mode
-                                       [step0 (if (= retry-mode :changed)
-                                                (assoc-in step0 [:row :weight] 9) step0) step1]
-                                       [step0 step1])}
-                       :bob {:wait []} :carol {:wait []}}
-               :branches [{:branch/id :deterministic :probability-bps 10000
-                           :deposits [{:event/id :credit :round/index 1 :amount 5}]}]}
-        executable (execution/prepare-execution-model prepared model)
-        keys (.generateKeyPair (KeyPairGenerator/getInstance "Ed25519"))
-        encoded (.getEncoded (.getPublic keys))
-        public (apply str (map #(format "%02x" (bit-and 255 %)) (take-last 32 encoded)))
-        trust {:trusted-keys [{:key/id :permission :key/public public
-                               :key/status :active :key/role execution/permission-role}]}
-        initial (execution/initial-state executable)
-        build (fn [state step]
-                (let [r (:row step)
-                      decision (:decision (execution/allocate-owned-rows
-                                           {:available (:cash state) :policy policy :rows [r]}))
-                      grant (signed/sign-envelope
-                             {:schema-version "partial-fill-state-permission.v1"
-                              :permission/status :permitted :execution/root (:execution/root executable)
-                              :player/id :alice :entitlement/id :alice-right :action :claim-now
-                              :round/index (:round/index step) :pre-state/root (execution/state-root state)
-                              :priority :alice :amount-limit (:owed r) :cap-limit (:cap r)}
-                             execution/permission-domain (.getPrivate keys) :permission)
-                      root (execution/content-root :partial-fill-state-permission.v1 grant)
-                      post (-> state (update :cash - 5)
-                               (update-in [:balances :alice-right] - 5)
-                               (update-in [:payments :alice] (fnil conj []) {:amount 5 :round/index (:round/index step)})
-                               (assoc-in [:submissions [:alice-right (:submission/id step)]]
-                                         {:step step :decision decision}))]
-                  {:post post :grant grant :root root
-                   :assertion (merge (select-keys step [:round/index :submission/id :action])
-                                     {:pre-state/root (execution/state-root state)
-                                      :post-state/root (execution/state-root post)
-                                      :permission/root root :decision decision})}))
-        first-step (build initial step0)
-        second-step (build (-> (:post first-step) (update :cash + 5) (update :credited conj :credit)) step1)
-        trace {:schema-version "partial-fill-execution-trace.v1" :branch/id :deterministic
-               :actions {:alice :claim :bob :wait :carol :wait}
-               :execution/root (:execution/root executable) :initial-state/root (execution/state-root initial)
-               :steps (if retry-mode
-                        [(:assertion first-step)
-                         (assoc (:assertion first-step)
-                                :pre-state/root (execution/state-root (:post first-step)))
-                         (:assertion second-step)]
-                        [(:assertion first-step) (:assertion second-step)])}
-        opts {:permission-trust-policy trust
-              :permission-sources {(:root first-step) (:grant first-step) (:root second-step) (:grant second-step)}}]
-    {:prepared prepared :model model :executable executable :trace trace :opts opts
-     :choices {:alice :claim :bob :wait :carol :wait}})))
+   (let [catalog (edn/read-string (slurp (io/resource "yield/partial-fill-recovery-game-fixtures.edn")))
+         prepared (strategic/prepare-recovery-game-model
+                   (merge (:defaults catalog) (first (:cases catalog))))
+         base-row (assoc (row :alice :alice 10) :entitlement/id :alice-right)
+         step0 {:round/index 0 :submission/id :s0 :action :claim-now :row base-row}
+         step1 {:round/index 1 :submission/id :s1 :action :claim-now
+                :row (assoc base-row :owed 5 :weight 5 :cap 5)}
+         policy {:mode :pro-rata :rounding-policy :largest-remainder}
+         model {:schema-version "partial-fill-strategic-execution.v1"
+                :recovery-model/root (strategic/recovery-game-model-root (:model prepared))
+                :ordering :fixed-public-order :cost-schedule :zero :initial-cash 5
+                :policy policy :submission-order [:s0 :s1]
+                :plans {:alice {:claim (if retry-mode
+                                         [step0 (if (= retry-mode :changed)
+                                                  (assoc-in step0 [:row :weight] 9) step0) step1]
+                                         [step0 step1])}
+                        :bob {:wait []} :carol {:wait []}}
+                :branches [{:branch/id :deterministic :probability-bps 10000
+                            :deposits [{:event/id :credit :round/index 1 :amount 5}]}]}
+         executable (execution/prepare-execution-model prepared model)
+         keys (.generateKeyPair (KeyPairGenerator/getInstance "Ed25519"))
+         encoded (.getEncoded (.getPublic keys))
+         public (apply str (map #(format "%02x" (bit-and 255 %)) (take-last 32 encoded)))
+         trust {:trusted-keys [{:key/id :permission :key/public public
+                                :key/status :active :key/role execution/permission-role}]}
+         initial (execution/initial-state executable)
+         build (fn [state step]
+                 (let [r (:row step)
+                       decision (:decision (execution/allocate-owned-rows
+                                            {:available (:cash state) :policy policy :rows [r]}))
+                       grant (signed/sign-envelope
+                              {:schema-version "partial-fill-state-permission.v1"
+                               :permission/status :permitted :execution/root (:execution/root executable)
+                               :player/id :alice :entitlement/id :alice-right :action :claim-now
+                               :round/index (:round/index step) :pre-state/root (execution/state-root state)
+                               :priority :alice :amount-limit (:owed r) :cap-limit (:cap r)}
+                              execution/permission-domain (.getPrivate keys) :permission)
+                       root (execution/content-root :partial-fill-state-permission.v1 grant)
+                       post (-> state (update :cash - 5)
+                                (update-in [:balances :alice-right] - 5)
+                                (update-in [:payments :alice] (fnil conj []) {:amount 5 :round/index (:round/index step)})
+                                (assoc-in [:submissions [:alice-right (:submission/id step)]]
+                                          {:step step :decision decision}))]
+                   {:post post :grant grant :root root
+                    :assertion (merge (select-keys step [:round/index :submission/id :action])
+                                      {:pre-state/root (execution/state-root state)
+                                       :post-state/root (execution/state-root post)
+                                       :permission/root root :decision decision})}))
+         first-step (build initial step0)
+         second-step (build (-> (:post first-step) (update :cash + 5) (update :credited conj :credit)) step1)
+         trace {:schema-version "partial-fill-execution-trace.v1" :branch/id :deterministic
+                :actions {:alice :claim :bob :wait :carol :wait}
+                :execution/root (:execution/root executable) :initial-state/root (execution/state-root initial)
+                :steps (if retry-mode
+                         [(:assertion first-step)
+                          (assoc (:assertion first-step)
+                                 :pre-state/root (execution/state-root (:post first-step)))
+                          (:assertion second-step)]
+                         [(:assertion first-step) (:assertion second-step)])}
+         opts {:permission-trust-policy trust
+               :permission-sources {(:root first-step) (:grant first-step) (:root second-step) (:grant second-step)}}]
+     {:prepared prepared :model model :executable executable :trace trace :opts opts
+      :choices {:alice :claim :bob :wait :carol :wait}})))
 
 (deftest replay-retries-do-not-pay-twice-and-changed-retries-are-rejected
   (doseq [mode [:exact :changed]]
@@ -131,7 +131,7 @@
         (is (zero? @calls))))
     (is (= :permission-signature-invalid
            (:reason (execution/replay-profile executable choices :deterministic trace
-                                               (assoc opts :permission-trust-policy {:trusted-keys []})))))))
+                                              (assoc opts :permission-trust-policy {:trusted-keys []})))))))
 
 (deftest signed-replay-propagates-assurance-through-pure-mixed-and-stochastic-solvers
   (doseq [stochastic? [false true] mixed? [false true]]
@@ -254,7 +254,7 @@
   (let [{:keys [prepared opts static-permission-trust-policy]} (demo/build-example)
         outcome {:by-player (into {} (map (fn [p] [p {:payments [] :delay-rounds 0 :fees 0
                                                       :expected-unrecovered 10 :priority-externality 0 :penalty-count 0}])
-                                         [:alice :bob]))}
+                                          [:alice :bob]))}
         game {:actions {:alice [:claim-now] :bob [:claim-now]}
               :profiles [{:actions {:alice :claim-now :bob :claim-now} :outcome outcome}]}
         opts (assoc opts :require-validated-execution? false

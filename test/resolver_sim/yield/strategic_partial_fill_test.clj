@@ -669,9 +669,9 @@
                   (into {}
                         (map (fn [player]
                                [player {:payments [{:amount (if (= :claim-now
-                                                                  (get actions player))
-                                                               10 0)
-                                                   :round/index 0}]
+                                                                   (get actions player))
+                                                              10 0)
+                                                    :round/index 0}]
                                         :delay-rounds 0 :fees 0 :expected-unrecovered 0
                                         :priority-externality 0 :penalty-count 0}])
                              players))}})
@@ -694,12 +694,12 @@
                   (update :entitlements #(filterv (fn [e]
                                                     (selected-entitlements (:entitlement/id e))) %))
                   (update :rounds #(mapv (fn [round]
-                                          (let [incoming (filterv selected-entitlements
-                                                                  (:incoming round))]
-                                            (assoc round :incoming incoming
-                                                   :requested-by-entitlement
-                                                   (select-keys (:requested-by-entitlement round)
-                                                                incoming)))) %))
+                                           (let [incoming (filterv selected-entitlements
+                                                                   (:incoming round))]
+                                             (assoc round :incoming incoming
+                                                    :requested-by-entitlement
+                                                    (select-keys (:requested-by-entitlement round)
+                                                                 incoming)))) %))
                   (update-in [:execution-model :parallelism :submissions]
                              #(filterv (fn [s]
                                          (selected-entitlements (:entitlement/id s))) %))
@@ -732,7 +732,7 @@
 
 (deftest strategic-coverage-reports-domain-and-policy-budget
   (let [scope (enum/make-scope :dimensions {:claim-count [1 1]
-                                           :request [0 1] :liquidity [0 1]}
+                                            :request [0 1] :liquidity [0 1]}
                                :max-states 4)
         run (fn [scope budget]
               (:validation-scope

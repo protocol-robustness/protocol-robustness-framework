@@ -342,12 +342,12 @@
 
 (defn- with-proof-runtime [f]
   (transport-proof/with-runtime
-   {:coordinator-state coordinator-state
-    :update-coordinator-state! update-coordinator-state!
-    :runner-state runner-state
-    :update-runtime-state! update-runtime-state!
-    :post-edn! post-edn!}
-   f))
+    {:coordinator-state coordinator-state
+     :update-coordinator-state! update-coordinator-state!
+     :runner-state runner-state
+     :update-runtime-state! update-runtime-state!
+     :post-edn! post-edn!}
+    f))
 
 (defn admit-native-accounting-proof! [coordinator request]
   (with-proof-runtime
@@ -397,15 +397,15 @@
 
 (defn- with-dispatch-runtime [f]
   (transport-dispatch/with-runtime
-   {:post-edn! post-edn!
-    :persist-dispatch-intent! persist-dispatch-intent!
-    :update-coordinator-state! update-coordinator-state!
-    :coordinator-state coordinator-state
-    :native-accounting-work-shape? native-accounting-work-shape?
-    :observed-work-for observed-work-for
-    :claim-observation-from-delivery claim-observation-from-delivery
-    :valid-accounting-result-delivery? valid-accounting-result-delivery?}
-   f))
+    {:post-edn! post-edn!
+     :persist-dispatch-intent! persist-dispatch-intent!
+     :update-coordinator-state! update-coordinator-state!
+     :coordinator-state coordinator-state
+     :native-accounting-work-shape? native-accounting-work-shape?
+     :observed-work-for observed-work-for
+     :claim-observation-from-delivery claim-observation-from-delivery
+     :valid-accounting-result-delivery? valid-accounting-result-delivery?}
+    f))
 
 (defn deliver-job!
   "Deliver one rooted job/assignment through the authenticated runner transport."
@@ -459,15 +459,15 @@
 
 (defn- with-results-runtime [f]
   (transport-results/with-runtime
-   {:post-edn! post-edn!
-    :computed-execution-root computed-execution-root
-    :runner-state runner-state
-    :update-runtime-state! update-runtime-state!
-    :append-work-event append-work-event
-    :acknowledge-result? acknowledge-result?
-    :deliver-observed-result! deliver-observed-result!
-    :record-forensic-event record-forensic-event}
-   f))
+    {:post-edn! post-edn!
+     :computed-execution-root computed-execution-root
+     :runner-state runner-state
+     :update-runtime-state! update-runtime-state!
+     :append-work-event append-work-event
+     :acknowledge-result? acknowledge-result?
+     :deliver-observed-result! deliver-observed-result!
+     :record-forensic-event record-forensic-event}
+    f))
 
 (defn- deliver-computation-result! [message]
   (with-results-runtime
@@ -496,15 +496,15 @@
 
 (defn execute-delivered-work! [runner work logical-cutpoint]
   (transport-execution/with-runtime
-   {:work-root work-root
-    :runner-state runner-state
-    :update-runtime-state! update-runtime-state!
-    :append-work-event append-work-event
-    :record-forensic-event record-forensic-event
-    :computed-execution-root computed-execution-root
-    :acknowledge-result? acknowledge-result?
-    :deliver-computation-result! deliver-computation-result!
-    :deliver-observed-result! deliver-observed-result!
-    :observed-work-for observed-work-for}
-   #(transport-execution/execute-delivered-work! runner work logical-cutpoint)))
+    {:work-root work-root
+     :runner-state runner-state
+     :update-runtime-state! update-runtime-state!
+     :append-work-event append-work-event
+     :record-forensic-event record-forensic-event
+     :computed-execution-root computed-execution-root
+     :acknowledge-result? acknowledge-result?
+     :deliver-computation-result! deliver-computation-result!
+     :deliver-observed-result! deliver-observed-result!
+     :observed-work-for observed-work-for}
+    #(transport-execution/execute-delivered-work! runner work logical-cutpoint)))
 

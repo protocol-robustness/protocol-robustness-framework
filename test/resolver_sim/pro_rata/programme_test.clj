@@ -539,7 +539,7 @@
 (deftest programme-receipt-verification-failure-is-not-progress-success
   (let [state (progress/make-progress-atom)
         result (with-redefs [prog/verify-programme-receipt
-                            (fn [& _] {:status :failed :mismatches [:injected]})]
+                             (fn [& _] {:status :failed :mismatches [:injected]})]
                  (prog/run-programme a-plan :progress-atom state))]
     (is (= :failed (get-in result [:verification :status])))
     (is (= :failed (:status @state)))

@@ -437,9 +437,9 @@
                       (and (vector? rows) (not= requested row-requested)) :row-request-mismatch
                       (and (vector? rows) (= :waterfall mode)
                            (not= (count (or (:fill-order policy)
-                                           [:principal :realized-yield :deferred-yield]))
+                                            [:principal :realized-yield :deferred-yield]))
                                  (count (distinct (or (:fill-order policy)
-                                                     [:principal :realized-yield :deferred-yield])))))
+                                                      [:principal :realized-yield :deferred-yield])))))
                       :duplicate-waterfall-buckets
                       :else nil)
         rounding-policy (:rounding-policy policy :floor-and-carry)
@@ -510,12 +510,12 @@
         mismatches (if unsupported
                      [{:reason unsupported}]
                      (into (vec (keep (fn [field]
-                                  (let [expected-value (get expected field)
-                                        actual-value (get decision field)]
-                                    (when (not= (normalize-field field expected-value)
-                                                (normalize-field field actual-value))
-                                      {:field field :expected expected-value :actual actual-value})))
-                                fields))
+                                        (let [expected-value (get expected field)
+                                              actual-value (get decision field)]
+                                          (when (not= (normalize-field field expected-value)
+                                                      (normalize-field field actual-value))
+                                            {:field field :expected expected-value :actual actual-value})))
+                                      fields))
                            (keep (fn [[field expected-value actual-value]]
                                    (when (not= expected-value actual-value)
                                      {:field field :expected expected-value :actual actual-value}))
@@ -2089,8 +2089,8 @@
                                lower (nth fill-order j)
                                higher-requested (long (get requested higher 0))
                                higher-priority-limit (min higher-requested
-                                                         (long (get effective-caps higher
-                                                                    higher-requested)))
+                                                          (long (get effective-caps higher
+                                                                     higher-requested)))
                                higher-filled (long (get filled higher 0))
                                lower-filled (long (get filled lower 0))]
                            (when (and (pos? higher-requested)
