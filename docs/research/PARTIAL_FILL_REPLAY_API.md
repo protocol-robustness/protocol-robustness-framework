@@ -59,6 +59,8 @@ silently drops a profile.
 
 The wire schemas, limits and unsupported execution models are specified in
 [Partial-fill strategic execution and replay v1](../specs/PARTIAL_FILL_STRATEGIC_REPLAY_V1.md).
+Waterfall execution rows carry a unique `:key` and an optional shared `:bucket`;
+`:fill-order` orders buckets, and fills remain attributable by row key and owner.
 In weighted/capped allocation experiments, declare the actual deferral policy:
 contractual residual claims do not generally preserve the original request ratio.
 

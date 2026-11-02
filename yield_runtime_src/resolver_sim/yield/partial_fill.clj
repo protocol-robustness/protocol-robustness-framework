@@ -149,6 +149,7 @@
    Includes fill-ratio (filled/owed as a double) for verifiability."
   [row filled]
   (let [k (:key row)
+        bucket (:bucket row k)
         owed (long (:owed row))
         f (long (get filled k 0))
         ;; Reject malformed rows rather than masking an over-allocation: a row
@@ -160,7 +161,7 @@
         d (max 0 (- owed f))
         cap (:cap row)
         effective-cap (if (some? cap) (min owed cap) owed)]
-    {:key k
+    (cond-> {:key k
      :obligation-id (:obligation-id row)
      :source-position-id (:source-position-id row)
      :owed owed
@@ -171,7 +172,8 @@
      :final-allocation f
      :deferred d
      :fill-ratio (if (pos? owed) (double (/ f owed)) 0.0)
-     :cap-hit? (if (some? cap) (>= f effective-cap) false)}))
+     :cap-hit? (if (some? cap) (>= f effective-cap) false)}
+      (not= bucket k) (assoc :bucket bucket))))
 
 (defn- residual-reason
   [unallocated allocation]
@@ -384,7 +386,7 @@
 
       :waterfall
       (let [fill-order (:fill-order policy [:principal :realized-yield :deferred-yield])
-            bucket-rows (group-by :key rows)]
+            bucket-rows (group-by #(get % :bucket (:key %)) rows)]
         (when-not (= (count fill-order) (count (distinct fill-order)))
           (throw (ex-info "Semantic reconstruction requires a unique waterfall order"
                           {:reason :duplicate-waterfall-buckets})))
@@ -666,7 +668,7 @@
    Returns {:filled {} :row-evidence [] :redistributions [{:bucket k :redistribution m}]}."
   [available-liquidity rows fill-order policy progress-atom]
   (let [rounding-policy (:rounding-policy policy :floor-and-carry)
-        bucket->rows (group-by :key rows)]
+        bucket->rows (group-by #(get % :bucket (:key %)) rows)]
     (loop [remaining available-liquidity
            filled {}
            all-row-evidence []
@@ -2080,19 +2082,31 @@
                  vec)))
         waterfall-violations
         (when (= :waterfall mode)
-          (let [fill-order (:fill-order policy [:principal :realized-yield :deferred-yield])]
+          (let [fill-order (:fill-order policy [:principal :realized-yield :deferred-yield])
+                bucket-stats (if (seq allocation-rows)
+                               (reduce (fn [stats row]
+                                         (let [bucket (get row :bucket (:key row))
+                                               key (:key row)]
+                                           (-> stats
+                                               (update-in [bucket :requested] (fnil + 0) (:owed row))
+                                               (update-in [bucket :cap] (fnil + 0) (:effective-cap row))
+                                               (update-in [bucket :filled] (fnil + 0) (get filled key 0)))))
+                                       {} allocation-rows)
+                               (into {} (map (fn [bucket]
+                                               [bucket {:requested (get requested bucket 0)
+                                                        :cap (get effective-caps bucket (get requested bucket 0))
+                                                        :filled (get filled bucket 0)}]) fill-order)))]
             (->> (for [i (range (count fill-order))
                        j (range (inc i) (count fill-order))]
                    [i j])
                  (keep (fn [[i j]]
                          (let [higher (nth fill-order i)
                                lower (nth fill-order j)
-                               higher-requested (long (get requested higher 0))
-                               higher-priority-limit (min higher-requested
-                                                          (long (get effective-caps higher
-                                                                     higher-requested)))
-                               higher-filled (long (get filled higher 0))
-                               lower-filled (long (get filled lower 0))]
+                               higher-stats (get bucket-stats higher {:requested 0 :cap 0 :filled 0})
+                               lower-filled (get-in bucket-stats [lower :filled] 0)
+                               higher-requested (:requested higher-stats)
+                               higher-priority-limit (min higher-requested (:cap higher-stats))
+                               higher-filled (:filled higher-stats)]
                            (when (and (pos? higher-requested)
                                       (< higher-filled higher-priority-limit)
                                       (pos? lower-filled))

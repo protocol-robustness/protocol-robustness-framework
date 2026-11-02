@@ -26,7 +26,8 @@
 
 (defn allocate-owned-rows
   "Run production allocation, independently verify it, and score the same owners.
-   Duplicate bucket keys are unsupported. Amounts must fit production longs."
+   Waterfall rows may share :bucket while keeping unique :key row identities.
+   Amounts must fit production longs."
   [{:keys [available policy rows] :as input}]
   (guarded
    (fn []
