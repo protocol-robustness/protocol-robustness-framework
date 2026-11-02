@@ -243,6 +243,28 @@
     (is (:valid? (pf/verify-semantic-decision
                   (assoc input :policy floor-policy) floor-decision)))))
 
+(deftest waterfall-supports-multiple-owner-rows-in-one-priority-bucket
+  (let [policy {:mode :waterfall :fill-order [:principal :yield]
+                :rounding-policy :largest-remainder
+                :fail-action-policy {:mode :pro-rata-treatment :deferred-policy :contractual
+                                     :haircut-policy :contractual}}
+        rows [{:key :alice-principal :bucket :principal :obligation-id :alice
+               :source-position-id :alice-p :owed 4 :weight 1 :cap 4}
+              {:key :bob-principal :bucket :principal :obligation-id :bob
+               :source-position-id :bob-p :owed 4 :weight 1 :cap 4}
+              {:key :alice-yield :bucket :yield :obligation-id :alice
+               :source-position-id :alice-y :owed 4 :weight 1 :cap 4}]
+        requested (into {} (map (juxt :key :owed) rows))
+        input {:available 6 :requested requested :policy policy :rows rows}
+        decision (pf/calculate-fulfillment-waterfall 6 requested policy {:rows rows})
+        verification (pf/verify-semantic-decision input decision)]
+    (is (= {:alice-principal 3 :bob-principal 3} (:filled decision)))
+    (is (= :principal (get-in decision [:evidence :allocation-rows 0 :bucket])))
+    (is (= :principal (get-in decision [:evidence :allocation-rows 1 :bucket])))
+    (is (= :yield (get-in decision [:evidence :allocation-rows 2 :bucket])))
+    (is (:valid? verification) (pr-str (:semantic-reconstruction verification)))
+    (is (= :partial-fill (:settlement-mode decision)))))
+
 (deftest test-partial-fill-principal-first-with-remainder
   (testing "Principal-first fill with liquidity exceeding principal"
     (let [policy {:mode :principal-first

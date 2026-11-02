@@ -267,3 +267,26 @@
         (is (= {:outcome-source :caller-supplied :settlement-replayed? false
                 :outcomes-authenticated? false :state-dependent-permissions-verified? false}
                (:execution-assurance result)))))))
+
+(deftest waterfall-owned-allocation-keeps-multiple-owners-in-one-bucket
+  (let [policy {:mode :waterfall :fill-order [:principal :yield]
+                :rounding-policy :largest-remainder
+                :fail-action-policy {:mode :pro-rata-treatment
+                                     :deferred-policy :contractual
+                                     :haircut-policy :contractual}}
+        rows [{:row/id :alice-p-row :key :alice-p :bucket :principal :owner/id :alice
+               :entitlement/id :alice-right :obligation-id :alice
+               :source-position-id :alice-p :owed 4 :weight 1 :cap 4}
+              {:row/id :bob-p-row :key :bob-p :bucket :principal :owner/id :bob
+               :entitlement/id :bob-right :obligation-id :bob
+               :source-position-id :bob-p :owed 4 :weight 1 :cap 4}
+              {:row/id :alice-y-row :key :alice-y :bucket :yield :owner/id :alice
+               :entitlement/id :alice-right :obligation-id :alice
+               :source-position-id :alice-y :owed 4 :weight 1 :cap 4}]
+        allocation (execution/allocate-owned-rows {:available 6 :policy policy :rows rows})
+        reordered (execution/compare-owned-transformation
+                   {:available 6 :policy policy :rows rows} (vec (reverse rows)))]
+    (is (= :verified (:status allocation)) (pr-str allocation))
+    (is (= {:alice 3 :bob 3} (:payout-by-owner allocation)))
+    (is (= :verified (:status reordered)) (pr-str reordered))
+    (is (= {:alice 0 :bob 0} (:gain-by-owner reordered)))))

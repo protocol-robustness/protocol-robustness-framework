@@ -198,3 +198,14 @@ with zero failures or errors. Scoped clj-kondo reported zero errors and warnings
 The runnable example produced an analyzed pure equilibrium with authenticated
 utility assumptions and verified replay. The remaining schema/solver extensions
 are explicit unsupported scope, not unfinished bounded follow-up tasks.
+
+
+## Multi-owner waterfall buckets (2026-11-02)
+
+Waterfall row `:key` values now identify individual claims; optional `:bucket`
+values group claims under one priority position, defaulting to `:key`. The producer,
+independent reconstruction and priority closed-form check preserve row-level
+amounts while aggregating priority capacity and fills by bucket. Strategic
+transformation conservation likewise groups rights by owner, entitlement and
+bucket. A two-owner same-bucket regression verifies producer output and semantic
+reconstruction.

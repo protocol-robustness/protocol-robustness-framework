@@ -48,14 +48,15 @@ from rows. Dispatch to the appropriate `calculate-fulfillment-*` producer, then
 call `verify-semantic-decision` with the exact authoritative input. Reject any
 failed or unsupported result before computing payout.
 
-Current producers key filled maps by `:key`; principal-first uses the literal
-`:principal`, and waterfall groups by `:key`. The semantic verifier rejects
-duplicate keys. Consequently v1 accepts at most one row per key and one owner
-per row. It rejects split transformations that introduce duplicate bucket keys
-with `:row-identity-not-supported`; it must not silently overwrite them. Arbitrary
-multi-owner waterfall buckets require a later producer/verifier row-ID change.
-SEW must not simulate that change by renaming priority buckets. Pro-rata split
-witnesses can use unique child keys and explicit canonical obligation/source IDs.
+Current producers key filled maps by unique `:key` row identity; principal-first
+uses the literal `:principal`. Waterfall rows may share a priority `:bucket`,
+which defaults to `:key` for backwards compatibility. `:fill-order` lists bucket
+IDs. Requested, filled, deferred and row evidence retain each row key, so owners
+remain independently attributable inside the shared bucket. The semantic verifier
+and priority theorem aggregate by bucket while checking row-level conservation
+and caps. Duplicate row keys remain invalid; duplicate waterfall fill-order
+buckets are invalid. Other allocation modes reject a distinct `:bucket` field.
+Pro-rata splits use unique child keys and explicit canonical obligation/source IDs.
 
 Aggregate verified fills by owner. For every entitlement a split or merge must
 preserve the sums of owed, weight and cap, and preserve owner and priority class.
@@ -190,10 +191,10 @@ execution-model validation, transition engine and permission resolution,
 complete table/evidence binding, and solver integration. Unsupported cases
 described above are explicitly rejected.
 
-Bounded regression and documentation work is complete. The waterfall regression
-checks supported priority-row rounding controls, and duplicate-bucket tests
-verify rejection. A genuine multi-row bucket fixture still depends on a later
-row-ID producer change and remains outside v1.
+Bounded regression and documentation work is complete. Waterfall supports
+multiple owner rows per priority bucket while retaining unique row identities;
+tests cover independent owner payouts, priority ordering, row conservation,
+semantic reconstruction and rejection of invalid fill-order buckets.
 
 Fixtures cover owner-preserving permutations, weighted/capped rows, the canonical
 split-gain witness, and invalid producer decisions. Replay fixtures cover deposit
