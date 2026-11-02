@@ -72,7 +72,7 @@
    :idempotency {}
    :admissions {}
    :admission-order []
-   :committed-admissions #{ }
+   :committed-admissions #{}
    :committed-admissions-in-order []
    :commit-by-admission {}
    :paid-by-entitlement {}
@@ -83,7 +83,7 @@
 (def economic-projection-root artifacts/economic-projection-root)
 
 (defn- entitlement-for [operation entitlement-root]
-  (some #(when (= entitlement-root (:entitlement/root %)) %) 
+  (some #(when (= entitlement-root (:entitlement/root %)) %)
         (:operation/entitlements operation)))
 
 (defn- verify-submission! [operation submission]
@@ -129,8 +129,8 @@
                        (when (= kind :prepared) (:preparation/worker-root payload))
                        (:authority/root record))
         role (case kind :operation-opened :declared
-               :source :declared :submission :declared :prepared :validated
-               :admitted :validated :committed :derived :completed :derived)
+                   :source :declared :submission :declared :prepared :validated
+                   :admitted :validated :committed :derived :completed :derived)
         causal-roots (->> (concat [(:journal/record-root record)
                                    (:journal/previous-root record)]
                                   (case kind
@@ -158,7 +158,7 @@
                                                 (:projection/after-root payload)]
                                     :completed [(:completion/root payload)
                                                 (:projection/root payload)]))
-                           (remove nil?) distinct sort vec)]
+                          (remove nil?) distinct sort vec)]
     (forensic/build-forensic-evidence-node
      {:subject {:subject/root (:journal/record-root record)
                 :subject/kind :partial-fill/file-profile-event}
@@ -277,43 +277,43 @@
             submission (get-in state [:submissions submission-root])]
         (let [preparation (get-in state [:preparations preparation-root*])
               submission-preparations (filter #(= submission-root
-                                                   (:preparation/submission-root %))
+                                                  (:preparation/submission-root %))
                                               (vals (:preparations state)))]
-        (when-not (and (not (terminal? state))
-                       (= #{:submission/root :preparation/root :admission/sequence
-                            :authority/root :admission/root}
-                          (set (keys payload)))
-                       (= (:authority-root state) (:authority/root payload))
-                       submission
-                       preparation
-                       (= submission-root (:preparation/submission-root preparation))
-                       (= 1 (count (set (map :preparation/result-root
-                                             submission-preparations))))
-                       (= (inc (count (:admission-order state))) admission-sequence)
-                       (= admission-root*
-                          (admission-root {:submission/root submission-root
-                                           :preparation/root preparation-root*
-                                           :admission/sequence admission-sequence
-                                           :authority/root (:authority-root state)}))
-                       (not (contains? (:admissions state) submission-root)))
-          (throw (ex-info "Invalid or out-of-order admission in journal" {})))
-        (let [entitlement-root (:submission/entitlement-root submission)]
-          (when (> (+ (get-in state [:paid-by-entitlement entitlement-root] 0)
-                      (get-in state [:reserved-by-entitlement entitlement-root] 0)
-                      (:submission/amount submission))
-                   (:entitlement/amount
-                    (entitlement-for (:operation state) entitlement-root)))
-            (throw (ex-info "Admission journal overbooks entitlement"
-                            {:reason :partial-fill-file/entitlement-overdraw})))
-          (-> state
-              (assoc-in [:admissions submission-root]
-                        {:admission/root admission-root*
-                         :admission/sequence admission-sequence
-                         :submission/root submission-root
-                         :event/root (:journal/record-root record)})
-              (update :admission-order conj submission-root)
-              (update-in [:reserved-by-entitlement entitlement-root] (fnil +' 0)
-                         (:submission/amount submission))))))
+          (when-not (and (not (terminal? state))
+                         (= #{:submission/root :preparation/root :admission/sequence
+                              :authority/root :admission/root}
+                            (set (keys payload)))
+                         (= (:authority-root state) (:authority/root payload))
+                         submission
+                         preparation
+                         (= submission-root (:preparation/submission-root preparation))
+                         (= 1 (count (set (map :preparation/result-root
+                                               submission-preparations))))
+                         (= (inc (count (:admission-order state))) admission-sequence)
+                         (= admission-root*
+                            (admission-root {:submission/root submission-root
+                                             :preparation/root preparation-root*
+                                             :admission/sequence admission-sequence
+                                             :authority/root (:authority-root state)}))
+                         (not (contains? (:admissions state) submission-root)))
+            (throw (ex-info "Invalid or out-of-order admission in journal" {})))
+          (let [entitlement-root (:submission/entitlement-root submission)]
+            (when (> (+ (get-in state [:paid-by-entitlement entitlement-root] 0)
+                        (get-in state [:reserved-by-entitlement entitlement-root] 0)
+                        (:submission/amount submission))
+                     (:entitlement/amount
+                      (entitlement-for (:operation state) entitlement-root)))
+              (throw (ex-info "Admission journal overbooks entitlement"
+                              {:reason :partial-fill-file/entitlement-overdraw})))
+            (-> state
+                (assoc-in [:admissions submission-root]
+                          {:admission/root admission-root*
+                           :admission/sequence admission-sequence
+                           :submission/root submission-root
+                           :event/root (:journal/record-root record)})
+                (update :admission-order conj submission-root)
+                (update-in [:reserved-by-entitlement entitlement-root] (fnil +' 0)
+                           (:submission/amount submission))))))
       :committed
       (let [admission-root* (:admission/root payload)
             commit-root* (:commit/root payload)
@@ -471,7 +471,7 @@
                           initial records)]
       (when truncated?
         (with-open [channel (FileChannel/open path
-                                             (into-array OpenOption [StandardOpenOption/WRITE]))]
+                                              (into-array OpenOption [StandardOpenOption/WRITE]))]
           (.truncate channel (long valid-byte-count))
           (.force channel true)))
       (assoc rebuilt :forensic-nodes
@@ -491,7 +491,7 @@
   (let [parent (.getParent (.toAbsolutePath path))]
     (when parent
       (with-open [channel (FileChannel/open parent
-                                           (into-array OpenOption [StandardOpenOption/READ]))]
+                                            (into-array OpenOption [StandardOpenOption/READ]))]
         (.force channel true)))))
 
 (defn- with-exclusive-file [^Path path f]
@@ -502,9 +502,9 @@
                         {:reason :partial-fill-file/parent-directory-missing
                          :path (str parent)}))))
     (with-open [channel (FileChannel/open path
-                                         (into-array OpenOption [StandardOpenOption/CREATE
-                                                                 StandardOpenOption/READ
-                                                                 StandardOpenOption/WRITE]))
+                                          (into-array OpenOption [StandardOpenOption/CREATE
+                                                                  StandardOpenOption/READ
+                                                                  StandardOpenOption/WRITE]))
                 lock (.lock channel)]
       (f channel))))
 
@@ -774,8 +774,8 @@
       (fn [channel]
         (let [state (refresh-state! ledger channel)
               admission-entry (some (fn [[_ entry]]
-                                     (when (= admission-root (:admission/root entry)) entry))
-                                   (:admissions state))]
+                                      (when (= admission-root (:admission/root entry)) entry))
+                                    (:admissions state))]
           (when-not admission-entry
             (throw (ex-info "Cannot commit an unknown admission"
                             {:reason :partial-fill-file/unknown-admission})))
@@ -808,7 +808,7 @@
                       payload (assoc payload-base :commit/root (commit-root payload-base))
                       next-state (write-event! ledger channel state :committed payload)
                       next-state (assoc-in next-state [:commit-by-admission admission-root]
-                                            (:commit/root payload))]
+                                           (:commit/root payload))]
                   (reset! (:state ledger) next-state)
                   {:status :committed :commit/root (:commit/root payload)
                    :projection/root after :commit/sequence seq-no})))))))))

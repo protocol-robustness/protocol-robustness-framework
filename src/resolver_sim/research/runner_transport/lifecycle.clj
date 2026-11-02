@@ -74,7 +74,7 @@
         ((:retry-undelivered-accounting-proofs! services)
          runner coordinator-endpoint recovery-logical-cutpoint))
       ((:write-runtime-state! services) runner
-       ((:runner-state services) runner) ((:runner-state services) runner))
+                                        ((:runner-state services) runner) ((:runner-state services) runner))
       runner)))
 
 (defn stop-runner! [runner]
@@ -117,7 +117,7 @@
                      :transport/server server}
         runtime ((:handler-runtime services))]
     ((:write-coordinator-runtime-state! services) coordinator
-     (:persisted-state recovered) ((:coordinator-state services) coordinator))
+                                                  (:persisted-state recovered) ((:coordinator-state services) coordinator))
     (doseq [dispatch initial-dispatches]
       ((:persist-dispatch-intent! services) coordinator dispatch))
     (.createContext server "/v1/results"
@@ -134,8 +134,8 @@
                              (or advertise-url
                                  (str "http://" bind-address ":" (.getPort (.getAddress server)))))]
       ((:write-coordinator-runtime-state! services) coordinator
-       ((:coordinator-state services) coordinator)
-       ((:coordinator-state services) coordinator))
+                                                    ((:coordinator-state services) coordinator)
+                                                    ((:coordinator-state services) coordinator))
       coordinator)))
 
 (defn stop-coordinator! [coordinator]

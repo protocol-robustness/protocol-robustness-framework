@@ -53,8 +53,8 @@
        (require! (:valid? verification) :production-decision-invalid)
        {:status :verified :decision decision
         :payout-by-owner (reduce (fn [m row]
-                                  (update m (:owner/id row) (fnil +' 0)
-                                          (get-in decision [:filled (:key row)] 0))) {} rows)
+                                   (update m (:owner/id row) (fnil +' 0)
+                                           (get-in decision [:filled (:key row)] 0))) {} rows)
         :evidence/root (content-root :partial-fill-owned-allocation.v1
                                      {:input input :decision decision})}))))
 
@@ -102,7 +102,7 @@
                       (<= (count (:entitlements model)) 1000)
                       (unique? (map :entitlement/id (:entitlements model)))
                       (every? #(and (some? (:entitlement/id %)) (players (:player/id %))
-                                     (bounded-units? (:amount %))) (:entitlements model)))
+                                    (bounded-units? (:amount %))) (:entitlements model)))
                  :execution-model-invalid)
        (require! (and (= "partial-fill-strategic-execution.v1" (:schema-version execution))
                       (= model-root (:recovery-model/root execution))
@@ -136,7 +136,7 @@
                           (vector? deposits) (<= (count deposits) 1000)
                           (unique? (map :event/id deposits))
                           (every? #(and (some? (:event/id %)) (bounded-units? (:amount %))
-                                         (integer? (:round/index %)) (<= 0 (:round/index %) horizon)) deposits)
+                                        (integer? (:round/index %)) (<= 0 (:round/index %) horizon)) deposits)
                           (bounded-units? (reduce +' (:initial-cash execution) (map :amount deposits))))
                      :branch-invalid)))
        (require! (= 10000 (reduce + (map :probability-bps branches))) :branch-probabilities-invalid)
@@ -189,8 +189,8 @@
    (fn []
      (require! (= :verified (:status prepared-execution)) :execution-model-incomplete)
      (require! (= :verified (:status (prepare-execution-model
-                                     {:parameterization/status :complete :model (:model prepared-execution)}
-                                     (:execution prepared-execution)))) :execution-model-invalid)
+                                      {:parameterization/status :complete :model (:model prepared-execution)}
+                                      (:execution prepared-execution)))) :execution-model-invalid)
      (require! (= (:execution/root prepared-execution)
                   (content-root :partial-fill-execution-model.v1 (:execution prepared-execution)))
                :execution-root-mismatch)
@@ -202,10 +202,10 @@
                          (let [steps (get-in execution [:plans player choice])]
                            (require! (vector? steps) :unknown-plan) steps)) choices)
            steps (sort-by (juxt :round/index #(get (zipmap (:submission-order execution) (range))
-                                                  (:submission/id %))) (mapcat identity plans))
+                                                   (:submission/id %))) (mapcat identity plans))
            _ (require! (every? (fn [[_ group]]
-                                (= 1 (count (set (map #(get-in % [:row :entitlement/id]) group)))))
-                              (group-by :submission/id steps)) :ambiguous-submission-order)
+                                 (= 1 (count (set (map #(get-in % [:row :entitlement/id]) group)))))
+                               (group-by :submission/id steps)) :ambiguous-submission-order)
            _ (require! (and (vector? (:steps trace)) (<= (count steps) 1000)
                             (= "partial-fill-execution-trace.v1" (:schema-version trace))
                             (= branch-id (:branch/id trace)) (= choices (:actions trace))
@@ -279,10 +279,10 @@
                (require! (= (:terminal-state/root trace) (state-root terminal)) :terminal-state-mismatch))]
        {:status :verified :terminal-state terminal
         :outcome {:by-player (into {} (map (fn [player]
-                                            [player {:payments (get-in terminal [:payments player] [])
-                                                     :delay-rounds (get-in replayed [:delay player] 0)
-                                                     :expected-unrecovered (reduce +' 0 (for [[id balance] (:balances terminal)
-                                                                                            :when (= player (get owners id))] balance))
-                                                     :fees 0 :priority-externality 0 :penalty-count 0}]) (keys choices)))}
+                                             [player {:payments (get-in terminal [:payments player] [])
+                                                      :delay-rounds (get-in replayed [:delay player] 0)
+                                                      :expected-unrecovered (reduce +' 0 (for [[id balance] (:balances terminal)
+                                                                                               :when (= player (get owners id))] balance))
+                                                      :fees 0 :priority-externality 0 :penalty-count 0}]) (keys choices)))}
         :trace/root (content-root :partial-fill-execution-trace.v1 trace)
         :terminal-state/root (state-root terminal)}))))

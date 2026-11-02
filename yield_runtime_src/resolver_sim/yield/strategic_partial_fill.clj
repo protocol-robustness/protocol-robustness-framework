@@ -139,8 +139,8 @@
                   :model/root (recovery-game-model-root model)}]
     (assoc model :assumption-attestation
            (signed-decision/sign-envelope envelope
-                                           recovery-game-assumption-attestation-domain
-                                           private-key key-id))))
+                                          recovery-game-assumption-attestation-domain
+                                          private-key key-id))))
 
 (defn verify-recovery-game-assumptions
   "Verify the complete model attestation against an explicit trusted-key
@@ -184,8 +184,8 @@
                   :claims/root (action-permission-claims-root model)}]
     (assoc model :action-permission-attestation
            (signed-decision/sign-envelope envelope
-                                           recovery-game-action-permission-domain
-                                           private-key key-id))))
+                                          recovery-game-action-permission-domain
+                                          private-key key-id))))
 
 (defn verify-recovery-game-action-permissions
   "Verify signed per-player action claims and return the authorized action sets."
@@ -1180,10 +1180,10 @@
                                          :state-dependent-permissions-verified? true}
                    :execution-evidence/root
                    (execution/content-root :partial-fill-game-execution-evidence.v1
-                                            {:model/root (recovery-game-model-root (:model prepared))
-                                             :execution/root (:execution/root model)
-                                             :initial-state/root (execution/state-root (execution/initial-state model))
-                                             :actions actions :replays replays}))))))))
+                                           {:model/root (recovery-game-model-root (:model prepared))
+                                            :execution/root (:execution/root model)
+                                            :initial-state/root (execution/state-root (execution/initial-state model))
+                                            :actions actions :replays replays}))))))))
 
 (defn- enumerate-policies
   "Generate the policy variants to test."
