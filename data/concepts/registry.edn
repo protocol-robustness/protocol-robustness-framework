@@ -416,6 +416,33 @@
      :concept/owner :shared
      :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
+    {:concept/id    :framework/currency
+     :concept/type  :framework
+     :concept/layer :framework-explanation
+     :concept/file  "data/concepts/framework/currency.edn"
+     :concept/name  "Currency"
+     :concept/status :draft
+     :concept/owner :shared
+     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+    {:concept/id    :framework/privacy-policy
+     :concept/type  :framework
+     :concept/layer :framework-explanation
+     :concept/file  "data/concepts/framework/privacy_policy.edn"
+     :concept/name  "Privacy policy"
+     :concept/status :draft
+     :concept/owner :protocol/prf
+     :concept/protocols #{:protocol/prf}}
+
+    {:concept/id    :framework/current-privacy-policy
+     :concept/type  :framework
+     :concept/layer :framework-explanation
+     :concept/file  "data/concepts/framework/current_privacy_policy.edn"
+     :concept/name  "Current privacy policy"
+     :concept/status :draft
+     :concept/owner :protocol/prf
+     :concept/protocols #{:protocol/prf}}
+
     {:concept/id    :framework/source-creation
      :concept/type  :framework
      :concept/layer :framework-explanation

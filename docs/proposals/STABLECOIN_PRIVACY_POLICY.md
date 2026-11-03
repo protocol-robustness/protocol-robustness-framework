@@ -55,6 +55,25 @@ design and does not establish deployed enforcement.
 These are proposed contracts for V0, not existing schema keys. Final artifact
 envelopes and hash intents must follow repository conventions.
 
+### Currency identity and initialization
+
+Do not use a ticker as the currency or asset identity. Record the currency
+denomination separately from the chain-qualified token asset and issuer. For a
+stablecoin, the issuer's claim that the token represents a currency is distinct
+from evidence of reserves, redemption, or legal status. Privacy policy scope
+binds both the represented currency and the exact asset root.
+
+The first active privacy policy requires an explicit initialization package.
+It commits to the issuer principal, token asset root, represented currency,
+jurisdiction and operation scope, initial policy root, authority and key
+registry roots, and the bootstrap decision/evidence that approves this binding.
+Initialization is accepted only relative to a configured external trust anchor;
+hash integrity alone cannot bootstrap its own authority. It establishes the
+initial policy lineage. Subsequent changes use the existing authorized
+configuration transition path. Until the bootstrap is verified, report the
+policy body as integrity-checked at most, with authority and currentness
+unverified.
+
 ### Immutable policy
 
 `stablecoin-privacy-policy.v1` commits to:
