@@ -55,7 +55,7 @@
   :isolated-source-closure
   {:source-content-set "sha256:ed63122aa5dd54274926dde94f8657fbcef04d825ffaa95aff0dd6ca70d30cf2"
    :tests 105
-   :assertions 598
+    :assertions 603
    :result :passed}
   :test-namespaces
   [prf.extensions.force-authorisation.manifest-test
