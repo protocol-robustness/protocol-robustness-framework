@@ -290,3 +290,28 @@
     (is (= {:alice 3 :bob 3} (:payout-by-owner allocation)))
     (is (= :verified (:status reordered)) (pr-str reordered))
     (is (= {:alice 0 :bob 0} (:gain-by-owner reordered)))))
+
+(deftest waterfall-rights-conservation-allows-same-bucket-row-splitting
+  (let [policy {:mode :waterfall :fill-order [:principal :yield]
+                :rounding-policy :largest-remainder
+                :fail-action-policy {:mode :pro-rata-treatment
+                                     :deferred-policy :contractual
+                                     :haircut-policy :contractual}}
+        original {:row/id :alice-p-row :key :alice-p :bucket :principal :owner/id :alice
+                  :entitlement/id :alice-right :obligation-id :alice
+                  :source-position-id :alice-p :owed 4 :weight 2 :cap 4}
+        yield-row {:row/id :alice-y-row :key :alice-y :bucket :yield :owner/id :alice
+                   :entitlement/id :alice-right :obligation-id :alice
+                   :source-position-id :alice-y :owed 2 :weight 2 :cap 2}
+        input {:available 3 :policy policy :rows [original yield-row]}
+        split [(assoc original :row/id :alice-p-row-a :key :alice-p-a
+                      :obligation-id :alice-a :source-position-id :alice-p-a
+                      :owed 2 :weight 1 :cap 2)
+               (assoc original :row/id :alice-p-row-b :key :alice-p-b
+                      :obligation-id :alice-b :source-position-id :alice-p-b
+                      :owed 2 :weight 1 :cap 2)
+               yield-row]
+        moved (assoc split 0 (assoc (first split) :bucket :yield))]
+    (is (= :verified (:status (execution/compare-owned-transformation input split))))
+    (is (= :rights-not-conserved
+           (:reason (execution/compare-owned-transformation input moved))))))

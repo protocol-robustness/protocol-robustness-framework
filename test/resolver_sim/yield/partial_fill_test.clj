@@ -265,6 +265,14 @@
     (is (:valid? verification) (pr-str (:semantic-reconstruction verification)))
     (is (= :partial-fill (:settlement-mode decision)))))
 
+(deftest semantic-reconstruction-rejects-distinct-buckets-outside-waterfall
+  (let [input {:available 1
+               :requested {:claim 2}
+               :policy {:mode :pro-rata}
+               :rows [{:key :claim :bucket :priority :owed 2}]}]
+    (is (= :bucket-not-supported-for-mode
+           (:reason (pf/semantic-reconstruction input {}))))))
+
 (deftest test-partial-fill-principal-first-with-remainder
   (testing "Principal-first fill with liquidity exceeding principal"
     (let [policy {:mode :principal-first

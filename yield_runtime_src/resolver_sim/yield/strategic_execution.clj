@@ -64,11 +64,12 @@
   [input transformed-rows]
   (guarded
    (fn []
-     (let [rights (fn [rows]
+     (let [mode (get-in input [:policy :mode])
+           rights (fn [rows]
                     (reduce (fn [m row]
                               (update m [(:entitlement/id row) (:owner/id row)
-                                         (when (not= :pro-rata (get-in input [:policy :mode]))
-                                           (:key row))]
+                                         (when (= :waterfall mode)
+                                           (get row :bucket (:key row)))]
                                       (fnil #(mapv +' % [(:owed row) (:weight row) (:cap row)]) [0 0 0])))
                             {} rows))
            _ (require! (= (rights (:rows input)) (rights transformed-rows)) :rights-not-conserved)
