@@ -6,7 +6,9 @@
 (def asset-root (str "sha256:" (apply str (repeat 64 "a"))))
 (def rule {:rule/id "r" :rule/effect :allow
            :rule/data-categories ["aggregate"] :rule/operations ["publish"]
-           :rule/purposes ["reporting"] :rule/recipients ["public"]
+           :rule/purposes ["reporting"]
+           :rule/recipient-ids ["did:fixture:recipient"]
+           :rule/recipient-classes ["public"]
            :rule/sinks [:encrypted-bundle] :rule/max-sensitivity :sensitivity/public
            :rule/max-retention-seconds 3600 :rule/required-evidence []})
 (def policy-body
