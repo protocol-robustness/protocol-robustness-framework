@@ -53,9 +53,9 @@
  :qualification
  {:command "bash scripts/qualify_extension_core_api_v1.sh"
   :isolated-source-closure
-  {:source-content-set "sha256:5ad02c3df780d65312595bc3c84e65117d93dc5989952c77169e941a18c02399"
-   :tests 113
-   :assertions 622
+  {:source-content-set "sha256:ed63122aa5dd54274926dde94f8657fbcef04d825ffaa95aff0dd6ca70d30cf2"
+   :tests 105
+   :assertions 598
    :result :passed}
   :test-namespaces
   [prf.extensions.force-authorisation.manifest-test

@@ -30,6 +30,7 @@ Primary project framing and status live in the root `../README.md`.
 | Extracted repository ownership and source pins | `research/EXTRACTED_REPOSITORIES.md` |
 | PRF core extraction readiness and release gates | `research/PRF_CORE_EXTRACTION_READINESS.md` |
 | Extraction value and readiness across research capabilities | `research/EXTRACTION_CANDIDATE_ASSESSMENT.md` |
+| Shared first-party extensions repository and package qualification plan | `research/PRF_EXTENSIONS_REPOSITORY_PLAN.md` |
 | Repairability report extension candidate and qualification gates | `proposals/REPAIRABILITY_REPORT_EXTENSION.md`, `../extensions/repairability-report/README.md` |
 | Stablecoin privacy policy, sensitivity integration, and Luna implementation tasks | `proposals/STABLECOIN_PRIVACY_POLICY.md`, `proposals/STABLECOIN_PRIVACY_POLICY_TASKS.md` |
 | Registry ownership, validation, and change rules | `reference/REGISTRIES.md` |
