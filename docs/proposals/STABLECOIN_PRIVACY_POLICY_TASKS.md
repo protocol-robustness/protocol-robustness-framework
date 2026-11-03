@@ -1,9 +1,22 @@
 # Luna handoff: stablecoin privacy policy
 
 Design: [Stablecoin privacy policy and sensitivity](STABLECOIN_PRIVACY_POLICY.md).
-Status: tasks prepared, not implemented. Work only in `agent-c-2`; preserve its
-existing uncommitted changes. Use workspace commit identity and JJ workflow.
-Do not push without the user's instruction. Each task can be a separate commit.
+Status: partially implemented in a pending, offline candidate. L1 has draft
+concepts and a binding inventory; L2 and L4 have a bounded policy/root and
+single-policy evaluator, but do not meet their full acceptance criteria. L3,
+L5, and L6 remain unimplemented. Do not treat passing tests as policy approval
+or qualification. Work only in `agent-c-2`; preserve its existing changes. Use
+workspace commit identity and JJ workflow. Do not push without the user's
+instruction. Each task can be a separate commit.
+
+| Task | Current status | Remaining boundary |
+|---|---|---|
+| L1 Concepts and binding seam inventory | Partial | Concepts and inventory exist; no authorized active-binding seam or trusted current-head observation is established. |
+| L2 Immutable policy and evaluation contracts | Partial | One policy root and contextual evaluation exist; rooted request/receipt and verified evidence/classification bindings are absent. |
+| L3 Trusted policy resolution | Not implemented | No authorized binding resolution or fresh current-head check. |
+| L4 Privacy evaluator and Sentinel composition | Partial | Deny-overrides, sink checks, and fail-closed usability exist; multi-policy evaluation and verified exact-view classification do not. |
+| L5 Offline commands and synthetic stablecoin example | Not implemented | No researcher-facing inspect/evaluate/verify commands or complete reproducible example. |
+| L6 Enforcement boundary qualification | Not implemented | No operation adapter or head-fenced simulated effect. |
 
 Read the linked design before each task. Fixture keys and policy owners are
 synthetic; do not claim real authority, regulatory compliance, or live currentness.
