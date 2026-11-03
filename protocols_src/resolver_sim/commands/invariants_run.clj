@@ -46,6 +46,23 @@
     (io/make-parents f)
     (spit f (json/write-str data :escape-slash false :escape-unicode false))))
 
+(defn- normalize-result
+  [result]
+  (let [outcome (:outcome result)
+        normalized (case outcome
+                     :passed :pass
+                     :failed :fail
+                     "passed" :pass
+                     "failed" :fail
+                     outcome)]
+    (assoc result :outcome
+           (if (nil? normalized)
+             (case (:pass? result)
+               true :pass
+               false :fail
+               nil)
+             normalized))))
+
 (defn run
   [{:keys [run-root protocol] :as _opts}]
   (cond
@@ -84,7 +101,7 @@
                          (catch Exception e
                            (println (str "  Warning: run-registry-suite error: " (.getMessage e)))
                            {:results []}))
-            results (:results summary)
+            results (mapv normalize-result (:results summary))
             passed (filterv #(= :pass (:outcome %)) results)
             failed (filterv #(= :fail (:outcome %)) results)
             xfailed (filterv #(= :xfail (:outcome %)) results)

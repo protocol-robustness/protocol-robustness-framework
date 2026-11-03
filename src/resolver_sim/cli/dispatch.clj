@@ -5,6 +5,7 @@
    Every handler must have a registry entry (validated by commands:validate)."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
+            [clojure.edn :as edn]
             [clojure.tools.cli :as cli]
 
             [resolver-sim.cli.registry :as registry]))
@@ -135,13 +136,37 @@
     :scenario-list :scenario-compare :scenario-pick :scenario-run-search
     :benchmark-list :suite-list :invariants-run :verify-run :assure-package})
 
+(def ^:private framework-runner-command-ids
+  ;; The compact framework runner deliberately ships only these handlers.
+  ;; Keep its advertised command surface aligned with the actual source/dependency
+  ;; closure in scripts/build.clj.
+  #{:backstop :backstop-fast :check-ownership :commands-validate :fmt-check
+    :forensic-reproduce :forensic-run :forensic-validate :forensic-verify
+    :lint :validate})
+
+(def ^:private sew-unavailable-command-ids
+  ;; These commands currently require source/dependencies outside the Sew
+  ;; release closure. They remain available in a full development classpath.
+  #{:publication-trace :run-simulation :simulation-simplified})
+
+(defn- packaged-variant
+  []
+  (when-let [resource (io/resource "META-INF/prf-runner.edn")]
+    (try
+      (:variant (edn/read-string (slurp resource)))
+      (catch Exception _ nil))))
+
 (defn sew-capable?
   "True when this distribution contains the Sew protocol implementation."
   []
   (boolean (io/resource "resolver_sim/protocols/sew.clj")))
 
 (defn command-available? [cmd-id]
-  (or (not (sew-command-ids cmd-id)) (sew-capable?)))
+  (let [variant (packaged-variant)]
+    (case variant
+      "prf-runnable" (contains? framework-runner-command-ids cmd-id)
+      "sew" (and (sew-capable?) (not (contains? sew-unavailable-command-ids cmd-id)))
+      (or (not (sew-command-ids cmd-id)) (sew-capable?)))))
 
 (defn- handler-for [cmd-id]
   (when (command-available? cmd-id)

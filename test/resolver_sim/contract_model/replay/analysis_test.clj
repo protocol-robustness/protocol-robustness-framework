@@ -10,22 +10,22 @@
 (defn- open-record [ordinal funder]
   (let [id (str "appeal-bond:0:" funder ":" ordinal)]
     {:bond/id id
-   :workflow/id 0
-   :dispute/id "dispute:0"
-   :appeal/ordinal ordinal
-   :escalation/from-level ordinal
-   :escalation/to-level (inc ordinal)
-   :asset :USDC
-   :bond/posted-amount 100
-   :bond/posting-fee 10
-   :bond/custodied-amount 90
-   :bond/remaining-custody 90
-   :bond/payer funder
-   :bond/funder funder
-   :posting-operation/id (str "post-" id)
-   :posting-cause/type :appeal
-   :posting-cause/root "posting-cause-root"
-   :bond/status :open}))
+     :workflow/id 0
+     :dispute/id "dispute:0"
+     :appeal/ordinal ordinal
+     :escalation/from-level ordinal
+     :escalation/to-level (inc ordinal)
+     :asset :USDC
+     :bond/posted-amount 100
+     :bond/posting-fee 10
+     :bond/custodied-amount 90
+     :bond/remaining-custody 90
+     :bond/payer funder
+     :bond/funder funder
+     :posting-operation/id (str "post-" id)
+     :posting-cause/type :appeal
+     :posting-cause/root "posting-cause-root"
+     :bond/status :open}))
 
 (defn- world-with-bonds [records]
   {:appeal-bond/records records
