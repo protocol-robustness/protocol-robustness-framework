@@ -105,6 +105,35 @@
             :total 2}
            (select-keys @progress [:status :phase :current :total])))))
 
+(deftest fully-funded-capped-rows-are-not-a-partial-fill
+  (let [decision (pf/calculate-fulfillment-pro-rata
+                  100 {:a 40 :b 60}
+                  {:mode :pro-rata :rounding-policy :largest-remainder}
+                  {:rows [{:key :a :owed 40 :weight 40 :cap 40}
+                          {:key :b :owed 60 :weight 60 :cap 60}]})
+        position (pf/post-partial-fill-position base-position decision)]
+    (is (= :full-fill (:settlement-mode decision)))
+    (is (= {:a 0 :b 0} (:deferred decision)))
+    (is (false? (:partial-fill-affected? position)))
+    (is (= :withdrawn (:status position)))
+    (is (every? #(contains? #{:pass :not-applicable} (:status %))
+                (closed-form-checks decision)))))
+
+(deftest waterfall-capped-row-with-unmet-amount-is-a-partial-fill
+  (let [rows [{:key :principal :owed 100 :weight 100 :cap 50}]
+        policy {:mode :waterfall :fill-order [:principal]}
+        decision (pf/calculate-fulfillment-waterfall
+                  100 {:principal 100} policy {:rows rows})]
+    (is (= :partial-fill (:settlement-mode decision)))
+    (is (= {:principal 50} (:filled decision)))
+    (is (= {:principal 50} (:deferred decision)))
+    (is (every? #(contains? #{:pass :not-applicable} (:status %))
+                (closed-form-checks decision)))
+    (is (:valid? (pf/verify-semantic-decision
+                  {:available 100 :requested {:principal 100}
+                   :policy policy :rows rows}
+                  decision)))))
+
 (deftest test-partial-fill-principal-first
   (testing "Principal-first fill protects principal"
     (let [policy {:mode :principal-first
@@ -115,6 +144,126 @@
       (is (= 2000 (get-in decision [:deferred :principal])))
       (is (= 0 (get-in decision [:filled :realized-yield] 0))
           "Yield should get nothing when principal not fully covered"))))
+
+(deftest principal-first-row-fill-mode-follows-deferred-claims
+  (let [policy {:mode :principal-first :rounding-policy :largest-remainder}
+        rows [{:key :principal :owed 40 :weight 40 :cap 40}
+              {:key :yield :owed 60 :weight 60 :cap 60}]
+        fully-funded (pf/calculate-fulfillment-principal-first
+                      100 {:principal 40 :yield 60} policy {:rows rows})
+        capped (pf/calculate-fulfillment-principal-first
+                100 {:principal 40 :yield 60} policy
+                {:rows [(assoc (first rows) :cap 20) (second rows)]})]
+    (is (= :full-fill (:settlement-mode fully-funded)))
+    (is (= {:principal 0 :yield 0} (:deferred fully-funded)))
+    (is (every? #(contains? #{:pass :not-applicable} (:status %))
+                (closed-form-checks fully-funded)))
+    (is (= :partial-fill (:settlement-mode capped)))
+    (is (= 20 (get-in capped [:deferred :principal])))))
+
+(deftest semantic-check-binds-policy-and-liquidity-to-input
+  (let [policy {:mode :principal-first :rounding-policy :floor}
+        input {:available 1 :requested {:principal 1 :realized-yield 1}
+               :policy policy}
+        decision (pf/calculate-fulfillment-principal-first 1 (:requested input) policy)
+        changed-policy (-> decision
+                           (assoc-in [:policy :mode] :waterfall)
+                           (assoc-in [:evidence :fill-mode] :waterfall))
+        changed-liquidity (-> decision
+                              (assoc-in [:evidence :available-liquidity] 2)
+                              (assoc-in [:evidence :shortage] 0))]
+    (is (:valid? (pf/verify-semantic-decision input decision)))
+    (doseq [altered [changed-policy changed-liquidity]]
+      (is (false? (:valid? (pf/verify-semantic-decision input altered)))))))
+
+(deftest principal-first-row-semantic-check-preserves-largest-remainder-rounding
+  (let [policy {:mode :principal-first
+                :rounding-policy :floor-with-largest-remainder}
+        rows [{:key :realized-yield :owed 1 :weight 1 :cap 1}
+              {:key :deferred-yield :owed 1 :weight 1 :cap 1}]
+        input {:available 1
+               :requested {:realized-yield 1 :deferred-yield 1}
+               :policy policy
+               :rows rows}
+        decision (pf/calculate-fulfillment-principal-first
+                  1 (:requested input) policy {:rows rows})]
+    (is (= 1 (get-in decision [:filled :realized-yield])))
+    (is (= 0 (get-in decision [:filled :deferred-yield])))
+    (is (= 0 (get-in decision [:deferred :realized-yield])))
+    (is (= 1 (get-in decision [:deferred :deferred-yield])))
+    (is (:valid? (pf/verify-semantic-decision input decision)))))
+
+(deftest semantic-check-binds-policy-for-pro-rata-and-waterfall
+  (doseq [[mode calculate] [[:pro-rata pf/calculate-fulfillment-pro-rata]
+                            [:waterfall pf/calculate-fulfillment-waterfall]]]
+    (let [policy (if (= mode :waterfall)
+                   {:mode mode :fill-order [:a :b] :rounding-policy :floor}
+                   {:mode mode :rounding-policy :floor})
+          requested {:a 1 :b 1}
+          decision (calculate 1 requested policy)
+          input {:available 1 :requested requested :policy policy}
+          tampered (assoc decision :policy (assoc policy :rounding-policy :largest-remainder))]
+      (is (:valid? (pf/verify-semantic-decision input decision)))
+      (is (false? (:valid? (pf/verify-semantic-decision input tampered)))))))
+
+(deftest semantic-metadata-mutation-matrix
+  (doseq [[mode calculate] [[:pro-rata pf/calculate-fulfillment-pro-rata]
+                            [:principal-first pf/calculate-fulfillment-principal-first]
+                            [:waterfall pf/calculate-fulfillment-waterfall]]]
+    (let [policy {:mode mode :fill-order [:principal :realized-yield] :rounding-policy :floor}
+          requested {:principal 1 :realized-yield 1}
+          decision (calculate 1 requested policy)
+          input {:available 1 :requested requested :policy policy}
+          other-mode (if (= mode :waterfall) :principal-first :waterfall)]
+      (is (:valid? (pf/verify-semantic-decision input decision)))
+      (doseq [[altered fields]
+              [[(assoc-in decision [:policy :mode] other-mode) #{:policy}]
+               [(assoc-in decision [:evidence :available-liquidity] 2) #{:available-liquidity}]
+               [(-> decision (assoc-in [:policy :mode] other-mode)
+                    (assoc-in [:evidence :fill-mode] other-mode)
+                    (assoc-in [:evidence :available-liquidity] 2)
+                    (assoc-in [:evidence :shortage] 0)) #{:policy :available-liquidity}]]]
+        (let [result (pf/verify-semantic-decision input altered)]
+          (is (false? (:valid? result)))
+          (is (= fields (set (map :field (get-in result [:semantic-reconstruction :mismatches]))))))))))
+
+(deftest waterfall-row-rounding-controls
+  (let [policy {:mode :waterfall :fill-order [:a :b]
+                :rounding-policy :floor-with-largest-remainder}
+        rows [{:key :a :owed 1 :weight 1 :cap 1}
+              {:key :b :owed 1 :weight 1 :cap 1}]
+        input {:available 1 :requested {:a 1 :b 1} :policy policy :rows rows}
+        decision (pf/calculate-fulfillment-waterfall 1 (:requested input) policy {:rows rows})
+        floor-policy (assoc policy :rounding-policy :floor)
+        floor-decision (pf/calculate-fulfillment-waterfall
+                        1 (:requested input) floor-policy {:rows rows})]
+    (is (= 1 (get-in decision [:filled :a])))
+    (is (= 0 (get-in decision [:filled :b] 0)))
+    (is (:valid? (pf/verify-semantic-decision input decision)))
+    (is (:valid? (pf/verify-semantic-decision
+                  (assoc input :policy floor-policy) floor-decision)))))
+
+(deftest waterfall-supports-multiple-owner-rows-in-one-priority-bucket
+  (let [policy {:mode :waterfall :fill-order [:principal :yield]
+                :rounding-policy :largest-remainder
+                :fail-action-policy {:mode :pro-rata-treatment :deferred-policy :contractual
+                                     :haircut-policy :contractual}}
+        rows [{:key :alice-principal :bucket :principal :obligation-id :alice
+               :source-position-id :alice-p :owed 4 :weight 1 :cap 4}
+              {:key :bob-principal :bucket :principal :obligation-id :bob
+               :source-position-id :bob-p :owed 4 :weight 1 :cap 4}
+              {:key :alice-yield :bucket :yield :obligation-id :alice
+               :source-position-id :alice-y :owed 4 :weight 1 :cap 4}]
+        requested (into {} (map (juxt :key :owed) rows))
+        input {:available 6 :requested requested :policy policy :rows rows}
+        decision (pf/calculate-fulfillment-waterfall 6 requested policy {:rows rows})
+        verification (pf/verify-semantic-decision input decision)]
+    (is (= {:alice-principal 3 :bob-principal 3} (:filled decision)))
+    (is (= :principal (get-in decision [:evidence :allocation-rows 0 :bucket])))
+    (is (= :principal (get-in decision [:evidence :allocation-rows 1 :bucket])))
+    (is (= :yield (get-in decision [:evidence :allocation-rows 2 :bucket])))
+    (is (:valid? verification) (pr-str (:semantic-reconstruction verification)))
+    (is (= :partial-fill (:settlement-mode decision)))))
 
 (deftest test-partial-fill-principal-first-with-remainder
   (testing "Principal-first fill with liquidity exceeding principal"
@@ -1057,8 +1206,8 @@
           decision (pf/calculate-fulfillment 1500 base-position policy
                                              {:rows [{:key :principal :owed 1000 :weight 1000 :cap 1000}
                                                      {:key :realized-yield :owed 500 :weight 500 :cap 500}]})]
-      (is (= :partial-fill (:settlement-mode decision))
-          "Rows path currently returns :partial-fill even when shortage is 0 (pre-existing)")
+      (is (= :full-fill (:settlement-mode decision))
+          "Rows path reports full-fill when every claim is filled")
       (is (= 1000 (get-in decision [:filled :principal] 0)) "Principal fully filled")
       (is (= 500 (get-in decision [:filled :realized-yield] 0)) "Yield fully filled")
       (is (= 0 (get-in decision [:deferred :principal] 0)) "No principal deferred")

@@ -132,7 +132,7 @@
                                    (:mapping/values mapping)))
                           {}
                           (:mappings mapping-set))]))
-        (:concept-mapping-files registry))))
+             (:concept-mapping-files registry))))
 
 (defn- apply-mapping-index
   [concept mapping-index]

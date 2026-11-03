@@ -145,7 +145,7 @@
     (let [bytes (Files/readAllBytes (path-of (:proof/file delivery-bundle)))
           observed-content-root
           (str "sha256:" (transport-http/hex
-                           (.digest (MessageDigest/getInstance "SHA-256") bytes)))
+                          (.digest (MessageDigest/getInstance "SHA-256") bytes)))
           _ (when-not (= (:proof/content-root delivery-bundle) observed-content-root)
               (throw (ex-info "Persisted proof artifact content changed" {})))
           response (post-edn! endpoint "/v1/accounting-proof"

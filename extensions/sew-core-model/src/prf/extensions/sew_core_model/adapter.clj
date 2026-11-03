@@ -13,12 +13,20 @@
 (def protocol-profile :sew-core-v1)
 
 (def solidity-module-identities
-  "Symbolic contract identities expected by the pinned Sew Core deployment profile.
-   Addresses remain deployment-specific and require bytecode verification outside
-   this simulator."
-  {:module-registry :module-snapshot-registry
-   :resolution-module :default-resolution-module
-   :release-strategy :default-release-strategy})
+  "Pinned artifact identities expected by the Solidity Sew Core profile.
+   This binds scenario declarations to the reviewed build baseline. It does not
+   prove that deployment-specific addresses contain these runtime bytecodes."
+  {:source/revision "17bf2f0693367bfa3909a5aa186f4e806a76a5ea"
+   :source/manifest-sha256 "2aa8f10233e405ef85679ef8775269b6a4221b98915f387659fe9028badb9ba4"
+   :module-registry
+   {:fully-qualified-name "contracts/core/ModuleSnapshotRegistry.sol:ModuleSnapshotRegistry"
+    :runtime-code-sha256 "05c85a03d70026375630b34ce1edf38af6d4f9b1c0d62a8fb3aa8f269264869b"}
+   :resolution-module
+   {:fully-qualified-name "contracts/modules/DefaultResolutionModule.sol:DefaultResolutionModule"
+    :runtime-code-sha256 "69ca109f740b3c913c359c159da1065321c66f10b28da1938137c4210d0e436d"}
+   :release-strategy
+   {:fully-qualified-name "contracts/modules/DefaultReleaseStrategy.sol:DefaultReleaseStrategy"
+    :runtime-code-sha256 "d6a58c198762635c7f6c3cbc98816a21c1e5cc10f33f9561d6fea1c1866ee4fa"}})
 
 (def supported-actions
   #{"create-escrow"

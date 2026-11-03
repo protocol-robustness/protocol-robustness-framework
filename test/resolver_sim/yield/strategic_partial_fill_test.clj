@@ -2,7 +2,11 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
-            [resolver-sim.yield.strategic-partial-fill :as strategic]))
+            [resolver-sim.yield.strategic-partial-fill :as strategic]
+            [resolver-sim.yield.partial-fill :as pf]
+            [resolver-sim.validation.enumeration :as enum])
+  (:import [java.security KeyPairGenerator]
+           [java.util Arrays]))
 
 (def recovery-game-fixture-catalog
   (edn/read-string
@@ -13,6 +17,11 @@
           [case (strategic/prepare-recovery-game-model
                  (merge (:defaults recovery-game-fixture-catalog) case))])
         (:cases recovery-game-fixture-catalog)))
+
+(defn- raw-ed25519-public-hex [public-key]
+  (let [encoded (.getEncoded public-key)
+        raw (Arrays/copyOfRange encoded (- (alength encoded) 32) (alength encoded))]
+    (apply str (map #(format "%02x" (bit-and (int %) 0xff)) raw))))
 
 (deftest integer-rounding-is-not-exactly-merge-invariant
   (is (= [{:claims [1 2]
@@ -112,7 +121,7 @@
                     :max-states 5)
           scope (:epistemic-scope artifact)]
       (is (map? scope))
-      (is (= :bounded-exhaustive (:scope/kind scope)))
+      (is (= :bounded-sampled (:scope/kind scope)))
       (is (false? (:scope/universal-claim? scope)))
       (is (true? (:scope/falsification? scope)))
       (is (= :validation-scope (:scope/coverage scope)))
@@ -502,3 +511,376 @@
           (str dev " must be registered"))
       (is (keyword? (get-in strategic/registered-deviation-generators [dev :property]))
           (str dev " generator must declare a property")))))
+
+(deftest claimant-gains-are-detected-despite-pool-conservation
+  (let [policy {:rounding-policy :largest-remainder}]
+    (is (some #(= 1 (:error %)) (strategic/check-split-invariance [2 1] 2 policy)))
+    (is (some #(= 1 (:gain %)) (strategic/check-sybil-invariance [2 1] 2 policy)))
+    (is (seq (strategic/check-permutation-invariance [1 1] 1 policy)))))
+
+(deftest strategic-validation-cannot-pass-without-checks
+  (let [artifact (strategic/validate-strategic-properties :max-states 2)]
+    (is (pos? (get-in artifact [:summary :total-checks])))
+    (is (= 5 (get-in artifact [:summary :properties-examined]))))
+  (doseq [opts [[:deviations []] [:policies []] [:max-states 0]]]
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (apply strategic/validate-strategic-properties opts)))))
+
+(deftest exhaustive-enumeration-covers-independent-request-ranges
+  (let [scope (enum/make-scope :dimensions {:claim-count [2 2] :request [0 3] :liquidity [0 3]}
+                               :sampling :exhaustive :max-states 1000)
+        states (enum/generate-states scope)]
+    (is (= 64 (count states)))
+    (is (= 64 (count (set (map (juxt :claims :liquidity) states)))))
+    (is (= (set (range 7)) (set (map :request-sum states)))))
+  (let [scope (enum/make-scope :dimensions {:claim-count [2 2] :request [2 3] :liquidity [2 3]}
+                               :sampling :stratified :max-states 1000)]
+    (is (every? (fn [{:keys [claims liquidity]}]
+                  (and (= 2 (count claims)) (every? #(<= 2 % 3) claims) (<= 2 liquidity 3)))
+                (enum/generate-states scope)))))
+
+(deftest semantic-verification-accepts-valid-inapplicable-theorems
+  (let [policy {:mode :pro-rata :rounding-policy :largest-remainder}
+        input {:available 1 :requested {:a 1 :b 1} :policy policy}
+        decision (pf/calculate-fulfillment-pro-rata 1 (:requested input) policy)]
+    (is (:valid? (pf/verify-semantic-decision input decision)))
+    (is (false? (:valid? (pf/verify-semantic-decision input (assoc decision :filled {:a 0 :b 1})))))))
+
+(deftest semantic-verification-reconstructs-priority-modes
+  (doseq [[mode decision-fn policy]
+          [[:principal-first pf/calculate-fulfillment-principal-first
+            {:mode :principal-first :rounding-policy :largest-remainder}]
+           [:waterfall pf/calculate-fulfillment-waterfall
+            {:mode :waterfall :fill-order [:principal :realized-yield]
+             :rounding-policy :largest-remainder}]]]
+    (let [input {:available 7 :requested {:principal 5 :realized-yield 3} :policy policy}
+          decision (decision-fn 7 (:requested input) policy)
+          result (pf/verify-semantic-decision input decision)]
+      (is (:valid? result) (str mode " valid reconstructed result"))
+      (is (= {:principal 5 :realized-yield 2} (:filled decision)))
+      (is (= {:realized-yield 1} (:deferred decision)))
+      (is (false? (:valid? (pf/verify-semantic-decision
+                            input (assoc decision :filled {:principal 4 :realized-yield 3}))))))))
+
+(deftest semantic-verification-reconstructs-capped-row-modes
+  (doseq [[mode decision-fn policy]
+          [[:pro-rata pf/calculate-fulfillment-pro-rata
+            {:mode :pro-rata :rounding-policy :largest-remainder}]
+           [:principal-first pf/calculate-fulfillment-principal-first
+            {:mode :principal-first :rounding-policy :largest-remainder}]
+           [:waterfall pf/calculate-fulfillment-waterfall
+            {:mode :waterfall :fill-order [:principal :realized-yield]
+             :rounding-policy :largest-remainder}]]]
+    (let [rows [{:key :principal :obligation-id :p
+                 :source-position-id :p0 :owed 60 :weight 60 :cap 40}
+                {:key :realized-yield :obligation-id :y
+                 :source-position-id :y0 :owed 60 :weight 60 :cap 60}]
+          requested (into {} (map (juxt :key :owed) rows))
+          input {:available 80 :requested requested :policy policy :rows rows}
+          decision (decision-fn 80 requested policy {:rows rows})
+          verification (pf/verify-semantic-decision input decision)]
+      (is (:supported? (:semantic-reconstruction verification)) (str mode " row model supported"))
+      (is (:valid? verification) (str mode " row decision reconstructed"))
+      (is (false? (:valid? (pf/verify-semantic-decision
+                            input (assoc decision :filled {:principal 39 :realized-yield 41}))))))))
+
+(deftest random-enumeration-materializes-requests-and-their-totals
+  (let [scope (enum/make-scope :dimensions {:claim-count [2 3] :request [2 5] :liquidity [0 8]}
+                               :sampling :random :seed 42 :max-states 20)
+        states (vec (enum/generate-states scope))]
+    (is (= states (vec (enum/generate-states scope))))
+    (is (every? #(and (vector? (:claims %))
+                      (= (:request-sum %) (reduce + 0 (:claims %)))) states))))
+
+(deftest finite-normal-form-analyzer-finds-pure-nash-equilibria
+  (let [game {:game/id :coordination
+              :players [:alice :bob]
+              :actions {:alice [:a :b] :bob [:a :b]}
+              :payoffs [{:actions {:alice :a :bob :a} :utilities {:alice 2 :bob 2}}
+                        {:actions {:alice :a :bob :b} :utilities {:alice 0 :bob 0}}
+                        {:actions {:alice :b :bob :a} :utilities {:alice 0 :bob 0}}
+                        {:actions {:alice :b :bob :b} :utilities {:alice 1 :bob 1}}]}
+        result (strategic/analyze-finite-normal-form-game game)]
+    (is (= :analyzed (:status result)))
+    (is (= #{{:alice :a :bob :a} {:alice :b :bob :b}}
+           (set (:equilibria result))))
+    (is (true? (:pure-equilibrium-exists? result)))
+    (is (false? (get-in result [:evidence :utilities-authenticated?]))))
+  (let [matching-pennies {:game/id :matching-pennies
+                          :players [:alice :bob]
+                          :actions {:alice [:heads :tails] :bob [:heads :tails]}
+                          :payoffs [{:actions {:alice :heads :bob :heads} :utilities {:alice 1 :bob -1}}
+                                    {:actions {:alice :heads :bob :tails} :utilities {:alice -1 :bob 1}}
+                                    {:actions {:alice :tails :bob :heads} :utilities {:alice -1 :bob 1}}
+                                    {:actions {:alice :tails :bob :tails} :utilities {:alice 1 :bob -1}}]}
+        result (strategic/analyze-finite-normal-form-game matching-pennies)
+        mixed (strategic/analyze-two-player-mixed-equilibria matching-pennies)]
+    (is (= :analyzed (:status result)))
+    (is (false? (:pure-equilibrium-exists? result)))
+    (is (empty? (:equilibria result)))
+    (is (= :analyzed (:status mixed)))
+    (is (= 1 (count (:equilibria mixed))))
+    (is (= {:alice {:heads 1/2 :tails 1/2}
+            :bob {:heads 1/2 :tails 1/2}}
+           (:strategies (first (:equilibria mixed)))))
+    (is (= {:alice 0 :bob 0}
+           (:expected-utilities (first (:equilibria mixed))))))
+  (let [degenerate {:game/id :degenerate
+                    :players [:alice :bob]
+                    :actions {:alice [:a :b] :bob [:x :y]}
+                    :payoffs [{:actions {:alice :a :bob :x} :utilities {:alice 0 :bob 0}}
+                              {:actions {:alice :a :bob :y} :utilities {:alice 0 :bob 0}}
+                              {:actions {:alice :b :bob :x} :utilities {:alice 0 :bob 0}}
+                              {:actions {:alice :b :bob :y} :utilities {:alice 0 :bob 0}}]}
+        result (strategic/analyze-two-player-mixed-equilibria degenerate)]
+    (is (= :inconclusive (:status result)))
+    (is (= :degenerate-support-needs-polytope (:reason result))))
+  (let [incomplete {:game/id :incomplete
+                    :players [:alice :bob]
+                    :actions {:alice [:a :b] :bob [:a :b]}
+                    :payoffs [{:actions {:alice :a :bob :a} :utilities {:alice 1 :bob 1}}]}
+        result (strategic/analyze-finite-normal-form-game incomplete)]
+    (is (= :inconclusive (:status result)))
+    (is (= :invalid-or-incomplete-payoff-table (:reason result))))
+  (let [actions (vec (range 100))
+        oversized {:game/id :oversized
+                   :players [:alice :bob]
+                   :actions {:alice actions :bob actions}
+                   :payoffs []}
+        result (strategic/analyze-finite-normal-form-game oversized {:max-profiles 1000})]
+    (is (= :inconclusive (:status result)))
+    (is (= :profile-budget-exceeded (:reason result)))
+    (is (= 10000 (:expected-profile-count result)))))
+
+(deftest recovery-game-outcomes-feed-pure-equilibrium-analysis
+  (let [[_ prepared] (first (prepared-recovery-game-fixtures))
+        players (mapv :player/id (get-in prepared [:model :players]))
+        action-map (zipmap players (repeat [:claim-now :defer]))
+        profiles (reduce (fn [profiles player]
+                           (for [profile profiles
+                                 action (get action-map player)]
+                             (assoc profile player action)))
+                         [{}] players)
+        game-profiles
+        (mapv (fn [actions]
+                {:actions actions
+                 :outcome
+                 {:by-player
+                  (into {}
+                        (map (fn [player]
+                               [player {:payments [{:amount (if (= :claim-now
+                                                                   (get actions player))
+                                                              10 0)
+                                                    :round/index 0}]
+                                        :delay-rounds 0 :fees 0 :expected-unrecovered 0
+                                        :priority-externality 0 :penalty-count 0}])
+                             players))}})
+              profiles)
+        result (strategic/analyze-recovery-game-profiles
+                prepared {:actions action-map :profiles game-profiles})]
+    (is (= :analyzed (:status result)))
+    (is (= [{:alice :claim-now :bob :claim-now :carol :claim-now}]
+           (:equilibria result)))
+    (is (= 8 (:profile-count result)))
+    (is (false? (:utility-assumptions-authenticated? result)))))
+
+(deftest two-player-recovery-adapter-finds-exact-mixed-equilibrium
+  (let [[_ source] (first (prepared-recovery-game-fixtures))
+        source-model (:model source)
+        selected-players #{:alice :bob}
+        selected-entitlements #{:alice-right :bob-right}
+        model (-> source-model
+                  (update :players #(filterv (fn [p] (selected-players (:player/id p))) %))
+                  (update :entitlements #(filterv (fn [e]
+                                                    (selected-entitlements (:entitlement/id e))) %))
+                  (update :rounds #(mapv (fn [round]
+                                           (let [incoming (filterv selected-entitlements
+                                                                   (:incoming round))]
+                                             (assoc round :incoming incoming
+                                                    :requested-by-entitlement
+                                                    (select-keys (:requested-by-entitlement round)
+                                                                 incoming)))) %))
+                  (update-in [:execution-model :parallelism :submissions]
+                             #(filterv (fn [s]
+                                         (selected-entitlements (:entitlement/id s))) %))
+                  (update-in [:payoff-parameters :by-player]
+                             #(select-keys % selected-players))
+                  (update-in [:terminal :continuation-value-by-player]
+                             #(select-keys % selected-players)))
+        prepared (strategic/prepare-recovery-game-model model)
+        actions {:alice [:claim-now :defer] :bob [:claim-now :defer]}
+        profiles (for [alice (get actions :alice)
+                       bob (get actions :bob)]
+                   (let [match? (= alice bob)]
+                     {:actions {:alice alice :bob bob}
+                      :outcome
+                      {:by-player
+                       {:alice {:payments [{:amount (if match? 1 0) :round/index 0}]
+                                :delay-rounds 0 :fees 0 :expected-unrecovered 0
+                                :priority-externality 0 :penalty-count 0}
+                        :bob {:payments [{:amount (if match? 0 1) :round/index 0}]
+                              :delay-rounds 0 :fees 0 :expected-unrecovered 0
+                              :priority-externality 0 :penalty-count 0}}}}))
+        result (strategic/analyze-two-player-recovery-game-profiles
+                prepared {:actions actions :profiles (vec profiles)})]
+    (is (= :complete (:parameterization/status prepared)))
+    (is (= :analyzed (:status result)))
+    (is (= [{:alice {:claim-now 1/2 :defer 1/2}
+             :bob {:claim-now 1/2 :defer 1/2}}]
+           (mapv :strategies (:equilibria result))))
+    (is (false? (:utility-assumptions-authenticated? result)))))
+
+(deftest strategic-coverage-reports-domain-and-policy-budget
+  (let [scope (enum/make-scope :dimensions {:claim-count [1 1]
+                                            :request [0 1] :liquidity [0 1]}
+                               :max-states 4)
+        run (fn [scope budget]
+              (:validation-scope
+               (strategic/validate-strategic-properties
+                :scope scope :max-states budget :deviations [:split])))
+        complete (run scope 8)
+        partial (run scope 7)
+        enumeration-capped (run (assoc scope :max-states 2) 8)]
+    (is (= 4 (:domain-cardinality complete)))
+    (is (true? (:complete? complete)))
+    (is (= 8 (:state-policy-evaluations complete)))
+    (doseq [result [partial enumeration-capped]]
+      (is (false? (:complete? result)))
+      (is (= :enumeration-or-evaluation-budget (:incompleteness-reason result))))))
+
+(deftest strategic-coverage-sampled-zero-budget-and-empty-claims
+  (let [scope (enum/make-scope :dimensions {:claim-count [1 1] :request [0 1] :liquidity [0 1]}
+                               :max-states 20)
+        run (fn [scope]
+              (strategic/validate-strategic-properties :scope scope :max-states 40 :deviations [:split]))]
+    (doseq [sampling [:random :stratified]]
+      (let [coverage (:validation-scope (run (assoc scope :sampling sampling)))]
+        (is (= 4 (:domain-cardinality coverage)))
+        (is (false? (:complete? coverage)))
+        (is (= :sampling (:incompleteness-reason coverage)))))
+    (let [coverage (:validation-scope (run (assoc scope :max-states 0)))]
+      (is (= 0 (:state-policy-evaluations coverage)))
+      (is (false? (:complete? coverage)))
+      (is (= :enumeration-or-evaluation-budget (:incompleteness-reason coverage))))
+    (let [empty-domain (run (assoc scope :dimensions {:claim-count [1 1] :request [1 0] :liquidity [0 0]}))]
+      (is (= 0 (get-in empty-domain [:validation-scope :domain-cardinality])))
+      (is (true? (get-in empty-domain [:validation-scope :complete?])))
+      (is (false? (get-in empty-domain [:summary :valid?]))))
+    (let [coverage (:validation-scope
+                    (run (enum/make-scope :dimensions {:claim-count [0 0] :request [0 0] :liquidity [0 0]}
+                                          :max-states 1)))]
+      (is (= 1 (:domain-cardinality coverage)))
+      (is (= 2 (:state-policy-evaluations coverage)))
+      (is (true? (:complete? coverage))))))
+
+(deftest recovery-execution-requirement-fails-before-outcome-evaluation
+  (let [[_ prepared] (first (prepared-recovery-game-fixtures))
+        calls (atom 0)]
+    (with-redefs [strategic/evaluate-recovery-game-outcome
+                  (fn [& _] (swap! calls inc))]
+      (is (= :validated-execution-unavailable
+             (:reason (strategic/analyze-recovery-game-profiles
+                       prepared {} {:require-validated-execution? true}))))
+      (is (zero? @calls)))))
+
+(deftest recovery-profile-budget-is-checked-before-outcome-evaluation
+  (let [calls (atom 0)
+        prepared {:parameterization/status :complete
+                  :game/id :budget-test
+                  :model {:players [{:player/id :alice}]
+                          :recovery-process {:probability-model :none}}}]
+    (with-redefs [strategic/evaluate-recovery-game-outcome
+                  (fn [& _] (swap! calls inc) {:status :payoffs-evaluated})]
+      (let [oversized (strategic/analyze-recovery-game-profiles
+                       prepared
+                       {:actions {:alice [:claim :defer]}
+                        :profiles [{:actions {:alice :claim} :outcome {}}
+                                   {:actions {:alice :defer} :outcome {}}]}
+                       {:max-profiles 1})
+            invalid-budget (strategic/analyze-recovery-game-profiles
+                            prepared
+                            {:actions {:alice [:claim]}
+                             :profiles [{:actions {:alice :claim} :outcome {}}]}
+                            {:max-profiles 0})
+            duplicate-profile (strategic/analyze-recovery-game-profiles
+                               prepared
+                               {:actions {:alice [:claim :defer]}
+                                :profiles [{:actions {:alice :claim} :outcome {}}
+                                           {:actions {:alice :claim} :outcome {}}]})]
+        (is (= :profile-budget-exceeded (:reason oversized)))
+        (is (= :invalid-profile-budget (:reason invalid-budget)))
+        (is (= :invalid-or-incomplete-payoff-table (:reason duplicate-profile)))
+        (is (zero? @calls))))))
+
+(deftest recovery-game-assumptions-require-trusted-signatures-on-request
+  (let [[_ prepared] (first (prepared-recovery-game-fixtures))
+        key-pair (.generateKeyPair (KeyPairGenerator/getInstance "Ed25519"))
+        permission-claims (mapv (fn [{:keys [player/id]}]
+                                  {:player/id id :action :claim-now
+                                   :permission/status :permitted
+                                   :source/root (apply str (repeat 64 "a"))})
+                                (get-in prepared [:model :players]))
+        model (assoc (:model prepared) :action-permission-claims permission-claims)
+        signed-model (-> model
+                         (strategic/sign-recovery-game-assumptions
+                          (.getPrivate key-pair) :game-authority)
+                         (strategic/sign-recovery-game-action-permissions
+                          (.getPrivate key-pair) :permission-authority))
+        public-hex (raw-ed25519-public-hex (.getPublic key-pair))
+        trust-policy {:trusted-keys [{:key/id :game-authority
+                                      :key/public public-hex
+                                      :key/role :recovery-game-assumptions-authority
+                                      :key/status :active}]}
+        permission-trust-policy
+        {:trusted-keys [{:key/id :permission-authority
+                         :key/public public-hex
+                         :key/role :recovery-game-action-permission-authority
+                         :key/status :active}]}
+        verified (strategic/verify-recovery-game-assumptions signed-model trust-policy)
+        tampered (assoc-in signed-model [:payoff-parameters :by-player :alice :amount-value] 2)
+        rejected-tampering (strategic/verify-recovery-game-assumptions tampered trust-policy)]
+    (is (:valid? verified))
+    (is (= :game-authority (:key-id verified)))
+    (is (false? (:valid? rejected-tampering)))
+    (is (= :assumption-model-binding-mismatch (:reason rejected-tampering)))
+    (let [calls (atom 0)
+          authenticated-prepared (assoc prepared :model signed-model)
+          players (mapv :player/id (:players model))
+          actions (zipmap players (repeat [:claim-now]))
+          terminal-outcome
+          {:by-player (into {}
+                            (map (fn [player]
+                                   [player {:payments [] :delay-rounds 0 :fees 0
+                                            :expected-unrecovered 0
+                                            :priority-externality 0 :penalty-count 0}])
+                                 players))}
+          game-input {:actions actions
+                      :profiles [{:actions (zipmap players (repeat :claim-now))
+                                  :outcome terminal-outcome}]}
+          authorized (strategic/analyze-recovery-game-profiles
+                      authenticated-prepared game-input
+                      {:require-authenticated-assumptions? true
+                       :assumption-trust-policy trust-policy
+                       :action-permission-trust-policy permission-trust-policy})]
+      (is (= :analyzed (:status authorized)))
+      (is (true? (:utility-assumptions-authenticated? authorized)))
+      (is (true? (:action-permissions-authenticated? authorized)))
+      (with-redefs [strategic/evaluate-recovery-game-outcome
+                    (fn [& _] (swap! calls inc) {:status :payoffs-evaluated})]
+        (let [unauthorized (strategic/analyze-recovery-game-profiles
+                            authenticated-prepared
+                            {:actions (zipmap players (repeat [:defer]))
+                             :profiles [{:actions (zipmap players (repeat :defer))
+                                         :outcome terminal-outcome}]}
+                            {:require-authenticated-assumptions? true
+                             :assumption-trust-policy trust-policy
+                             :action-permission-trust-policy permission-trust-policy})
+              result (strategic/analyze-recovery-game-profiles
+                      authenticated-prepared game-input
+                      {:require-authenticated-assumptions? true
+                       :assumption-trust-policy
+                       (assoc-in trust-policy [:trusted-keys 0 :key/status] :revoked)
+                       :action-permission-trust-policy permission-trust-policy})]
+          (is (= :action-permission-not-authorized (:reason unauthorized)))
+          (is (= :assumption-attestation-invalid (:reason result)))
+          (is (zero? @calls)))))))

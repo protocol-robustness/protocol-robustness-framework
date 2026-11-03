@@ -98,6 +98,15 @@
                                      [:protocol-params :sew-core/module-identities]
                                      assoc :resolution-module :custom-module))))))))
 
+(deftest module-identities-match-pinned-solidity-baseline
+  (is (= (:source/revision solidity-vectors)
+         (get-in core/solidity-module-identities [:source/revision])))
+  (is (= (:source/manifest-sha256 solidity-vectors)
+         (get-in core/solidity-module-identities [:source/manifest-sha256])))
+  (is (= (:source/modules solidity-vectors)
+         (dissoc core/solidity-module-identities
+                 :source/revision :source/manifest-sha256))))
+
 (deftest selected-extension-capabilities-bootstrap
   (testing "the model's lazy profile hook can restore the selected extension"
     (registry/unregister-extension! "sew-v1")
