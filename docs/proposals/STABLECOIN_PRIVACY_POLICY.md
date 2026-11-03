@@ -13,10 +13,32 @@ Model `privacy-policy` as an immutable policy concept. Model
 scope and observed head. Currentness is a property of the resolution, rather
 than a mutable field on the policy document.
 
-The first implementation qualifies disclosure of stablecoin evidence and
-simulated data operations. It does not claim enforcement over a live token,
-issuer database, or third-party recipient. Such enforcement requires an adapter
-at each actual operation boundary.
+The initial implementation target is stablecoin evidence and simulated data
+operations. The current candidate does not yet qualify a disclosure or claim
+enforcement over a live token, issuer database, or third-party recipient. Such
+enforcement requires an adapter at each actual operation boundary.
+
+## Current candidate status
+
+The in-tree candidate is a partial, offline evaluator, not a qualified
+disclosure decision. `resolver-sim.privacy.policy` validates and hashes one
+immutable policy, matches a caller-supplied operation context, applies
+deny-overrides-allow, and composes the existing Sentinel sink check.
+`resolver-sim.privacy.initialization` can resolve a historical bootstrap only
+when its root is supplied through an external trust set. The evaluator always
+returns authority `:unverified`, currentness `:unknown`, execution
+`:not-executed`, and `usable? false`.
+
+The current code does not yet satisfy the full request/receipt contract below:
+it does not bind an exact artifact or data-view root to a verified
+classification-report root, distinguish recipient identity from recipient
+class, verify prerequisite evidence roots, aggregate multiple applicable
+policies, or resolve an authorized policy from a fresh active-head observation.
+Its evaluation map is not a canonical, independently verifiable receipt, and
+it does not enforce a decision at an operation boundary. A caller-supplied
+sensitivity value is not proof of classification. Do not treat an `:allow`
+result as permission to disclose or process data. The candidate remains pending
+until these gaps and their acceptance tests are addressed.
 
 ## Existing machinery to reuse
 

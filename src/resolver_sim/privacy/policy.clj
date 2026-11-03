@@ -1,6 +1,8 @@
 (ns resolver-sim.privacy.policy
   "Immutable, closed-shape stablecoin privacy policy contracts. This namespace
-   validates identity and context; it does not establish policy authority."
+   validates policy integrity and evaluates caller-supplied context offline.
+   It does not verify the data classification, establish policy authority or
+   currentness, or authorize an operation; every result remains unusable."
   (:require [clojure.set :as set]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as ref]
