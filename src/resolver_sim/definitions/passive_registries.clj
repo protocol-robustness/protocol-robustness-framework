@@ -648,8 +648,7 @@
     :execution/type :yield-accounting
     :execution/mode :inline
     :description "Per-event yield accounting delta emitted during deterministic replay."
-    :claims #{:conservation :trace-fidelity}}
-   ])
+    :claims #{:conservation :trace-fidelity}}])
 
 (def execution-registry
   {:registry-version registry-version
