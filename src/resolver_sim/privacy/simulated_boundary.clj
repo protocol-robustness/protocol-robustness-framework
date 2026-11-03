@@ -18,6 +18,7 @@
    (atom {:schema "stablecoin-privacy-simulated-boundary.v1"
           :head/root head-root
           :head/sequence sequence
+          :head/conflicts []
           :consumed-request-roots #{}
           :effects []})))
 
@@ -45,68 +46,83 @@
   [{:keys [boundary binding policy request head-observation effect
            authority-trust-policy observer-trust-policy evaluation-options
            now max-observation-age-seconds]}]
-  (when-not (and (instance? clojure.lang.Atom boundary)
-                 (map? effect)
-                 (integer? now)
-                 (= now (:request/at request)))
-    (throw (ex-info "invalid simulated privacy operation input"
-                    {:reason :invalid-simulation-input})))
-  (loop []
-    (let [before @boundary
-          resolved (resolution/resolve-policy
-                    {:binding binding :policy policy :request request
-                     :head-observation head-observation
-                     :authority-trust-policy authority-trust-policy
-                     :observer-trust-policy observer-trust-policy
-                     :now now :max-observation-age-seconds max-observation-age-seconds})
-          evaluated (policy/evaluate policy request evaluation-options)
-          current-head? (and (= (:head/root before)
-                                (:privacy-resolution/head-root resolved))
-                             (= (:head/sequence before)
-                                (:privacy-resolution/head-sequence resolved)))
-          replayed? (contains? (:consumed-request-roots before)
-                               (:request/root request))
-          permitted? (and (:privacy-resolution/valid? resolved)
-                          current-head?
-                          (not replayed?)
-                          (policy/verify-evaluation evaluated)
-                          (= (:request/root request)
-                             (:privacy-evaluation/request-root evaluated))
-                          (= :allow (:privacy-evaluation/decision evaluated))
-                          (= :verified (:privacy-evaluation/classification-status evaluated))
-                          (= :verified (:privacy-evaluation/evidence-status evaluated))
-                          (false? (:privacy-evaluation/usable? evaluated)))
-          reason (cond
-                   (not (:privacy-resolution/valid? resolved)) :resolution-invalid
-                   (not current-head?) :head-changed
-                   replayed? :request-already-applied
-                   (not (policy/verify-evaluation evaluated)) :evaluation-receipt-invalid
-                   (not= :allow (:privacy-evaluation/decision evaluated)) :privacy-policy-not-allow
-                   (not= :verified (:privacy-evaluation/classification-status evaluated))
-                   :classification-unverified
-                   (not= :verified (:privacy-evaluation/evidence-status evaluated))
-                   :prerequisite-evidence-unverified
-                   :else nil)]
-      (if-not permitted?
-        {:status :blocked :reason reason
-         :simulation-only? true :real-operation-authorized? false
-         :resolution resolved :evaluation evaluated}
-        (let [entry {:effect/root (effect-root effect)
-                     :request/root (:request/root request)
-                     :policy/root (:privacy-policy/root policy)
-                     :binding/root (:privacy-resolution/binding-root resolved)
-                     :head/root (:head/root before)
-                     :head/sequence (:head/sequence before)
-                     :effect effect}
-              after (-> before
-                        (update :effects conj entry)
-                        (update :consumed-request-roots conj (:request/root request)))]
-          (if (compare-and-set! boundary before after)
-            {:status :simulated
-             :effect/root (:effect/root entry)
-             :head/root (:head/root before)
-             :request/root (:request/root request)
-             :policy/root (:privacy-policy/root policy)
-             :simulation-only? true
-             :real-operation-authorized? false}
-            (recur)))))))
+  (if-not (and (instance? clojure.lang.Atom boundary)
+               (map? effect)
+               (integer? now)
+               (<= 0 now Long/MAX_VALUE)
+               (map? request)
+               (= now (:request/at request)))
+    {:status :blocked :reason :invalid-simulation-input
+     :errors [:invalid-freshness-input]
+     :simulation-only? true :real-operation-authorized? false}
+    (loop []
+      (let [before @boundary
+            resolved (resolution/resolve-policy
+                      {:binding binding :policy policy :request request
+                       :head-observation head-observation
+                       :authority-trust-policy authority-trust-policy
+                       :observer-trust-policy observer-trust-policy
+                       :head-checkpoint {:sequence (:head/sequence before)
+                                         :root (:head/root before)
+                                         :conflicts (:head/conflicts before)}
+                       :now now :max-observation-age-seconds max-observation-age-seconds})
+            evaluated (policy/evaluate policy request evaluation-options)
+            current-head? (and (= (:head/root before)
+                                  (:privacy-resolution/head-root resolved))
+                               (= (:head/sequence before)
+                                  (:privacy-resolution/head-sequence resolved)))
+            replayed? (contains? (:consumed-request-roots before)
+                                 (:request/root request))
+            permitted? (and (:privacy-resolution/valid? resolved)
+                            current-head?
+                            (not replayed?)
+                            (policy/verify-evaluation evaluated)
+                            (= (:request/root request)
+                               (:privacy-evaluation/request-root evaluated))
+                            (= :allow (:privacy-evaluation/decision evaluated))
+                            (= :verified (:privacy-evaluation/classification-status evaluated))
+                            (= :verified (:privacy-evaluation/evidence-status evaluated))
+                            (false? (:privacy-evaluation/usable? evaluated)))
+            reason (cond
+                     (not current-head?) :head-changed
+                     (not (:privacy-resolution/valid? resolved)) :resolution-invalid
+                     replayed? :request-already-applied
+                     (not (policy/verify-evaluation evaluated)) :evaluation-receipt-invalid
+                     (not= :allow (:privacy-evaluation/decision evaluated)) :privacy-policy-not-allow
+                     (not= :verified (:privacy-evaluation/classification-status evaluated))
+                     :classification-unverified
+                     (not= :verified (:privacy-evaluation/evidence-status evaluated))
+                     :prerequisite-evidence-unverified
+                     :else nil)]
+        (if-not permitted?
+          (let [head-status (:privacy-resolution/head-status resolved)
+                conflict {:sequence (:privacy-resolution/head-sequence resolved)
+                          :known-root (:head/root before)
+                          :observed-root (:privacy-resolution/head-root resolved)
+                          :observation-root (:privacy-resolution/observation-root resolved)}]
+            (when (= :equivocation head-status)
+              (swap! boundary update :head/conflicts
+                     (fn [conflicts]
+                       (if (some #{conflict} conflicts) conflicts (conj conflicts conflict)))))
+            {:status :blocked :reason reason
+             :simulation-only? true :real-operation-authorized? false
+             :resolution resolved :evaluation evaluated})
+          (let [entry {:effect/root (effect-root effect)
+                       :request/root (:request/root request)
+                       :policy/root (:privacy-policy/root policy)
+                       :binding/root (:privacy-resolution/binding-root resolved)
+                       :head/root (:head/root before)
+                       :head/sequence (:head/sequence before)
+                       :effect effect}
+                after (-> before
+                          (update :effects conj entry)
+                          (update :consumed-request-roots conj (:request/root request)))]
+            (if (compare-and-set! boundary before after)
+              {:status :simulated
+               :effect/root (:effect/root entry)
+               :head/root (:head/root before)
+               :request/root (:request/root request)
+               :policy/root (:privacy-policy/root policy)
+               :simulation-only? true
+               :real-operation-authorized? false}
+              (recur))))))))

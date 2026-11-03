@@ -39,6 +39,16 @@ connected to an authorized PRF configuration binding or production head
 service. `resolver-sim.privacy.initialization` verifies a historical bootstrap
 only when its root is supplied through an external trust set. The offline
 evaluator itself keeps currentness `:unknown` and authority `:unverified`.
+The resolver requires the binding, policy, and caller trust policy to name the
+same authority reference. Its v2 signed head observation is checked against an
+explicit checkpoint: equal sequence/root is idempotent, equal sequence with a
+different root is equivocation, lower sequences and gaps are rejected, and a
+single-step advance must name the checkpoint root as its previous root. The
+simulated boundary retains detected conflicts only in its in-memory instance.
+It does not authenticate the checkpoint, establish a complete remote history,
+or retain replay/conflict state across restarts or processes. Verification
+receipts identify canonical caller trust-policy roots and observation
+provenance, but do not claim those roots are independently authenticated.
 The evaluator is not a disclosure decision for a live operation. An `:allow` means
 only that the supplied, structurally valid policies permit the rooted request
 under the verified fixture or caller-configured classification/evidence
@@ -48,6 +58,9 @@ inputs. Do not treat it as permission to disclose or process real data.
 before appending an in-memory fixture effect. A compare-and-set fence rejects
 the effect if the observed head changed. This path always reports
 `:real-operation-authorized? false`; it qualifies no live operation adapter.
+Duplicate request roots are rejected only while the same atom remains alive. A
+fresh boundary instance can replay the same request; there is no durable ledger,
+cross-process lock, or restart-safe idempotency.
 The remaining implementation boundary is to connect policy binding to an
 approved existing configuration seam and authenticated production trust
 configuration. No such privacy configuration seam or approved authority input
@@ -212,8 +225,9 @@ storage is incompatible with a finite deletion requirement for the raw data.
 ## Bounded example and acceptance scenarios
 
 Use synthetic data only. Pin a fictitious issuer, a domain-qualified stablecoin,
-one jurisdiction, and two authorized fixture policy versions. No fixture keys
-are production authority.
+and one jurisdiction. The current runnable fixture uses one unapproved policy
+version; a second version and historical verification are not yet demonstrated.
+No fixture keys are production authority.
 
 | Operation | Expected result |
 |---|---|

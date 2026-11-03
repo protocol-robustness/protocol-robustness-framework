@@ -18,10 +18,10 @@ the user's instruction. Each task can be a separate commit.
 |---|---|---|
 | L1 Concepts and binding seam inventory | Partial | Concepts and inventory exist; no authorized production binding seam or trusted head source is established. |
 | L2 Immutable policy and evaluation contracts | Partial | Rooted policy/request/receipt checks exist; authority approval and full proposed schema/registrations remain. |
-| L3 Trusted policy resolution | Partial | Signed fixture binding/head resolver validates scope and freshness relative to supplied trust policies; production trust provenance and configuration binding remain blocked. |
+| L3 Trusted policy resolution | Partial | Signed fixture binding/head resolver validates exact authority references, a bounded caller-supplied checkpoint, single-step continuity, and freshness relative to supplied trust policies. External trust anchoring, durable checkpoint history, and production configuration binding remain unqualified. |
 | L4 Privacy evaluator and Sentinel composition | Partial | Exact report/evidence checks, deny-overrides, all-policy permit, and Sentinel composition exist; real authority and actual data-view integration remain. |
-| L5 Offline commands and synthetic stablecoin example | Implemented, offline | `privacy policy inspect`, `privacy evaluate`, `privacy verify`, and synthetic allow/deny fixtures exist. No production credentials are included. |
-| L6 Enforcement boundary qualification | Implemented, simulation only | In-memory CAS boundary rechecks head and appends only a simulated effect; no live disclosure, storage, issuer, or token adapter exists. |
+| L5 Offline commands and synthetic stablecoin example | Partial, offline | Inspect/evaluate/verify and aggregate allow/deny fixtures exist. Private-identity export denial and policy-version historical verification are not implemented or demonstrated. |
+| L6 Enforcement boundary qualification | Simulated, bounded | In-memory CAS boundary fences one process instance and records equivocation in its local state. Restart, cross-process, and durable replay guarantees are not implemented; no live disclosure, storage, issuer, or token adapter exists. |
 
 Read the linked design before each task. Fixture keys and policy owners are
 synthetic; do not claim real authority, regulatory compliance, or live currentness.
@@ -104,9 +104,12 @@ before choosing syntax; proposed actions are `privacy policy inspect`,
 `privacy evaluate`, and `privacy verify`.
 
 Expose inspect, evaluate and independently verify using pinned local bundles.
-Create one allowed aggregate, one denied identity export, and a policy update
-that preserves historical verification. Verification must reconstruct the result
-from included inputs and configured trust, rather than accept a claimed allow.
+The current example demonstrates an allowed aggregate and a denied unregistered
+recipient. It does not yet demonstrate private-identity export denial or a policy
+version update with historical verification; L5 remains partial until those
+scenarios have executable checks. Historical verification must use the exact
+retained policy and caller trust context bound to that historical receipt. It
+must never silently substitute the current policy or current trust context.
 Keep sensitive diagnostics private and use stable exit codes. Output exact policy
 roots, separate statuses, reasons and `not-executed`.
 
