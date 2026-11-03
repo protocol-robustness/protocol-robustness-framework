@@ -72,7 +72,7 @@
    This is historical resolution only and never establishes live currentness."
   [initialization policy-body trusted-bootstrap-roots]
   (let [verification (verify-initialization initialization policy-body
-                                             trusted-bootstrap-roots)]
+                                            trusted-bootstrap-roots)]
     (if (:valid? verification)
       {:resolved? true
        :status :historical-verified

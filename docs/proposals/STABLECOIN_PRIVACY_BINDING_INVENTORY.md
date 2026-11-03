@@ -23,12 +23,21 @@ This is an implementation inventory, not an authority approval.
 * EVM token identity is already represented by
   `resolver-sim.shortfall.evm-asset/build-asset`, binding chain ID, contract
   address and unit into an asset root. It says nothing about issuer identity.
-* No reusable stablecoin privacy policy schema, issuer signing role, scoped
-  policy binding, trusted live head-observation source, or live disclosure
-  adapter was found. A configuration root/self-hash cannot supply these.
+* The pending candidate now defines `stablecoin-privacy-policy.v1`, a rooted
+  request/evaluation receipt, and offline signed binding/head-observation
+  fixture contracts in `resolver-sim.privacy.policy` and
+  `resolver-sim.privacy.resolution`. The candidate signing roles
+  `:privacy-policy-authority` and `:privacy-head-observer` are verifier
+  expectations only; no production keys or authoritative registry are
+  established.
+* No authorized privacy binding in PRF configuration, trusted production
+  head-observation source, authenticated trust-policy distribution, or live
+  disclosure adapter was found. A configuration root/self-hash cannot supply
+  these.
 
-Therefore V0 can implement content-addressed policy contracts and deterministic
-offline evaluation. The evaluator must label currentness unknown unless an
-external trust anchor and freshness observation are explicitly supplied and
-verified. Adding a real active binding requires a separate authorized
-configuration design/approval; no new authority store should be fabricated.
+Therefore this candidate's `:current-observed` resolution is qualified only
+relative to caller-supplied trust policies and a signed fixture observation;
+the normal privacy evaluator continues to report currentness unknown. Adding a
+real active binding requires a separate authorized configuration
+design/approval and authenticated production trust distribution; no new
+authority store should be fabricated.

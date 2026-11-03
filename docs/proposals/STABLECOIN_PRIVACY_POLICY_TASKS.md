@@ -2,24 +2,26 @@
 
 Design: [Stablecoin privacy policy and sensitivity](STABLECOIN_PRIVACY_POLICY.md).
 Status: partially implemented in a pending, offline candidate. L1 has draft
-concepts and a binding inventory. L2 and L4 now include rooted requests and
-recomputable receipts, signed fixture/caller-trust attestations, exact report
-verification, recipient identity/class separation, evidence-root checks,
-restrictive multi-policy evaluation, and Sentinel composition. L3 remains
-blocked on an authorized configuration binding and trusted fresh head source;
-L5 and L6 remain unimplemented. Do not treat passing tests as policy approval
-or qualification. Work only in the isolated candidate. Use workspace commit
-identity and JJ workflow. Do not push without the user's instruction. Each
-task can be a separate commit.
+concepts and a binding inventory. L2 and L4 include rooted requests, signed
+classification/evidence checks, restrictive multi-policy evaluation, and
+recomputable receipts. L3 has a fixture-input resolver for signed scope
+bindings and fresh signed head observations; authenticated production trust and
+configuration integration remain blocked. L5 adds inspect/evaluate/verify CLI
+commands and a synthetic reproducible example. L6 adds a CAS-fenced
+in-memory-only simulated effect. None of these establishes production policy
+authority, live currentness, or operation authorization. Do not treat passing
+tests as policy approval or qualification. Work only in the isolated
+candidate. Use workspace commit identity and JJ workflow. Do not push without
+the user's instruction. Each task can be a separate commit.
 
 | Task | Current status | Remaining boundary |
 |---|---|---|
-| L1 Concepts and binding seam inventory | Partial | Concepts and inventory exist; no authorized active-binding seam or trusted current-head observation is established. |
-| L2 Immutable policy and evaluation contracts | Partial | Policy, rooted request, and recomputable receipt exist; approval, root registry additions, commands, and full proposed schema remain. |
-| L3 Trusted policy resolution | Blocked | No authorized privacy binding or trusted fresh current-head observation source is available. |
-| L4 Privacy evaluator and Sentinel composition | Partial | Exact sensitivity report and signed evidence attestations are checked; configured trust provenance, authorization, actual view projection, and complete acceptance matrix remain. |
-| L5 Offline commands and synthetic stablecoin example | Not implemented | No researcher-facing inspect/evaluate/verify commands or complete reproducible example. |
-| L6 Enforcement boundary qualification | Not implemented | No operation adapter or head-fenced simulated effect. |
+| L1 Concepts and binding seam inventory | Partial | Concepts and inventory exist; no authorized production binding seam or trusted head source is established. |
+| L2 Immutable policy and evaluation contracts | Partial | Rooted policy/request/receipt checks exist; authority approval and full proposed schema/registrations remain. |
+| L3 Trusted policy resolution | Partial | Signed fixture binding/head resolver validates scope and freshness relative to supplied trust policies; production trust provenance and configuration binding remain blocked. |
+| L4 Privacy evaluator and Sentinel composition | Partial | Exact report/evidence checks, deny-overrides, all-policy permit, and Sentinel composition exist; real authority and actual data-view integration remain. |
+| L5 Offline commands and synthetic stablecoin example | Implemented, offline | `privacy policy inspect`, `privacy evaluate`, `privacy verify`, and synthetic allow/deny fixtures exist. No production credentials are included. |
+| L6 Enforcement boundary qualification | Implemented, simulation only | In-memory CAS boundary rechecks head and appends only a simulated effect; no live disclosure, storage, issuer, or token adapter exists. |
 
 Read the linked design before each task. Fixture keys and policy owners are
 synthetic; do not claim real authority, regulatory compliance, or live currentness.

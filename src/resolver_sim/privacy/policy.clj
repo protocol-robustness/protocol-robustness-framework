@@ -339,11 +339,11 @@
                               :policy-hash-str (sentinel/policy-hash)}))
          sentinel-verification (when (and remote-required? sentinel-decision
                                           sentinel-trust-policy sentinel-request)
-                                (sentinel-client/verify-decision
-                                 {:decision sentinel-decision
-                                  :request/id (:request/id sentinel-request)
-                                  :request/hash (:request/hash sentinel-request)}
-                                 sentinel-request sentinel-trust-policy))
+                                 (sentinel-client/verify-decision
+                                  {:decision sentinel-decision
+                                   :request/id (:request/id sentinel-request)
+                                   :request/hash (:request/hash sentinel-request)}
+                                  sentinel-request sentinel-trust-policy))
          sentinel-allowed? (or (not remote-required?)
                                (and (:valid? sentinel-verification)
                                     (:allowed? sentinel-verification)))
@@ -375,10 +375,10 @@
                  :privacy-evaluation/classification-status (if (:valid? classification) :verified :unverified)
                  :privacy-evaluation/evidence-status (if (:valid? evidence) :verified :unverified)
                  :privacy-evaluation/sentinel-status (cond
-                                                      (not (:valid? classification)) :unverified
-                                                      (not sink-allowed?) :denied
-                                                      remote-required? (if sentinel-allowed? :verified-allow :unverified)
-                                                      :else :local-gate-passed)
+                                                       (not (:valid? classification)) :unverified
+                                                       (not sink-allowed?) :denied
+                                                       remote-required? (if sentinel-allowed? :verified-allow :unverified)
+                                                       :else :local-gate-passed)
                  :privacy-evaluation/execution :not-executed
                  :privacy-evaluation/usable? false
                  :privacy-evaluation/reasons
