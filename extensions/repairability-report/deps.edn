@@ -1,0 +1,5 @@
+;; In-tree source dependency only; prf-core is not independently released yet.
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        org.protocol-robustness/prf-core {:local/root "../.."}}
+ :aliases {:test {:extra-paths ["test"]}}}

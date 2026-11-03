@@ -1,7 +1,6 @@
 {:schema "prf-module-boundaries.v1"
  :status :in-tree-enforced
- :source-location-convention {:resolver-sim "src/resolver_sim/<namespace path>.clj (excluding resolver-sim.yield.*)"
-                              :yield-runtime "yield_runtime_src/resolver_sim/yield/<namespace path>.clj"
+ :source-location-convention {:resolver-sim "src/resolver_sim/<namespace path>.clj"
                               :prf-canonical "https://github.com/protocol-robustness/prf-canonical.git at immutable :git/sha; deps root clj"
                               :prf-pro-rata-allocation "https://github.com/protocol-robustness/prf-pro-rata-allocation.git at immutable :git/sha; deps root clj"
                               :prf-coprocessor "https://github.com/protocol-robustness/prf-coprocessor.git at immutable revision in data/prf/external-repositories.json"
@@ -21,7 +20,7 @@
   {:owner :prf-allocation
    :status :source-qualified-candidate-unpublished-to-package-registry
    :git/url "https://github.com/protocol-robustness/prf-pro-rata-allocation.git"
-   :git/sha "cf38de1ea4ef03654ee3de8bead56c32ef078b10"
+   :git/sha "e0788f911e4fba3a27544cbccbb95d59d7daf2f7"
    :public-namespace prf.pro-rata.api
    :api [:allocate :verify-result :portable-pro-rata-allocation-v1]
    :qualification {:overall-conformance :partial
@@ -81,6 +80,25 @@
          :accounting-partition-plan.v1 :accounting-partial-result.v1
          :accounting-reconciliation.v1 :canonical-accounting-result.v1]
    :depends-on #{:prf-canonical}}
+  :prf-extension-api-v1
+  {:owner :prf-core
+   :status :in-tree-source-candidate
+   :dependency-manifest "packages/prf-extension-api-v1/DEPENDENCIES.edn"
+   :qualification {:isolated-source-closure-load? true
+                   :released-artifact? false
+                   :immutable-coordinate? false}
+   :public-namespace resolver-sim.extensions.api.v1
+   :api [:extension-core-api.v1]
+   :depends-on #{:prf-canonical}}
+  :repairability-report
+  {:owner :prf-dev-pro-90
+   :status :in-tree-unqualified-extension-candidate
+   :source "extensions/repairability-report"
+   :api [:repairability-report-section.v1]
+   :qualification {:registered-by-default? false
+                   :independent-verifier-receipt? false
+                   :trusted-report? false}
+   :depends-on #{:prf-core}}
   :researcher-network
   {:owner :researcher-network
    :status :in-tree-only
@@ -93,6 +111,7 @@
   :prf-research #{:prf-canonical :prf-research :support}
   :prf-incentives #{:prf-canonical :prf-research :prf-incentives :support}
   :accounting #{:prf-canonical :accounting :support}
+  :prf-core #{:prf-canonical :prf-core :support}
   :researcher-network #{:prf-canonical :prf-research :prf-incentives
                         :researcher-network :support}}
  :researcher-network-source-closure
@@ -134,6 +153,14 @@
    :required? true :blocker :research-package-not-extracted}
   {:namespace resolver-sim.benchmark.researcher-reward :owner :prf-incentives :kind :authoritative-contract
    :required? true :blocker :incentive-package-not-extracted}
+  {:namespace resolver-sim.assurance.authorised-effect-correlation :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-assurance-contract-unpublished}
+  {:namespace resolver-sim.benchmark.researcher-force-authorisation :owner :prf-research :kind :authoritative-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.review-governance :owner :prf-research :kind :public-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.review-round :owner :prf-research :kind :public-contract
+   :required? true :blocker :research-package-not-extracted}
   {:namespace resolver-sim.benchmark.signing :owner :prf-canonical :kind :public-contract
    :required? true :blocker :canonical-signing-contract-unpublished}
   {:namespace resolver-sim.config.defaults :owner :support :kind :operational-support
@@ -148,6 +175,8 @@
    :required? true :blocker :canonical-evidence-contract-unpublished}
   {:namespace resolver-sim.evidence.forensic-graph :owner :prf-canonical :kind :public-contract
    :required? true :blocker :canonical-evidence-contract-unpublished}
+  {:namespace resolver-sim.evidence.finalization-signature :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-signing-contract-unpublished}
   {:namespace resolver-sim.evidence.node :owner :prf-canonical :kind :public-contract
    :required? true :blocker :canonical-evidence-contract-unpublished}
   {:namespace resolver-sim.evidence.reachability :owner :prf-canonical :kind :public-contract
@@ -176,6 +205,18 @@
    :required? true :blocker :research-package-not-extracted}
   {:namespace resolver-sim.incentives.api :owner :prf-incentives :kind :public-contract
    :required? true :blocker :incentive-package-not-extracted}
+  {:namespace resolver-sim.network.checkpoint :owner :prf-research :kind :public-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.research.dependency-assurance :owner :prf-research :kind :public-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.research.integer-sum-verifier :owner :prf-research :kind :method-verifier
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.research.policy-approval :owner :prf-research :kind :authoritative-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.research.ratification :owner :prf-research :kind :authoritative-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.research.resolution-view :owner :prf-research :kind :public-contract
+   :required? true :blocker :research-package-not-extracted}
   ]
  :dependency-classes
  {:public-prf-protocol-semantic-contract
@@ -191,18 +232,29 @@
     resolver-sim.benchmark.research-command
     resolver-sim.benchmark.research-conclusion
     resolver-sim.benchmark.research-theorem-outcome
+    resolver-sim.benchmark.researcher-force-authorisation
+    resolver-sim.benchmark.review-governance
+    resolver-sim.benchmark.review-round
     resolver-sim.research.api
     resolver-sim.incentives.api
-    resolver-sim.benchmark.researcher-reward}
+    resolver-sim.benchmark.researcher-reward
+    resolver-sim.research.dependency-assurance
+    resolver-sim.research.integer-sum-verifier
+    resolver-sim.research.policy-approval
+    resolver-sim.research.ratification
+    resolver-sim.research.resolution-view
+    resolver-sim.network.checkpoint}
   :private-research-implementation
   #{resolver-sim.benchmark.research-analysis-closure
     resolver-sim.benchmark.research-assignment-target-binding}
   :canonical-shared-foundation
   #{resolver-sim.benchmark.integrity
     resolver-sim.benchmark.signing
+    resolver-sim.assurance.authorised-effect-correlation
     resolver-sim.evidence.chain
     resolver-sim.evidence.config
     resolver-sim.evidence.forensic-graph
+    resolver-sim.evidence.finalization-signature
     resolver-sim.evidence.node
     resolver-sim.evidence.reachability
     resolver-sim.evidence.timestamping

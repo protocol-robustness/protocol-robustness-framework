@@ -19,6 +19,10 @@
  :authority-order [:policy :eligibility :proposal :obligation]
  :runtime-dependencies
  {:clojure {:lib org.clojure/clojure :version "1.12.0"}
+  :maven [{:lib org.clojure/data.json :version "2.4.0"}
+          {:lib org.clojure/tools.logging :version "1.2.4"}
+          {:lib org.slf4j/slf4j-api :version "1.7.36"}
+          {:lib buddy/buddy-core :version "1.12.0-430"}]
   :packages [{:id :prf-canonical
               :required-api [:domain-hash-v1 :sha256-root-reference-v1
                              :valid-sha256-root-reference?]
@@ -46,8 +50,9 @@
   resolver-sim.hash.canonical
   resolver-sim.hash.reference]
  :current-transitive-source-closure
- [prf.canonical.codec prf.canonical.decode prf.canonical.hash
-  prf.canonical.reference prf.canonical.sequence
+ [prf.canonical.codec prf.canonical.decode prf.canonical.hash prf.canonical.reference
+  prf.canonical.sequence
+  resolver-sim.assurance.authorised-effect-correlation
   resolver-sim.benchmark.incentive-deviation-domain
   resolver-sim.benchmark.incentive-model
   resolver-sim.benchmark.outcome-manifest
@@ -60,15 +65,27 @@
   resolver-sim.benchmark.research-command
   resolver-sim.benchmark.research-conclusion
   resolver-sim.benchmark.research-theorem-outcome
+  resolver-sim.benchmark.researcher-force-authorisation
   resolver-sim.benchmark.researcher-reward
+  resolver-sim.benchmark.review-governance
+  resolver-sim.benchmark.review-round
+  resolver-sim.benchmark.signing
   resolver-sim.config.defaults
+  resolver-sim.evidence.finalization-signature
   resolver-sim.hash.algorithm
   resolver-sim.hash.canonical
   resolver-sim.hash.framing-view
   resolver-sim.hash.reference
   resolver-sim.hash.sequence
   resolver-sim.incentives.api
-  resolver-sim.research.api]
+  resolver-sim.logging
+  resolver-sim.network.checkpoint
+  resolver-sim.research.api
+  resolver-sim.research.dependency-assurance
+  resolver-sim.research.integer-sum-verifier
+  resolver-sim.research.policy-approval
+  resolver-sim.research.ratification
+  resolver-sim.research.resolution-view]
  :closure-ownership
  {:prf-canonical [prf.canonical.codec prf.canonical.decode
                   prf.canonical.hash prf.canonical.reference
@@ -87,11 +104,23 @@
                  resolver-sim.benchmark.research-command
                  resolver-sim.benchmark.research-conclusion
                  resolver-sim.benchmark.research-theorem-outcome
+                 resolver-sim.assurance.authorised-effect-correlation
+                 resolver-sim.benchmark.researcher-force-authorisation
+                 resolver-sim.benchmark.review-governance
+                 resolver-sim.benchmark.review-round
+                 resolver-sim.benchmark.signing
+                 resolver-sim.evidence.finalization-signature
+                 resolver-sim.network.checkpoint
+                 resolver-sim.research.dependency-assurance
+                 resolver-sim.research.integer-sum-verifier
+                 resolver-sim.research.policy-approval
+                 resolver-sim.research.ratification
+                 resolver-sim.research.resolution-view
                  resolver-sim.research.api]
   :prf-incentives [resolver-sim.benchmark.research-assignment-target-binding
                    resolver-sim.benchmark.researcher-reward
                    resolver-sim.incentives.api]
-  :support [resolver-sim.config.defaults]}
+  :support [resolver-sim.config.defaults resolver-sim.logging]}
  :configuration-coupling
  {:namespace resolver-sim.config.defaults
   :path resolver-sim.hash.framing-view
@@ -103,7 +132,7 @@
   :public-facade "src/resolver_sim/incentives/api.clj"
   :independent-source-closure? false
   :reason :canonical-and-research-contract-packages-not-immutably-available
-  :closure-count 26}
+  :closure-count 39}
  :compatibility
  {:policy-eligibility-proposal-obligation-order-preserved? true
   :artifact-schema-versions-immutable? true
@@ -116,7 +145,7 @@
   :source-closure-qualification "scripts/qualify_incentives_api_closure.sh"
   :isolated-source-snapshot
   {:status :passed
-   :source-content-set "sha256:54ef384df106712e8ca93cb8de43cb1fbfe6896a2a5633fb212c4f637f657d18"
+   :source-content-set "sha256:1e44bb640442bfb46467eeac1cfdc5cc9c1881308ec420f380c1e898edc56db6"
    :tests 8 :assertions 64}
   :independently-released? false
   :immutable-dependency-pins? false}}

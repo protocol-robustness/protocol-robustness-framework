@@ -28,6 +28,10 @@ Primary project framing and status live in the root `../README.md`.
 | Entry-point execution and assurance capabilities | `operations/ENTRY_POINT_CAPABILITY_MATRIX.md` |
 | Generated-document workflow | `reference/GENERATED_DOCUMENTS.md` |
 | Extracted repository ownership and source pins | `research/EXTRACTED_REPOSITORIES.md` |
+| PRF core extraction readiness and release gates | `research/PRF_CORE_EXTRACTION_READINESS.md` |
+| Extraction value and readiness across research capabilities | `research/EXTRACTION_CANDIDATE_ASSESSMENT.md` |
+| Repairability report extension candidate and qualification gates | `proposals/REPAIRABILITY_REPORT_EXTENSION.md`, `../extensions/repairability-report/README.md` |
+| Stablecoin privacy policy, sensitivity integration, and Luna implementation tasks | `proposals/STABLECOIN_PRIVACY_POLICY.md`, `proposals/STABLECOIN_PRIVACY_POLICY_TASKS.md` |
 | Registry ownership, validation, and change rules | `reference/REGISTRIES.md` |
 | Runnable and visual examples | `../examples/README.md` |
 
@@ -132,6 +136,7 @@ Primary project framing and status live in the root `../README.md`.
 | `architecture/ADR-0003-canonical-scenario-generation-boundary.md` | ADR |
 | `architecture/ADR-0004-cross-protocol-funds-ledger-extraction.md` | ADR |
 | `architecture/ADR-0005-framework-extension-packages.md` | ADR: framework extension packages and economics capabilities (Proposed) |
+| `architecture/EXTENSION_CORE_API_V1.md` | Supported versioned source API for PRF extension packages; not a published core artifact |
 | `architecture/EVIDENCE_CHAIN_ARCHITECTURE.md` | Evidence chain architecture |
 | `architecture/EVIDENCE_DAG_ARCHITECTURE.md` | Evidence DAG architecture (lifecycle, topology, validation, persistence) |
 | `architecture/REPLAY_ENGINE_ARCHITECTURE.md` | Replay engine and dual-engine architecture (deterministic replay + Monte Carlo) |

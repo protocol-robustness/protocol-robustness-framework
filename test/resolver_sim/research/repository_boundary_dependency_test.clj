@@ -25,6 +25,8 @@
    "src/resolver_sim/research/native_accounting_work.clj"
    'resolver-sim.research.runner-transport
    "src/resolver_sim/research/runner_transport.clj"
+   'resolver-sim.research.runner-transport.work-types
+   "src/resolver_sim/research/runner_transport/work_types.clj"
    'resolver-sim.benchmark.research-analysis
    "src/resolver_sim/benchmark/research_analysis.clj"
    'resolver-sim.benchmark.research-claim-acceptance
@@ -233,6 +235,8 @@
     (is (contains? (graph 'resolver-sim.research.native-accounting-work)
                    'resolver-sim.accounting.reductions))
     (is (contains? (graph 'resolver-sim.research.runner-transport)
+                   'resolver-sim.research.runner-transport.work-types))
+    (is (contains? (graph 'resolver-sim.research.runner-transport.work-types)
                    'resolver-sim.research.native-accounting-work))
     (is (not (contains? (graph 'resolver-sim.network.researcher-challenges)
                         'resolver-sim.research.shortfall-pilot)))))
@@ -270,7 +274,7 @@
                                       [package (:depends-on descriptor)]))
                             (:package-contracts contract))]
     (is (= "prf-module-boundaries.v1" (:schema contract)))
-    (is (= 40 (count source-closure)) "the audited transitive source closure is explicit")
+    (is (= 51 (count source-closure)) "the audited transitive source closure is explicit")
     (is (= actual-closure source-closure)
         "closure changes require ownership/classification review")
     (is (every? #(contains? graph %) source-closure)
@@ -352,8 +356,8 @@
     (is (= (set (:current-transitive-source-closure incentives))
            (closure 'resolver-sim.incentives.api))
         "incentive dependency manifest tracks the actual in-tree source closure")
-    (is (= 23 (count (:current-transitive-source-closure research))))
-    (is (= 26 (count (:current-transitive-source-closure incentives))))
+    (is (= 36 (count (:current-transitive-source-closure research))))
+    (is (= 39 (count (:current-transitive-source-closure incentives))))
     (doseq [[manifest actual] [[research (closure 'resolver-sim.research.api)]
                                [incentives (closure 'resolver-sim.incentives.api)]]
             :let [owned (mapcat identity (vals (:closure-ownership manifest)))]]

@@ -18,8 +18,7 @@
 
    BOUNDARY GUARD — This namespace MUST NOT import or depend on:
       - resolver-sim.protocols.sew
-      - any form under protocols_src/"
-  (:require [resolver-sim.extensions.manifest :as em]))
+      - any form under protocols_src/")
 
 ;; ── Scope verification ──────────────────────────────────────────────────
 
