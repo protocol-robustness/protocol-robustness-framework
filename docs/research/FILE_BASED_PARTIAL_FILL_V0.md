@@ -132,3 +132,34 @@ detection, torn-genesis recovery, and blank-line rejection. The focused profile
 suite passes 12 tests / 368 assertions; the combined forensic-graph and profile
 suites pass 25 tests / 426 assertions. This follow-up candidate still requires
 a fresh independent review and staging admission.
+
+## Review findings follow-up (2026-10-31)
+
+Three additional correctness gaps were found and fixed in the integrated tree:
+
+- Submission validation now rejects an empty `:submission/source-roots` vector.
+  The invariant is enforced by the shared verifier used for API submission and
+  journal replay, so a re-rooted source-free submission cannot enter the model.
+- Retrying an identical preparation after admission now returns `:duplicate`,
+  including after later commits or completion. A new preparation after
+  admission remains rejected.
+- Capped row allocation reports `:full-fill` when every row is fully satisfied,
+  and `:partial-fill` only when some requested amount remains deferred. This
+  keeps historical partial-fill markers and benchmark exercise witnesses tied
+  to actual shortfall.
+
+The focused yield and file-profile suites pass 132 tests / 704 assertions after
+these changes. The previous 2026-10-29 counts describe the earlier follow-up
+candidate; independent review and staging admission remain pending for the
+file-profile follow-up.
+
+The 2026-10-31 review found two further gaps and they are now covered:
+
+- Waterfall row allocation also derives `:settlement-mode` from actual deferred
+  amounts, so caps can no longer produce a `:full-fill` label while claims
+  remain unmet.
+- A replay regression constructs a source-free submission with a recomputed
+  submission root and valid journal-chain root. Replay rejects it through the
+  shared submission verifier.
+
+The focused yield and file-profile suites now pass 134 tests / 709 assertions.

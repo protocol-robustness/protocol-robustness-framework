@@ -57,18 +57,12 @@
 ;; State enumeration
 ;; ---------------------------------------------------------------------------
 
-(defn- enumerate-integer-partitions
-  "Generate all integer partitions of n into k parts, each in [0,n].
-   Returns a lazy seq of vectors."
-  [n k]
-  (letfn [(parts [n k]
-            (if (= k 1)
-              [[n]]
-              (mapcat (fn [i]
-                        (map (fn [p] (cons i p))
-                             (parts (- n i) (dec k))))
-                      (range 0 (inc n)))))]
-    (parts n k)))
+(defn- request-vectors [lo hi n]
+  (if (zero? n)
+    [[]]
+    (for [head (range lo (inc hi))
+          tail (request-vectors lo hi (dec n))]
+      (vec (cons head tail)))))
 
 (defn- boundary-states
   "Generate boundary states for a given scope: zero, max, equal-shares,
@@ -91,51 +85,38 @@
     @states))
 
 (defn generate-states
-  "Generate a lazy seq of state maps for a given scope.
-   Each state map has `:claims` (vector of request amounts), `:claim-count`,
-   `:request-sum`, and `:liquidity`.
-
-   When sampling is `:stratified`, boundary states (zero, max, extreme
-   ratios) are emitted first, followed by the combinatorial interior."
+  "Generate bounded request vectors and liquidity states. Exhaustive generation
+   visits the Cartesian domain up to the budget. Stratified generation starts
+   with in-range boundary cases. Random generation uses the supplied seed."
   [scope]
   (let [{:keys [dimensions sampling max-states]} scope
         [cc-lo cc-hi] (:claim-count dimensions)
         [rq-lo rq-hi] (:request dimensions)
-        [lq-lo lq-hi] (:liquidity dimensions)]
+        [lq-lo lq-hi] (:liquidity dimensions)
+        interior (fn []
+                   (for [cc (range cc-lo (inc cc-hi))
+                         rv (request-vectors rq-lo rq-hi cc)
+                         lq (range lq-lo (inc lq-hi))]
+                     {:claims rv :claim-count cc
+                      :request-sum (reduce + 0 rv) :liquidity lq}))]
     (case sampling
       :stratified
-      (let [boundary (boundary-states scope)
-            interior (fn []
-                       (take (- max-states (count boundary))
-                             (for [cc (range cc-lo (inc cc-hi))
-                                   rv (enumerate-integer-partitions rq-hi cc)
-                                   lq (range lq-lo (inc lq-hi))
-                                   :when (or (not= (vec rv) [0])
-                                             (zero? lq))]
-                               {:claims rv
-                                :claim-count cc
-                                :request-sum (reduce + 0 rv)
-                                :liquidity lq})))]
-        (concat boundary (interior)))
+      (let [boundary (filter (fn [{:keys [claims liquidity]}]
+                               (and (<= cc-lo (count claims) cc-hi)
+                                    (every? #(<= rq-lo % rq-hi) claims)
+                                    (<= lq-lo liquidity lq-hi)))
+                             (boundary-states scope))]
+        (take max-states (distinct (concat boundary (interior)))))
 
       :exhaustive
-      (take max-states
-            (for [cc (range cc-lo (inc cc-hi))
-                  rv (enumerate-integer-partitions rq-hi cc)
-                  lq (range lq-lo (inc lq-hi))
-                  :when (or (not= (vec rv) [0])
-                            (zero? lq))]
-              {:claims rv
-               :claim-count cc
-               :request-sum (reduce + 0 rv)
-               :liquidity lq}))
+      (take max-states (interior))
 
       :random
       (let [rng (SplittableRandom. (or (:seed scope) 42))]
         (take max-states
               (repeatedly (fn []
-                            (let [cc (+ cc-lo (.nextInt rng (inc (- cc-hi cc-lo))))]
-                              {:claims (repeatedly cc #(+ rq-lo (.nextInt rng (inc (- rq-hi rq-lo)))))
-                               :claim-count cc
-                               :request-sum 0  ;; computed by caller if needed
+                            (let [cc (+ cc-lo (.nextInt rng (inc (- cc-hi cc-lo))))
+                                  claims (vec (repeatedly cc #(+ rq-lo (.nextInt rng (inc (- rq-hi rq-lo))))))]
+                              {:claims claims :claim-count cc
+                               :request-sum (reduce + 0 claims)
                                :liquidity (+ lq-lo (.nextInt rng (inc (- lq-hi lq-lo))))}))))))))

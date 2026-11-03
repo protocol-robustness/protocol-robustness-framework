@@ -903,8 +903,8 @@
       (throw (ex-info "Strategic claim artifact contains unknown keys (closed shape)"
                       {:unknown-keys (vec (sort unknown))
                        :allowed-keys (vec (sort allowed-artifact-keys))}))))
-  (when-not (and (= :bounded-exhaustive
-                    (get-in artifact [:strategic-epistemic-scope :scope/kind]))
+  (when-not (and (contains? #{:bounded-exhaustive :bounded-sampled}
+                            (get-in artifact [:strategic-epistemic-scope :scope/kind]))
                  (false? (get-in artifact [:strategic-epistemic-scope :scope/universal-claim?]))
                  (keyword? (get-in artifact [:strategic-model :mechanism])))
     (throw (ex-info "Invalid strategic epistemic contract"

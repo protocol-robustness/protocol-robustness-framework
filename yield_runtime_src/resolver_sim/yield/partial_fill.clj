@@ -13,10 +13,12 @@
       :residual-treatment :defer
       :post-partial-fill-accrual :accrue-residual-as-unrealized
       :rounding-policy :floor-and-carry}"
-  (:require [resolver-sim.evidence.config :as evcfg]
+  (:require [clojure.set :as set]
+            [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.pro-rata.allocation :as pro-rata]
             [resolver-sim.pro-rata.evidence :as pro-rata-evidence]
             [resolver-sim.pro-rata.redistribution :as pro-rata-redistribution]
+            [resolver-sim.pro-rata-contract.contract :as reference-pro-rata]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.yield.commitment-projection :as cp]
             [resolver-sim.yield.exact-math :as m]
@@ -147,6 +149,7 @@
    Includes fill-ratio (filled/owed as a double) for verifiability."
   [row filled]
   (let [k (:key row)
+        bucket (:bucket row k)
         owed (long (:owed row))
         f (long (get filled k 0))
         ;; Reject malformed rows rather than masking an over-allocation: a row
@@ -158,7 +161,7 @@
         d (max 0 (- owed f))
         cap (:cap row)
         effective-cap (if (some? cap) (min owed cap) owed)]
-    {:key k
+    (cond-> {:key k
      :obligation-id (:obligation-id row)
      :source-position-id (:source-position-id row)
      :owed owed
@@ -169,7 +172,8 @@
      :final-allocation f
      :deferred d
      :fill-ratio (if (pos? owed) (double (/ f owed)) 0.0)
-     :cap-hit? (if (some? cap) (>= f effective-cap) false)}))
+     :cap-hit? (if (some? cap) (>= f effective-cap) false)}
+      (not= bucket k) (assoc :bucket bucket))))
 
 (defn- residual-reason
   [unallocated allocation]
@@ -249,10 +253,13 @@
               filled (into {} (map (fn [a] [(:id a) (:allocated a)]) (:allocations alloc)))
               row-evidence (mapv #(row-evidence % filled) rows)
               deferred (into {} (map (fn [r] [(:key r) (:deferred r)]) row-evidence))
+              settlement-mode (if (some pos? (vals deferred))
+                                :partial-fill
+                                :full-fill)
               unallocated (max 0 (- available-liquidity (:total-allocated alloc 0)))
               mechanism-evidence (pro-rata-evidence/mechanism-evidence-artifact
                                   (:mechanism-result alloc))]
-          {:settlement-mode :partial-fill
+          {:settlement-mode settlement-mode
            :requested (into {} (map (fn [r] [(:key r) (long (:owed r))]) rows))
            :filled filled
            :deferred deferred
@@ -300,52 +307,223 @@
 
 (declare partial-fill-closed-form-checks)
 
-(defn semantic-reconstruction
-  "Independently reconstruct a no-row pro-rata decision from semantic inputs.
+(defn- reference-row-allocation
+  "Reconstruct a capped weighted allocation through the separately implemented
+   portable contract. Priority modes encode original row position in the row
+   identity because their production adapter uses input-order tie breaking;
+   shared pro-rata rows encode their production canonical identity order."
+  [available rows rounding-policy mode]
+  (let [rows (vec rows)
+        ;; The portable contract and production package encode composite IDs
+        ;; differently. Preserve the authoritative identity order using ordinal
+        ;; reference IDs; allocation arithmetic remains independently computed.
+        canonical-order (when (= :pro-rata mode)
+                          (zipmap (sort-by (fn [index]
+                                             (let [row (nth rows index)]
+                                               (pro-rata/canonical-id-key
+                                                [:shared-withdrawal-row
+                                                 (str (:obligation-id row))
+                                                 (str (:source-position-id row))
+                                                 (str (:key row))])))
+                                           (range (count rows)))
+                                  (range)))
+        row-id (fn [index _row]
+                 [:partial-fill-reference-row
+                  (format "%020d" (if canonical-order (get canonical-order index) index))])
+        identified (mapv (fn [index row]
+                           (assoc row :reference-id (row-id index row)))
+                         (range) rows)
+        request {:schema-version "pro-rata-allocation-request.v1"
+                 :mechanism/version 1
+                 :allocation/id [:partial-fill-reference mode
+                                 (mapv :reference-id identified)]
+                 :available (max 0 (long available))
+                 :rows (mapv (fn [{:keys [key owed weight cap obligation-id reference-id]}]
+                               {:row/id reference-id
+                                :obligation/id (or obligation-id key)
+                                :requested (long owed)
+                                :weight (long (or weight owed))
+                                :cap (when (some? cap) (long cap))})
+                             identified)
+                 ;; Production's :floor-with-largest-remainder policy maps to
+                 ;; the portable contract's :largest-remainder vocabulary for
+                 ;; every allocation mode, including priority row buckets.
+                 :rounding-policy (if (= :floor rounding-policy)
+                                    :floor :largest-remainder)
+                 :tie-break-policy :canonical-row-id
+                 :redistribution-policy :redistribute-cap-excess}
+        result (reference-pro-rata/allocate request)]
+    (let [allocated-by-id (into {} (map (juxt :row/id :allocated) (:rows result)))]
+      (into {} (map (fn [{:keys [key reference-id]}]
+                      [key (long (get allocated-by-id reference-id 0))])
+                    identified)))))
 
-   This verifier intentionally uses the exact-math allocator directly rather than
-   invoking the decision producer. Row/cap and non-pro-rata inputs are reported
-   as unsupported until their mechanism-specific reference models are defined.
+(defn- semantic-row-fills
+  [available rows policy mode]
+  (let [rounding-policy (:rounding-policy policy :floor-and-carry)
+        row-ids (map :key rows)]
+    (when-not (= (count row-ids) (count (distinct row-ids)))
+      (throw (ex-info "Semantic reconstruction requires unique row keys"
+                      {:reason :duplicate-row-keys})))
+    (case mode
+      :pro-rata
+      (reference-row-allocation available rows rounding-policy mode)
+
+      :principal-first
+      (let [principal-row (first (filter #(= :principal (:key %)) rows))
+            yields (vec (remove #(= :principal (:key %)) rows))
+            principal-owed (long (or (:owed principal-row) 0))
+            principal-cap (if (and principal-row (some? (:cap principal-row)))
+                            (min principal-owed (long (:cap principal-row)))
+                            principal-owed)
+            principal-filled (min principal-cap (max 0 (long available)))
+            remaining (- (max 0 (long available)) principal-filled)
+            yield-fills (if (and (pos? remaining) (seq yields))
+                          (reference-row-allocation remaining yields rounding-policy mode)
+                          {})]
+        (cond-> yield-fills
+          principal-row (assoc :principal principal-filled)))
+
+      :waterfall
+      (let [fill-order (:fill-order policy [:principal :realized-yield :deferred-yield])
+            bucket-rows (group-by #(get % :bucket (:key %)) rows)]
+        (when-not (= (count fill-order) (count (distinct fill-order)))
+          (throw (ex-info "Semantic reconstruction requires a unique waterfall order"
+                          {:reason :duplicate-waterfall-buckets})))
+        (loop [remaining (max 0 (long available))
+               buckets (seq fill-order)
+               result {}]
+          (if (or (zero? remaining) (empty? buckets))
+            (into (into {} (map (fn [row] [(:key row) 0]) rows)) result)
+            (let [bucket-rows (vec (get bucket-rows (first buckets) []))
+                  bucket-capacity (reduce + 0 (map (fn [{:keys [owed cap]}]
+                                                     (if (some? cap)
+                                                       (min (long owed) (long cap))
+                                                       (long owed)))
+                                                   bucket-rows))]
+              (if (or (empty? bucket-rows) (zero? bucket-capacity))
+                (recur remaining (next buckets) result)
+                (let [bucket-fills (reference-row-allocation
+                                    (min remaining bucket-capacity)
+                                    bucket-rows rounding-policy mode)
+                      fills bucket-fills
+                      allocated (reduce + 0 (vals fills))]
+                  (recur (- remaining allocated) (next buckets) (merge result fills)))))))))))
+
+(defn semantic-reconstruction
+  "Independently reconstruct a decision from semantic inputs.
+
+   No-row paths use exact-math reference arithmetic. Capped row paths use the
+   separately implemented portable pro-rata contract, with mode-specific
+   priority orchestration reconstructed here rather than invoking the decision
+   producer.
    The result is verifier output and is not part of the decision hash preimage."
   [{:keys [available requested policy rows]} decision]
-  (let [unsupported (cond
-                      rows :rows-not-yet-supported
-                      (not= :pro-rata (:mode policy :pro-rata)) :mechanism-not-yet-supported
+  (let [mode (:mode policy :pro-rata)
+        row-requested (when (and (vector? rows)
+                                 (every? #(and (map? %) (integer? (:owed %))) rows))
+                        (into {} (map (fn [{:keys [key owed]}] [key (long owed)]) rows)))
+        unsupported (cond
+                      (not (#{:pro-rata :principal-first :waterfall} mode)) :mechanism-not-yet-supported
+                      (and (some? rows) (not (vector? rows))) :rows-not-a-vector
+                      (and (vector? rows)
+                           (or (some (fn [{:keys [key owed weight cap]}]
+                                       (or (nil? key)
+                                           (not (and (integer? owed) (not (neg? owed))))
+                                           (and (some? weight)
+                                                (not (and (integer? weight) (not (neg? weight)))))
+                                           (and (some? cap)
+                                                (not (and (integer? cap) (not (neg? cap))))))) rows)
+                               (not= (count rows) (count (distinct (map :key rows))))))
+                      :invalid-rows
+                      (and (vector? rows) (not= requested row-requested)) :row-request-mismatch
+                      (and (vector? rows) (= :waterfall mode)
+                           (not= (count (or (:fill-order policy)
+                                            [:principal :realized-yield :deferred-yield]))
+                                 (count (distinct (or (:fill-order policy)
+                                                      [:principal :realized-yield :deferred-yield])))))
+                      :duplicate-waterfall-buckets
                       :else nil)
         rounding-policy (:rounding-policy policy :floor-and-carry)
         claims (mapv (fn [[k v]] {:key k :amount (long v)})
                      (sort-by (comp rounding-tie-key first) (seq requested)))
-        allocation (when-not unsupported
-                     (case rounding-policy
-                       :floor (m/floor-alloc available claims)
-                       :largest-remainder (m/largest-remainder-alloc available claims)
-                       :principal-protective-floor
-                       (m/principal-protective-floor-alloc available claims
-                                                           (fn [c] (= :principal (:key c))))
-                       :adversarial-rounding (m/adversarial-rounding available claims)
-                       (m/floor-and-carry-alloc available claims)))
-        expected (when allocation
-                   (let [filled (into {} (map (fn [a] [(:key a) (:filled a)])
-                                              (:allocations allocation)))]
-                     {:settlement-mode (if (<= (sum-requested requested) available)
-                                         :full-fill :partial-fill)
-                      :requested requested
-                      :filled filled
-                      :deferred (into {}
-                                      (map (fn [[k v]]
-                                             [k (max 0 (- (long v) (long (get filled k 0))))])
-                                           requested))
-                      :haircut {}
-                      :unrealized {}}))
+        allocate (fn [amount allocations]
+                   (case rounding-policy
+                     :floor (m/floor-alloc amount allocations)
+                     :largest-remainder (m/largest-remainder-alloc amount allocations)
+                     :principal-protective-floor
+                     (m/principal-protective-floor-alloc amount allocations
+                                                         (fn [c] (= :principal (:key c))))
+                     :adversarial-rounding (m/adversarial-rounding amount allocations)
+                     (m/floor-and-carry-alloc amount allocations)))
+        requested-total (sum-requested requested)
+        full-fill? (and (not (vector? rows)) (<= requested-total available))
+        filled (when-not unsupported
+                 (cond
+                   full-fill? requested
+                   (vector? rows)
+                   (semantic-row-fills available rows policy mode)
+                   (= :pro-rata mode)
+                   (into {} (map (juxt :key :filled)
+                                 (:allocations (allocate available claims))))
+                   (= :principal-first mode)
+                   (let [principal-requested (long (get requested :principal 0))
+                         principal-filled (min principal-requested available)
+                         remaining (- available principal-filled)
+                         yields (dissoc requested :principal)
+                         yield-claims (mapv (fn [[k v]] {:key k :amount (long v)})
+                                            (sort-by (comp rounding-tie-key first) (seq yields)))
+                         yield-filled (when (and (pos? remaining) (seq yield-claims))
+                                        (into {} (map (juxt :key :filled)
+                                                      (:allocations (allocate remaining yield-claims)))))]
+                     (cond-> (or yield-filled {})
+                       (pos? principal-filled) (assoc :principal principal-filled)))
+                   :else
+                   (loop [remaining available
+                          buckets (seq (or (:fill-order policy)
+                                           [:principal :realized-yield :deferred-yield]))
+                          result {}]
+                     (if (or (zero? remaining) (empty? buckets))
+                       result
+                       (let [bucket (first buckets)
+                             amount (min (long (get requested bucket 0)) remaining)]
+                         (recur (- remaining amount)
+                                (next buckets)
+                                (cond-> result
+                                  (pos? amount) (assoc bucket amount))))))))
+        deferred (when-not unsupported
+                   (into {} (map (fn [[k v]]
+                                   [k (max 0 (- (long v) (long (get filled k 0))))])
+                                 requested)))
+        expected (when-not unsupported
+                   {:settlement-mode (if (some pos? (vals deferred))
+                                       :partial-fill :full-fill)
+                    :requested requested
+                    :filled filled
+                    :deferred deferred
+                    :haircut {}
+                    :unrealized {}})
         fields [:settlement-mode :requested :filled :deferred :haircut :unrealized]
+        semantic-map-fields #{:filled :deferred :haircut :unrealized}
+        normalize-field (fn [field value]
+                          (if (contains? semantic-map-fields field)
+                            (into {} (remove (fn [[_ amount]] (zero? (long amount))) value))
+                            value))
         mismatches (if unsupported
                      [{:reason unsupported}]
-                     (vec (keep (fn [field]
-                                  (let [expected-value (get expected field)
-                                        actual-value (get decision field)]
-                                    (when (not= expected-value actual-value)
-                                      {:field field :expected expected-value :actual actual-value})))
-                                fields)))]
+                     (into (vec (keep (fn [field]
+                                        (let [expected-value (get expected field)
+                                              actual-value (get decision field)]
+                                          (when (not= (normalize-field field expected-value)
+                                                      (normalize-field field actual-value))
+                                            {:field field :expected expected-value :actual actual-value})))
+                                      fields))
+                           (keep (fn [[field expected-value actual-value]]
+                                   (when (not= expected-value actual-value)
+                                     {:field field :expected expected-value :actual actual-value}))
+                                 [[:policy policy (:policy decision)]
+                                  [:available-liquidity available
+                                   (get-in decision [:evidence :available-liquidity])]])))]
     {:valid? (empty? mismatches)
      :supported? (nil? unsupported)
      :reason unsupported
@@ -355,9 +533,11 @@
      :scope {:kind :independent-semantic-reconstruction
              :producer-independent? true
              :mechanism :yield/partial-fill
-             :mode (:mode policy :pro-rata)
+             :mode mode
              :rounding-policy rounding-policy
-             :rows-supported? false}}))
+             :rows-supported? (vector? rows)
+             :reference-allocator (when (vector? rows)
+                                    :portable-pro-rata-contract)}}))
 
 (defn verify-semantic-decision
   "Verify a supplied simple pro-rata decision against authoritative semantic inputs.
@@ -368,7 +548,9 @@
                       (catch clojure.lang.ExceptionInfo e
                         (:check-results (ex-data e))))
         reconstruction (semantic-reconstruction input decision)
-        closed-form-valid? (every? #(= :pass (:status %)) closed-form)]
+        closed-form-valid? (and (seq closed-form)
+                                (every? #(contains? #{:pass :not-applicable} (:status %))
+                                        closed-form))]
     {:valid? (and closed-form-valid? (:valid? reconstruction))
      :closed-form {:valid? closed-form-valid? :checks closed-form}
      :semantic-reconstruction reconstruction}))
@@ -420,8 +602,11 @@
                        yield-filled
                        (merge yield-filled))
               row-evidence (mapv #(row-evidence % filled) rows)
-              deferred (into {} (map (fn [r] [(:key r) (:deferred r)]) row-evidence))]
-          {:settlement-mode :partial-fill
+              deferred (into {} (map (fn [r] [(:key r) (:deferred r)]) row-evidence))
+              settlement-mode (if (some pos? (vals deferred))
+                                :partial-fill
+                                :full-fill)]
+          {:settlement-mode settlement-mode
            :requested (into {} (map (fn [r] [(:key r) (long (:owed r))]) rows))
            :filled filled
            :deferred deferred
@@ -483,7 +668,7 @@
    Returns {:filled {} :row-evidence [] :redistributions [{:bucket k :redistribution m}]}."
   [available-liquidity rows fill-order policy progress-atom]
   (let [rounding-policy (:rounding-policy policy :floor-and-carry)
-        bucket->rows (group-by :key rows)]
+        bucket->rows (group-by #(get % :bucket (:key %)) rows)]
     (loop [remaining available-liquidity
            filled {}
            all-row-evidence []
@@ -557,12 +742,14 @@
             deferred (into {} (map (fn [r] [(:key r) (:deferred r)]) row-evidence))
             processed-keys (set (keys filled))
             all-row-keys (set (map :key rows))
-            unprocessed (clojure.set/difference all-row-keys processed-keys)
+            unprocessed (set/difference all-row-keys processed-keys)
             deferred (reduce (fn [acc r]
                                (assoc acc (:key r) (long (:owed r))))
                              deferred
                              (filter #(contains? unprocessed (:key %)) rows))
-            settlement-mode (if (zero? shortage) :full-fill :partial-fill)]
+            settlement-mode (if (some pos? (vals deferred))
+                              :partial-fill
+                              :full-fill)]
         {:settlement-mode settlement-mode
          :requested (into {} (map (fn [r] [(:key r) (long (:owed r))]) rows))
          :filled filled
@@ -1391,8 +1578,8 @@
                            (not= (:allocation/invocation-context decision)
                                  (:allocation/invocation-context propagation))
                            (conj {:reason :propagation-invocation-context-mismatch}))
-        missing (clojure.set/difference decision-keys propagation-keys)
-        extra (clojure.set/difference propagation-keys decision-keys)
+        missing (set/difference decision-keys propagation-keys)
+        extra (set/difference propagation-keys decision-keys)
         duplicate-propagation-keys (filter #(> (count (get propagation-by-key %)) 1) propagation-keys)
         duplicate-decision-keys (filter #(> (count (get decision-by-key %)) 1) decision-keys)
         matched-keys (clojure.set/intersection decision-keys propagation-keys)
@@ -1877,32 +2064,51 @@
         (when (= :principal-first mode)
           (let [principal-requested (long (get requested :principal 0))
                 principal-filled (long (get filled :principal 0))
+                principal-priority-limit (min principal-requested
+                                              (long (get effective-caps :principal
+                                                         principal-requested)))
                 yield-keys (remove #{:principal} (keys filled))]
             (->> yield-keys
                  (keep (fn [k]
                          (let [yf (long (get filled k 0))]
                            (when (and (pos? principal-requested)
                                       (pos? yf)
-                                      (< principal-filled principal-requested))
+                                      (< principal-filled principal-priority-limit))
                              {:claim k
                               :yield-filled yf
                               :principal-requested principal-requested
-                              :principal-filled principal-filled}))))
+                              :principal-filled principal-filled
+                              :principal-priority-limit principal-priority-limit}))))
                  vec)))
         waterfall-violations
         (when (= :waterfall mode)
-          (let [fill-order (:fill-order policy [:principal :realized-yield :deferred-yield])]
+          (let [fill-order (:fill-order policy [:principal :realized-yield :deferred-yield])
+                bucket-stats (if (seq allocation-rows)
+                               (reduce (fn [stats row]
+                                         (let [bucket (get row :bucket (:key row))
+                                               key (:key row)]
+                                           (-> stats
+                                               (update-in [bucket :requested] (fnil + 0) (:owed row))
+                                               (update-in [bucket :cap] (fnil + 0) (:effective-cap row))
+                                               (update-in [bucket :filled] (fnil + 0) (get filled key 0)))))
+                                       {} allocation-rows)
+                               (into {} (map (fn [bucket]
+                                               [bucket {:requested (get requested bucket 0)
+                                                        :cap (get effective-caps bucket (get requested bucket 0))
+                                                        :filled (get filled bucket 0)}]) fill-order)))]
             (->> (for [i (range (count fill-order))
                        j (range (inc i) (count fill-order))]
                    [i j])
                  (keep (fn [[i j]]
                          (let [higher (nth fill-order i)
                                lower (nth fill-order j)
-                               higher-requested (long (get requested higher 0))
-                               higher-filled (long (get filled higher 0))
-                               lower-filled (long (get filled lower 0))]
+                               higher-stats (get bucket-stats higher {:requested 0 :cap 0 :filled 0})
+                               lower-filled (get-in bucket-stats [lower :filled] 0)
+                               higher-requested (:requested higher-stats)
+                               higher-priority-limit (min higher-requested (:cap higher-stats))
+                               higher-filled (:filled higher-stats)]
                            (when (and (pos? higher-requested)
-                                      (< higher-filled higher-requested)
+                                      (< higher-filled higher-priority-limit)
                                       (pos? lower-filled))
                              {:higher-bucket higher
                               :higher-requested higher-requested
@@ -2067,7 +2273,9 @@
                                                                         :reason (when cap-constrained?
                                                                                   "effective caps require constrained redistribution")})))
           rounding-remainder-ch (future
-                                  (if (and (carry-order-rounding? rounding-policy) (not cap-constrained?))
+                                  (if (and (= :pro-rata mode)
+                                           (carry-order-rounding? rounding-policy)
+                                           (not cap-constrained?))
                                     (let [violations (rounding-fairness-violations
                                                       positive-claims filled available
                                                       total-requested rounding-policy)
@@ -2082,7 +2290,11 @@
                                                                            (mapv (fn [[k v]] [k (:fraction-remainder v)])))}))
                                     (check-result :partial-fill/rounding-fairness-remainder-ranking
                                                   :not-applicable {:rounding-policy rounding-policy
-                                                                   :reason (when cap-constrained?
+                                                                   :mode mode
+                                                                   :reason (cond
+                                                                             (not= :pro-rata mode)
+                                                                             "remainder ranking applies only to pro-rata allocation"
+                                                                             cap-constrained?
                                                                              "effective caps require constrained redistribution")})))
           residual-ch (future
                         (if rounding-applicable?

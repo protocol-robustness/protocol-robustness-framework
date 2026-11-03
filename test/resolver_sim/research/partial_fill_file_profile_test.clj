@@ -125,7 +125,7 @@
 
 (defn- append-torn-tail! [path]
   (Files/write path (.getBytes "{:partial-record true" StandardCharsets/UTF_8)
-              (into-array StandardOpenOption [StandardOpenOption/APPEND])))
+               (into-array StandardOpenOption [StandardOpenOption/APPEND])))
 
 (defn- execute-order [digits]
   (let [operation (fixture-operation)
@@ -148,6 +148,10 @@
                                   submissions)
             before (profile/economic-projection (profile/ledger-state ledger))
             bytes-before (Files/readAllBytes path)]
+        (is (= :duplicate
+               (:status (profile/prepare! ledger
+                                          (preparation-for ledger (first submissions) \6))))
+            "lost preparation acknowledgement remains retryable after admission")
         (is (= :partial-fill-file/stale-preparation
                (exception-reason #(profile/prepare!
                                    ledger (preparation-for ledger (first submissions) \5)))))
@@ -212,6 +216,36 @@
           {:projection-root (profile/economic-projection-root state)
            :journal-root (:journal/root state)
            :commit-roots (mapv :commit/root commits)}))
+      (finally (delete-tree! directory)))))
+
+(deftest submissions-require-at-least-one-recorded-source
+  (let [operation (fixture-operation)
+        {:keys [directory path ledger]} (temp-ledger operation)
+        valid (submission-for operation \1 \a)
+        body (assoc valid :submission/source-roots [])
+        without-sources (assoc body :submission/root (profile/submission-root body))
+        before (Files/readAllBytes path)]
+    (try
+      (is (= :partial-fill-file/invalid-submission
+             (exception-reason #(profile/submit! ledger without-sources))))
+      (is (= (seq before) (seq (Files/readAllBytes path))))
+      (is (empty? (profile/submissions ledger)))
+      (finally (delete-tree! directory)))))
+
+(deftest journal-replay-rejects-a-re-rooted-source-free-submission
+  (let [operation (fixture-operation)
+        {:keys [directory path authority-root]} (empty-temp-ledger operation)
+        genesis (profile/create-ledger! path operation authority-root)
+        valid (submission-for operation \1 \a)
+        body (assoc valid :submission/source-roots [])
+        source-free (assoc body :submission/root (profile/submission-root body))
+        record (rechain-record 1 (:journal/root (profile/ledger-state genesis))
+                               authority-root :submission source-free)]
+    (try
+      ;; Bypass submit!, as if an externally edited journal had been re-rooted.
+      (append-record! path record)
+      (is (= :partial-fill-file/invalid-submission
+             (exception-reason #(profile/create-ledger! path operation authority-root))))
       (finally (delete-tree! directory)))))
 
 (deftest six-admission-and-commit-orders-converge-but-retain-distinct-history
@@ -424,8 +458,8 @@
         malformed-path (.resolve directory "malformed-genesis.edn")]
     (try
       (Files/write torn-path (java.util.Arrays/copyOf genesis-bytes 12)
-                  (into-array StandardOpenOption [StandardOpenOption/CREATE_NEW
-                                                  StandardOpenOption/WRITE]))
+                   (into-array StandardOpenOption [StandardOpenOption/CREATE_NEW
+                                                   StandardOpenOption/WRITE]))
       (let [recovered (profile/create-ledger! torn-path operation authority-root)
             state (profile/ledger-state recovered)
             original (profile/create-ledger! path operation authority-root)]
@@ -433,8 +467,8 @@
         (is (= (:journal/root (profile/ledger-state original)) (:journal/root state)))
         (is (.endsWith (slurp (.toFile torn-path)) "\n")))
       (Files/write malformed-path (.getBytes "{not-the-genesis" StandardCharsets/UTF_8)
-                  (into-array StandardOpenOption [StandardOpenOption/CREATE_NEW
-                                                  StandardOpenOption/WRITE]))
+                   (into-array StandardOpenOption [StandardOpenOption/CREATE_NEW
+                                                   StandardOpenOption/WRITE]))
       (is (= :partial-fill-file/malformed-record
              (exception-reason #(profile/create-ledger! malformed-path operation authority-root))))
       (finally (delete-tree! directory)))))
@@ -445,7 +479,7 @@
     (try
       (profile/submit! ledger (submission-for operation \1 \a))
       (Files/write path (.getBytes "\n" StandardCharsets/UTF_8)
-                  (into-array StandardOpenOption [StandardOpenOption/APPEND]))
+                   (into-array StandardOpenOption [StandardOpenOption/APPEND]))
       (is (= :partial-fill-file/malformed-record
              (exception-reason #(profile/create-ledger! path operation authority-root))))
       (finally (delete-tree! directory)))))
@@ -459,7 +493,7 @@
       (let [{:keys [directory path authority-root]} (empty-temp-ledger operation)]
         (try
           (Files/write path (.getBytes (str (pr-str scalar) "\n") StandardCharsets/UTF_8)
-                      (into-array StandardOpenOption [StandardOpenOption/APPEND]))
+                       (into-array StandardOpenOption [StandardOpenOption/APPEND]))
           (is (= :partial-fill-file/malformed-record
                  (exception-reason #(profile/create-ledger! path operation authority-root))))
           (finally (delete-tree! directory)))))
@@ -593,14 +627,14 @@
       (profile/submit! ledger submission)
       (let [expected-root (:journal/root (profile/ledger-state ledger))]
         (Files/write path (.getBytes "{:truncated true" StandardCharsets/UTF_8)
-                    (into-array StandardOpenOption [StandardOpenOption/APPEND]))
+                     (into-array StandardOpenOption [StandardOpenOption/APPEND]))
         (let [recovered (profile/create-ledger! path operation authority-root)]
           (is (= expected-root (:journal/root (profile/ledger-state recovered))))
           (is (.endsWith (slurp (.toFile path)) "\n")))
         (is (= :partial-fill-file/journal-owner-mismatch
                (exception-reason #(profile/create-ledger! path operation (root \7)))))
         (Files/write path (.getBytes "{:corrupt true}\n" StandardCharsets/UTF_8)
-                    (into-array StandardOpenOption [StandardOpenOption/APPEND]))
+                     (into-array StandardOpenOption [StandardOpenOption/APPEND]))
         (is (= :partial-fill-file/malformed-record
                (exception-reason #(profile/create-ledger! path operation authority-root)))))
       (finally (delete-tree! directory)))))

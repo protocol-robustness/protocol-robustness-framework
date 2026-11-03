@@ -58,9 +58,10 @@ framework passive registry. Package tests cover rejected feature/configuration
 paths, adapter initialization, guardian pause and governance recovery, native
 bilateral cancellation, and release, dispute resolution, timeout, and pull
 settlement vectors tied to pinned Solidity test functions and an exact source
-revision. The adapter also requires symbolic identities for the three default
-Solidity modules. These declarations constrain the simulated profile; deployed
-address bytecode still needs verification by deployment tooling.
+revision. The adapter requires the three default module identities and their
+runtime-code hashes from the pinned deployment baseline. This rejects a scenario
+declaring a different module artifact; verifying deployed address bytecode still
+belongs to deployment tooling.
 
 ## Rules for claiming alignment
 

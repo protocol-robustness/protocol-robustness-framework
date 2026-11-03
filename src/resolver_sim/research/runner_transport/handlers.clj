@@ -237,202 +237,198 @@
 (defn job-handler [runtime runner]
   (reify HttpHandler
     (handle [_ exchange]
-      (with-runtime runtime #(
-      (let [payload (request-body exchange)
-            secret (:transport/auth-secret runner)
-            supplied (some-> exchange .getRequestHeaders (.getFirst mac-header))]
-        (cond
-          (not= "POST" (.getRequestMethod exchange))
-          (response! exchange 405 {:transport/status :method-not-allowed})
-          (not (authenticated? secret payload supplied))
-          (response! exchange 401 {:transport/status :authentication-rejected})
-          :else
-          (try
-            (let [message (edn/read-string (String. payload StandardCharsets/UTF_8))]
-              (if (= :research/job-delivery-batch (:transport/kind message))
-                (let [items (:transport/items message)]
-                  (if-not (and (vector? items) (<= 1 (count items) 32))
-                    (response! exchange 422 {:transport/status :invalid-delivery})
-                    (response! exchange 200
-                               {:transport/status :batch-processed
-                                :transport/results (mapv (fn [item]
-                                                           (let [[status body] (apply-job-message! runner item)]
-                                                             {:http/status status :transport/response body}))
-                                                         items)})))
-                (let [[status body] (apply-job-message! runner message)]
-                  (response! exchange status body))))
-            (catch Exception _
-              (response! exchange 422 {:transport/status :invalid-delivery}))))))))))
+      (with-runtime runtime #((let [payload (request-body exchange)
+                                    secret (:transport/auth-secret runner)
+                                    supplied (some-> exchange .getRequestHeaders (.getFirst mac-header))]
+                                (cond
+                                  (not= "POST" (.getRequestMethod exchange))
+                                  (response! exchange 405 {:transport/status :method-not-allowed})
+                                  (not (authenticated? secret payload supplied))
+                                  (response! exchange 401 {:transport/status :authentication-rejected})
+                                  :else
+                                  (try
+                                    (let [message (edn/read-string (String. payload StandardCharsets/UTF_8))]
+                                      (if (= :research/job-delivery-batch (:transport/kind message))
+                                        (let [items (:transport/items message)]
+                                          (if-not (and (vector? items) (<= 1 (count items) 32))
+                                            (response! exchange 422 {:transport/status :invalid-delivery})
+                                            (response! exchange 200
+                                                       {:transport/status :batch-processed
+                                                        :transport/results (mapv (fn [item]
+                                                                                   (let [[status body] (apply-job-message! runner item)]
+                                                                                     {:http/status status :transport/response body}))
+                                                                                 items)})))
+                                        (let [[status body] (apply-job-message! runner message)]
+                                          (response! exchange status body))))
+                                    (catch Exception _
+                                      (response! exchange 422 {:transport/status :invalid-delivery}))))))))))
 
 (defn claim-evidence-handler [runtime runner]
   (reify HttpHandler
     (handle [_ exchange]
-      (with-runtime runtime #(
-      (let [payload (request-body exchange)
-            secret (:transport/auth-secret runner)
-            supplied (some-> exchange .getRequestHeaders (.getFirst mac-header))]
-        (cond
-          (not= "POST" (.getRequestMethod exchange))
-          (response! exchange 405 {:transport/status :method-not-allowed})
-          (not (authenticated? secret payload supplied))
-          (response! exchange 401 {:transport/status :authentication-rejected})
-          :else
-          (try
-            (let [message (edn/read-string (String. payload StandardCharsets/UTF_8))
-                  observation (claim-observation-from-delivery runner message)
-                  assignment (:assignment message)
-                  job (:job message)]
-              (if-not observation
-                (response! exchange 422 {:transport/status :invalid-claim-evidence-delivery})
-                (response! exchange 200
-                           {:transport/status :accepted
-                            :research-execution-job/root
-                            (:research-execution-job/root job)
-                            :research-run-assignment/root
-                            (:research-run-assignment/root assignment)
-                            :runner/reference
-                            (:runner/reference (:runner-participation runner))
-                            :research-claim-evidence-observation observation})))
-            (catch Exception _
-              (response! exchange 422
-                         {:transport/status :invalid-claim-evidence-delivery}))))))))))
+      (with-runtime runtime #((let [payload (request-body exchange)
+                                    secret (:transport/auth-secret runner)
+                                    supplied (some-> exchange .getRequestHeaders (.getFirst mac-header))]
+                                (cond
+                                  (not= "POST" (.getRequestMethod exchange))
+                                  (response! exchange 405 {:transport/status :method-not-allowed})
+                                  (not (authenticated? secret payload supplied))
+                                  (response! exchange 401 {:transport/status :authentication-rejected})
+                                  :else
+                                  (try
+                                    (let [message (edn/read-string (String. payload StandardCharsets/UTF_8))
+                                          observation (claim-observation-from-delivery runner message)
+                                          assignment (:assignment message)
+                                          job (:job message)]
+                                      (if-not observation
+                                        (response! exchange 422 {:transport/status :invalid-claim-evidence-delivery})
+                                        (response! exchange 200
+                                                   {:transport/status :accepted
+                                                    :research-execution-job/root
+                                                    (:research-execution-job/root job)
+                                                    :research-run-assignment/root
+                                                    (:research-run-assignment/root assignment)
+                                                    :runner/reference
+                                                    (:runner/reference (:runner-participation runner))
+                                                    :research-claim-evidence-observation observation})))
+                                    (catch Exception _
+                                      (response! exchange 422
+                                                 {:transport/status :invalid-claim-evidence-delivery}))))))))))
 
 (defn cancellation-handler [runtime runner]
   (reify HttpHandler
     (handle [_ exchange]
-      (with-runtime runtime #(
-      (let [payload (request-body exchange)
-            secret (:transport/auth-secret runner)
-            supplied (some-> exchange .getRequestHeaders (.getFirst mac-header))]
-        (cond
-          (not= "POST" (.getRequestMethod exchange))
-          (response! exchange 405 {:transport/status :method-not-allowed})
+      (with-runtime runtime #((let [payload (request-body exchange)
+                                    secret (:transport/auth-secret runner)
+                                    supplied (some-> exchange .getRequestHeaders (.getFirst mac-header))]
+                                (cond
+                                  (not= "POST" (.getRequestMethod exchange))
+                                  (response! exchange 405 {:transport/status :method-not-allowed})
 
-          (not (authenticated? secret payload supplied))
-          (response! exchange 401 {:transport/status :authentication-rejected})
+                                  (not (authenticated? secret payload supplied))
+                                  (response! exchange 401 {:transport/status :authentication-rejected})
 
-          :else
-          (try
-            (let [{:keys [cancellation logical-cutpoint]} (edn/read-string
-                                                           (String. payload StandardCharsets/UTF_8))
-                  job-root (:research-execution-job/root cancellation)]
-              (control/ingest-cancellation {} cancellation)
-              (update-runtime-state!
-               runner
-               (fn [state]
-                 (let [assignment (assignment-for-job state job-root)
-                       state (record-forensic-event
-                              state runner
-                              {:event-key :runner.forensic/cancellation-observed
-                               :subject-root (:research-job-cancellation/root cancellation)
-                               :subject-kind :research-runner/cancellation
-                               :causal-parent-roots (cond-> [job-root
-                                                             (:research-job-cancellation/root cancellation)]
-                                                      assignment
-                                                      (conj (:research-run-assignment/root assignment)))
-                               :parent-nodes []
-                               :observed-root (:research-job-cancellation/root cancellation)})]
-                   (reduce-kv
-                    (fn [state work-root work]
-                      (let [work-job (:research-execution-job/root
-                                      (:work/job (observed-work-for work)))
-                            status (get-in state [:work-states work-root :work/status])]
-                        (cond
-                          (and (= job-root work-job)
-                               (get-in state [:completed-work work-root :native-accounting-execution])
-                               (contains? #{:pending :unreachable}
-                                          (get-in state [:completed-work work-root :result-delivery :delivery/status])))
-                          (-> state
-                              (assoc-in [:completed-work work-root :result-delivery]
-                                        {:delivery/status :cancelled-before-delivery})
-                              (append-work-event work-root :completed logical-cutpoint :result-delivery-suppressed))
-                          (and (= job-root work-job)
-                               (not (contains? #{:completed :result-acknowledged} status)))
-                          (append-work-event state work-root :cancelled logical-cutpoint :cancellation-observed)
-                          :else state)))
-                    (assoc-in state [:cancellations job-root] cancellation)
-                    (:work-items state)))))
-              (let [assignment (assignment-for-job @(:transport/state runner) job-root)]
-                (response! exchange 200
-                           {:transport/status :observed
-                            :research-execution-job/root job-root
-                            :research-job-cancellation/root
-                            (:research-job-cancellation/root cancellation)
-                            :control/epoch (:control/epoch cancellation)
-                            :research-run-assignment/root
-                            (:research-run-assignment/root assignment)
-                            :runner/reference
-                            (:runner/reference (:runner-participation runner))
-                            :transport/logical-cutpoint logical-cutpoint})))
-            (catch Exception _
-              (response! exchange 422 {:transport/status :invalid-cancellation}))))))))))
+                                  :else
+                                  (try
+                                    (let [{:keys [cancellation logical-cutpoint]} (edn/read-string
+                                                                                   (String. payload StandardCharsets/UTF_8))
+                                          job-root (:research-execution-job/root cancellation)]
+                                      (control/ingest-cancellation {} cancellation)
+                                      (update-runtime-state!
+                                       runner
+                                       (fn [state]
+                                         (let [assignment (assignment-for-job state job-root)
+                                               state (record-forensic-event
+                                                      state runner
+                                                      {:event-key :runner.forensic/cancellation-observed
+                                                       :subject-root (:research-job-cancellation/root cancellation)
+                                                       :subject-kind :research-runner/cancellation
+                                                       :causal-parent-roots (cond-> [job-root
+                                                                                     (:research-job-cancellation/root cancellation)]
+                                                                              assignment
+                                                                              (conj (:research-run-assignment/root assignment)))
+                                                       :parent-nodes []
+                                                       :observed-root (:research-job-cancellation/root cancellation)})]
+                                           (reduce-kv
+                                            (fn [state work-root work]
+                                              (let [work-job (:research-execution-job/root
+                                                              (:work/job (observed-work-for work)))
+                                                    status (get-in state [:work-states work-root :work/status])]
+                                                (cond
+                                                  (and (= job-root work-job)
+                                                       (get-in state [:completed-work work-root :native-accounting-execution])
+                                                       (contains? #{:pending :unreachable}
+                                                                  (get-in state [:completed-work work-root :result-delivery :delivery/status])))
+                                                  (-> state
+                                                      (assoc-in [:completed-work work-root :result-delivery]
+                                                                {:delivery/status :cancelled-before-delivery})
+                                                      (append-work-event work-root :completed logical-cutpoint :result-delivery-suppressed))
+                                                  (and (= job-root work-job)
+                                                       (not (contains? #{:completed :result-acknowledged} status)))
+                                                  (append-work-event state work-root :cancelled logical-cutpoint :cancellation-observed)
+                                                  :else state)))
+                                            (assoc-in state [:cancellations job-root] cancellation)
+                                            (:work-items state)))))
+                                      (let [assignment (assignment-for-job @(:transport/state runner) job-root)]
+                                        (response! exchange 200
+                                                   {:transport/status :observed
+                                                    :research-execution-job/root job-root
+                                                    :research-job-cancellation/root
+                                                    (:research-job-cancellation/root cancellation)
+                                                    :control/epoch (:control/epoch cancellation)
+                                                    :research-run-assignment/root
+                                                    (:research-run-assignment/root assignment)
+                                                    :runner/reference
+                                                    (:runner/reference (:runner-participation runner))
+                                                    :transport/logical-cutpoint logical-cutpoint})))
+                                    (catch Exception _
+                                      (response! exchange 422 {:transport/status :invalid-cancellation}))))))))))
 
 (defn coordinator-result-handler [runtime coordinator]
   (reify HttpHandler
     (handle [_ exchange]
-      (with-runtime runtime #(
-      (let [payload (request-body exchange)
-            secret (:transport/auth-secret coordinator)
-            supplied (some-> exchange .getRequestHeaders (.getFirst mac-header))]
-        (cond
-          (not= "POST" (.getRequestMethod exchange))
-          (response! exchange 405 {:transport/status :method-not-allowed})
+      (with-runtime runtime #((let [payload (request-body exchange)
+                                    secret (:transport/auth-secret coordinator)
+                                    supplied (some-> exchange .getRequestHeaders (.getFirst mac-header))]
+                                (cond
+                                  (not= "POST" (.getRequestMethod exchange))
+                                  (response! exchange 405 {:transport/status :method-not-allowed})
 
-          (not (authenticated? secret payload supplied))
-          (response! exchange 401 {:transport/status :authentication-rejected})
+                                  (not (authenticated? secret payload supplied))
+                                  (response! exchange 401 {:transport/status :authentication-rejected})
 
-          :else
-          (try
-            (let [message (edn/read-string (String. payload StandardCharsets/UTF_8))]
-              (if-not (and (= :research/observed-result-delivery (:transport/kind message))
-                           (valid-observed-result-delivery? @(:transport/state coordinator) message))
-                (response! exchange 422 {:transport/status :invalid-observed-result})
-                (let [{:keys [assignment observed-run-evidence run-assurance-evidence
-                              accounting-context accounting-partial logical-cutpoint]} message
-                      observed-root (:research-observed-run-evidence/root observed-run-evidence)
-                      existing (get-in @(:transport/state coordinator)
-                                       [:observed-results observed-root])]
-                  (update-coordinator-state! coordinator
-                                             (fn [state]
-                                               (let [state (if existing state
-                                                               (assoc-in state [:observed-results observed-root]
-                                                                         {:assignment assignment
-                                                                          :observed-run-evidence observed-run-evidence
-                                                                          :run-assurance-evidence run-assurance-evidence}))]
-                                                 (if accounting-context
-                                                   (let [plan-root (get-in accounting-context
-                                                                           [:partition-plan :accounting-partition-plan/root])
-                                                         plan-context (select-keys accounting-context
-                                                                                   [:request :partition-plan])
-                                                         prior-context (get-in state [:accounting-contexts plan-root])]
-                                                     (when (and prior-context (not= prior-context plan-context))
-                                                       (throw (ex-info "Accounting context substitution" {})))
-                                                     (-> state
-                                                         (assoc-in [:accounting-contexts plan-root] plan-context)
-                                                         (update-in [:accounting-partials plan-root]
-                                                                    (fnil accounting/ingest-partial {}) accounting-partial)))
-                                                   state))))
-                  (response! exchange 200
-                             {:transport/status (if existing :already-recorded :accepted)
-                              :research-execution-job/root
-                              (:research-execution-job/root observed-run-evidence)
-                              :research-run-assignment/root
-                              (:research-run-assignment/root assignment)
-                              :research-observed-run-evidence/root observed-root
-                              :research-run-assurance-evidence/root
-                              (:research-run-assurance-evidence/root run-assurance-evidence)
-                              :accounting-partial-result/root
-                              (:accounting-partial-result/root accounting-partial)
-                              :coordinator/root (:coordinator/root coordinator)
-                              :transport/logical-cutpoint logical-cutpoint}))))
-            (catch clojure.lang.ExceptionInfo e
-              (response! exchange 422
-                         {:transport/status :invalid-observed-result
-                          :transport/failure-cause
-                          (or (:cause (ex-data e)) :result-ingestion-failed)}))
-            (catch Exception _
-              (response! exchange 422 {:transport/status :invalid-observed-result
-                                       :transport/failure-cause :result-ingestion-failed}))))))))))
+                                  :else
+                                  (try
+                                    (let [message (edn/read-string (String. payload StandardCharsets/UTF_8))]
+                                      (if-not (and (= :research/observed-result-delivery (:transport/kind message))
+                                                   (valid-observed-result-delivery? @(:transport/state coordinator) message))
+                                        (response! exchange 422 {:transport/status :invalid-observed-result})
+                                        (let [{:keys [assignment observed-run-evidence run-assurance-evidence
+                                                      accounting-context accounting-partial logical-cutpoint]} message
+                                              observed-root (:research-observed-run-evidence/root observed-run-evidence)
+                                              existing (get-in @(:transport/state coordinator)
+                                                               [:observed-results observed-root])]
+                                          (update-coordinator-state! coordinator
+                                                                     (fn [state]
+                                                                       (let [state (if existing state
+                                                                                       (assoc-in state [:observed-results observed-root]
+                                                                                                 {:assignment assignment
+                                                                                                  :observed-run-evidence observed-run-evidence
+                                                                                                  :run-assurance-evidence run-assurance-evidence}))]
+                                                                         (if accounting-context
+                                                                           (let [plan-root (get-in accounting-context
+                                                                                                   [:partition-plan :accounting-partition-plan/root])
+                                                                                 plan-context (select-keys accounting-context
+                                                                                                           [:request :partition-plan])
+                                                                                 prior-context (get-in state [:accounting-contexts plan-root])]
+                                                                             (when (and prior-context (not= prior-context plan-context))
+                                                                               (throw (ex-info "Accounting context substitution" {})))
+                                                                             (-> state
+                                                                                 (assoc-in [:accounting-contexts plan-root] plan-context)
+                                                                                 (update-in [:accounting-partials plan-root]
+                                                                                            (fnil accounting/ingest-partial {}) accounting-partial)))
+                                                                           state))))
+                                          (response! exchange 200
+                                                     {:transport/status (if existing :already-recorded :accepted)
+                                                      :research-execution-job/root
+                                                      (:research-execution-job/root observed-run-evidence)
+                                                      :research-run-assignment/root
+                                                      (:research-run-assignment/root assignment)
+                                                      :research-observed-run-evidence/root observed-root
+                                                      :research-run-assurance-evidence/root
+                                                      (:research-run-assurance-evidence/root run-assurance-evidence)
+                                                      :accounting-partial-result/root
+                                                      (:accounting-partial-result/root accounting-partial)
+                                                      :coordinator/root (:coordinator/root coordinator)
+                                                      :transport/logical-cutpoint logical-cutpoint}))))
+                                    (catch clojure.lang.ExceptionInfo e
+                                      (response! exchange 422
+                                                 {:transport/status :invalid-observed-result
+                                                  :transport/failure-cause
+                                                  (or (:cause (ex-data e)) :result-ingestion-failed)}))
+                                    (catch Exception _
+                                      (response! exchange 422 {:transport/status :invalid-observed-result
+                                                               :transport/failure-cause :result-ingestion-failed}))))))))))
 
 (defn- valid-reproduction-result-delivery? [state message]
   (let [{:keys [job assignment reproduction-execution]} message
@@ -468,133 +464,131 @@
 (defn coordinator-reproduction-handler [runtime coordinator]
   (reify HttpHandler
     (handle [_ exchange]
-      (with-runtime runtime #(
-      (when-let [event! (:transport/test-event coordinator)]
-        (event! :handler-entered))
-      (let [payload (request-body exchange)
-            secret (:transport/auth-secret coordinator)
-            supplied (some-> exchange .getRequestHeaders (.getFirst mac-header))]
-        (when-let [event! (:transport/test-event coordinator)]
-          (event! :request-body-received))
-        (cond
-          (not= "POST" (.getRequestMethod exchange))
-          (response! exchange 405 {:transport/status :method-not-allowed})
-          (not (authenticated? secret payload supplied))
-          (response! exchange 401 {:transport/status :authentication-rejected})
-          :else
-          (try
-            (let [message (edn/read-string (String. payload StandardCharsets/UTF_8))
-                  state (coordinator-state coordinator)]
-              (if-not (case (:transport/kind message)
-                        :research/reproduction-result-delivery (valid-reproduction-result-delivery? state message)
-                        :research/native-accounting-result-delivery (valid-native-accounting-delivery? state message)
-                        false)
-                (response! exchange 422 {:transport/status :invalid-reproduction-result})
-                (let [{:keys [job assignment reproduction-execution native-accounting-execution]} message
-                      native? (some? native-accounting-execution)
-                      execution (or native-accounting-execution reproduction-execution)
-                      eroot (computed-execution-root execution)
-                      result-key [(:research-run-assignment/root assignment) eroot]
-                      result-map (if native? :native-accounting-results :reproduction-results)
-                      previous (get-in state [result-map result-key])
-                      entry (select-keys message (if native? [:job :assignment :native-accounting-execution]
-                                                     [:job :assignment :reproduction-execution]))]
-                  (when (and previous (not= previous entry))
-                    (throw (ex-info "Reproduction result substitution" {})))
-                  (when-let [event! (:transport/test-event coordinator)]
-                    (event! (if previous :duplicate-result-recognized
-                                :new-result-recognized)))
-                  (update-coordinator-state!
-                   coordinator
-                   (fn [state]
-                     (if previous state
-                         (let [state (assoc-in state [result-map result-key] entry)]
-                           (if-not native? state
-                                   (let [work (get-in state [:dispatch-intents (:research-run-assignment/root assignment) :execution-work])
-                                         plan-root (get-in work [:accounting/partition-plan :accounting-partition-plan/root])
-                                         context {:request (:accounting/request work) :partition-plan (:accounting/partition-plan work)}
-                                         prior (get-in state [:accounting-contexts plan-root])]
-                                     (when (and prior (not= prior context))
-                                       (throw (ex-info "Native accounting context substitution" {})))
-                                     (-> state
-                                         (assoc-in [:accounting-contexts plan-root] context)
-                                         (update-in [:accounting-partials plan-root] (fnil accounting/ingest-partial {})
-                                                    (:accounting-partial native-accounting-execution)))))))))
+      (with-runtime runtime #((when-let [event! (:transport/test-event coordinator)]
+                                (event! :handler-entered))
+                              (let [payload (request-body exchange)
+                                    secret (:transport/auth-secret coordinator)
+                                    supplied (some-> exchange .getRequestHeaders (.getFirst mac-header))]
+                                (when-let [event! (:transport/test-event coordinator)]
+                                  (event! :request-body-received))
+                                (cond
+                                  (not= "POST" (.getRequestMethod exchange))
+                                  (response! exchange 405 {:transport/status :method-not-allowed})
+                                  (not (authenticated? secret payload supplied))
+                                  (response! exchange 401 {:transport/status :authentication-rejected})
+                                  :else
+                                  (try
+                                    (let [message (edn/read-string (String. payload StandardCharsets/UTF_8))
+                                          state (coordinator-state coordinator)]
+                                      (if-not (case (:transport/kind message)
+                                                :research/reproduction-result-delivery (valid-reproduction-result-delivery? state message)
+                                                :research/native-accounting-result-delivery (valid-native-accounting-delivery? state message)
+                                                false)
+                                        (response! exchange 422 {:transport/status :invalid-reproduction-result})
+                                        (let [{:keys [job assignment reproduction-execution native-accounting-execution]} message
+                                              native? (some? native-accounting-execution)
+                                              execution (or native-accounting-execution reproduction-execution)
+                                              eroot (computed-execution-root execution)
+                                              result-key [(:research-run-assignment/root assignment) eroot]
+                                              result-map (if native? :native-accounting-results :reproduction-results)
+                                              previous (get-in state [result-map result-key])
+                                              entry (select-keys message (if native? [:job :assignment :native-accounting-execution]
+                                                                             [:job :assignment :reproduction-execution]))]
+                                          (when (and previous (not= previous entry))
+                                            (throw (ex-info "Reproduction result substitution" {})))
+                                          (when-let [event! (:transport/test-event coordinator)]
+                                            (event! (if previous :duplicate-result-recognized
+                                                        :new-result-recognized)))
+                                          (update-coordinator-state!
+                                           coordinator
+                                           (fn [state]
+                                             (if previous state
+                                                 (let [state (assoc-in state [result-map result-key] entry)]
+                                                   (if-not native? state
+                                                           (let [work (get-in state [:dispatch-intents (:research-run-assignment/root assignment) :execution-work])
+                                                                 plan-root (get-in work [:accounting/partition-plan :accounting-partition-plan/root])
+                                                                 context {:request (:accounting/request work) :partition-plan (:accounting/partition-plan work)}
+                                                                 prior (get-in state [:accounting-contexts plan-root])]
+                                                             (when (and prior (not= prior context))
+                                                               (throw (ex-info "Native accounting context substitution" {})))
+                                                             (-> state
+                                                                 (assoc-in [:accounting-contexts plan-root] context)
+                                                                 (update-in [:accounting-partials plan-root] (fnil accounting/ingest-partial {})
+                                                                            (:accounting-partial native-accounting-execution)))))))))
                   ;; Runtime-only fault-injection seam. It runs after the
                   ;; atomic journal write and before the HTTP acknowledgement;
                   ;; no canonical scheduler or result identity depends on it.
-                  (when-let [hook (:transport/after-reproduction-persisted coordinator)]
-                    (hook coordinator message))
-                  (response! exchange 200
-                             {:transport/status (if previous :already-recorded :accepted)
-                              :research-execution-job/root (:research-execution-job/root job)
-                              :research-run-assignment/root (:research-run-assignment/root assignment)
-                              (if native? :research-native-accounting-run/root :reproduction-execution/root) eroot
-                              :coordinator/root (:coordinator/root coordinator)})
-                  (when-let [event! (:transport/test-event coordinator)]
-                    (event! :acknowledgement-emitted)))))
-            (catch Exception _
-              (response! exchange 422 {:transport/status :invalid-reproduction-result}))))))))))
+                                          (when-let [hook (:transport/after-reproduction-persisted coordinator)]
+                                            (hook coordinator message))
+                                          (response! exchange 200
+                                                     {:transport/status (if previous :already-recorded :accepted)
+                                                      :research-execution-job/root (:research-execution-job/root job)
+                                                      :research-run-assignment/root (:research-run-assignment/root assignment)
+                                                      (if native? :research-native-accounting-run/root :reproduction-execution/root) eroot
+                                                      :coordinator/root (:coordinator/root coordinator)})
+                                          (when-let [event! (:transport/test-event coordinator)]
+                                            (event! :acknowledgement-emitted)))))
+                                    (catch Exception _
+                                      (response! exchange 422 {:transport/status :invalid-reproduction-result}))))))))))
 
 (defn coordinator-accounting-proof-handler [runtime coordinator]
   (reify HttpHandler
     (handle [_ exchange]
-      (with-runtime runtime #(
-      (let [payload (request-body exchange)
-            supplied (some-> exchange .getRequestHeaders (.getFirst mac-header))]
-        (cond
-          (not= "POST" (.getRequestMethod exchange))
-          (response! exchange 405 {:transport/status :method-not-allowed})
-          (not (authenticated? (:transport/auth-secret coordinator) payload supplied))
-          (response! exchange 401 {:transport/status :authentication-rejected})
-          (> (alength ^bytes payload) (* 32 1024 1024))
-          (response! exchange 413 {:transport/status :proof-bundle-too-large})
-          :else
-          (try
-            (let [message (edn/read-string (String. payload StandardCharsets/UTF_8))
-                  job (:job message)
-                  assignment (:assignment message)
-                  execution (:native-accounting-execution message)
-                  proof-bytes (.decode (Base64/getDecoder) ^String (:proof/base64 message))
-                  metadata (:proof/metadata message)
-                  generation-receipt (:research-proof-generation-receipt message)
-                  verification-config (:transport/accounting-proof-verification coordinator)]
-              (when-not (and (= :research/native-accounting-proof-delivery
-                                (:transport/kind message))
-                             (remote/valid-job? job)
-                             (= job (get-in (coordinator-state coordinator)
-                                            [:dispatch-intents
-                                             (:research-run-assignment/root assignment)
-                                             :execution-work :work/job]))
-                             (map? metadata) (map? generation-receipt)
-                             (map? verification-config))
-                (throw (ex-info "Incomplete proof-backed accounting delivery" {})))
-              (let [temp (Files/createTempDirectory "prf-accounting-proof-delivery-"
-                                                    (make-array java.nio.file.attribute.FileAttribute 0))
-                    proof-path (.resolve temp "proof.bin")
-                    metadata-path (.resolve temp "metadata.json")]
-                (try
-                  (Files/write proof-path proof-bytes (make-array java.nio.file.OpenOption 0))
-                  (Files/write metadata-path
-                               (.getBytes (json/write-str metadata) StandardCharsets/UTF_8)
-                               (make-array java.nio.file.OpenOption 0))
-                  (response! exchange 200
-                             (admit-native-accounting-proof!
-                              coordinator
-                              (merge verification-config
-                                     {:assignment assignment :execution execution
-                                      :proof-file (str proof-path)
-                                      :metadata-file (str metadata-path)
-                                      :generation-receipt generation-receipt})))
-                  (finally
-                    (Files/deleteIfExists proof-path)
-                    (Files/deleteIfExists metadata-path)
-                    (Files/deleteIfExists temp)))))
-            (catch Exception e
-              (response! exchange 422
-                         {:transport/status :proof-admission-rejected
-                          :cause (or (:cause (ex-data e)) :invalid-proof-backed-delivery)
+      (with-runtime runtime #((let [payload (request-body exchange)
+                                    supplied (some-> exchange .getRequestHeaders (.getFirst mac-header))]
+                                (cond
+                                  (not= "POST" (.getRequestMethod exchange))
+                                  (response! exchange 405 {:transport/status :method-not-allowed})
+                                  (not (authenticated? (:transport/auth-secret coordinator) payload supplied))
+                                  (response! exchange 401 {:transport/status :authentication-rejected})
+                                  (> (alength ^bytes payload) (* 32 1024 1024))
+                                  (response! exchange 413 {:transport/status :proof-bundle-too-large})
+                                  :else
+                                  (try
+                                    (let [message (edn/read-string (String. payload StandardCharsets/UTF_8))
+                                          job (:job message)
+                                          assignment (:assignment message)
+                                          execution (:native-accounting-execution message)
+                                          proof-bytes (.decode (Base64/getDecoder) ^String (:proof/base64 message))
+                                          metadata (:proof/metadata message)
+                                          generation-receipt (:research-proof-generation-receipt message)
+                                          verification-config (:transport/accounting-proof-verification coordinator)]
+                                      (when-not (and (= :research/native-accounting-proof-delivery
+                                                        (:transport/kind message))
+                                                     (remote/valid-job? job)
+                                                     (= job (get-in (coordinator-state coordinator)
+                                                                    [:dispatch-intents
+                                                                     (:research-run-assignment/root assignment)
+                                                                     :execution-work :work/job]))
+                                                     (map? metadata) (map? generation-receipt)
+                                                     (map? verification-config))
+                                        (throw (ex-info "Incomplete proof-backed accounting delivery" {})))
+                                      (let [temp (Files/createTempDirectory "prf-accounting-proof-delivery-"
+                                                                            (make-array java.nio.file.attribute.FileAttribute 0))
+                                            proof-path (.resolve temp "proof.bin")
+                                            metadata-path (.resolve temp "metadata.json")]
+                                        (try
+                                          (Files/write proof-path proof-bytes (make-array java.nio.file.OpenOption 0))
+                                          (Files/write metadata-path
+                                                       (.getBytes (json/write-str metadata) StandardCharsets/UTF_8)
+                                                       (make-array java.nio.file.OpenOption 0))
+                                          (response! exchange 200
+                                                     (admit-native-accounting-proof!
+                                                      coordinator
+                                                      (merge verification-config
+                                                             {:assignment assignment :execution execution
+                                                              :proof-file (str proof-path)
+                                                              :metadata-file (str metadata-path)
+                                                              :generation-receipt generation-receipt})))
+                                          (finally
+                                            (Files/deleteIfExists proof-path)
+                                            (Files/deleteIfExists metadata-path)
+                                            (Files/deleteIfExists temp)))))
+                                    (catch Exception e
+                                      (response! exchange 422
+                                                 {:transport/status :proof-admission-rejected
+                                                  :cause (or (:cause (ex-data e)) :invalid-proof-backed-delivery)
                           ;; Runtime diagnostic only. Never included in a canonical
                           ;; artifact/root; it lets the sender distinguish lineage
                           ;; rejection from a local verifier/toolchain failure.
-                          :diagnostic (or (:diagnostic (ex-data e)) (.getMessage e))}))))))))))
+                                                  :diagnostic (or (:diagnostic (ex-data e)) (.getMessage e))}))))))))))
