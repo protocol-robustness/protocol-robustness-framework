@@ -1,0 +1,7 @@
+{:profile/id :prf/sew-core-extension-candidate-v1
+ :profile/version 1
+ :profile/status :candidate
+ :profile/protocol :prf.protocol/sew-core
+ :profile/extends :prf/framework-v1
+ :profile/components [:prf/sew-protocol-model-v1
+                      :prf/sew-core-extension-v1]}

@@ -27,7 +27,6 @@
             [resolver-sim.protocols.sew.state-machine :as sm]
             [resolver-sim.time.invariants :as time-inv]
             [resolver-sim.yield.invariants :as generic-yield-inv]
-            [resolver-sim.protocols.sew.yield.invariants :as sew-yield-inv]
             [resolver-sim.protocols.sew.invariants.escrow :as escrow]
             [resolver-sim.protocols.sew.invariants.governance :as governance]
             [resolver-sim.protocols.sew.invariants.solvency :as solvency]
@@ -42,6 +41,7 @@
             [resolver-sim.time.context :as time-ctx]
             [resolver-sim.protocols.sew.economics :as sew-econ]
             [resolver-sim.protocols.sew.registry :as reg]
+            [resolver-sim.protocols.registry :as protocol-registry]
             [resolver-sim.protocols.sew.related-claims :as rc]
             [resolver-sim.accounting.held-adjustment :as held-adjustment]
             [resolver-sim.hash.canonical :as hash]
@@ -2684,8 +2684,14 @@
                       :related-claims-authorisation-scope-closed (related-claims-authorisation-scope-closed? world)
                       :evidence-provenance-verifiable     (evidence-provenance-verifiable? world)
                      :yield-position-consistency          (generic-yield-inv/check-position-consistency world)
-                     :yield-exposure                      (let [r (sew-yield-inv/check-sew-yield-exposure world)]
-                                                           (if (map? r) r {:holds? r :violations nil}))
+                     :yield-exposure                      (if-let [check-yield
+                                                                     (protocol-registry/get-capability
+                                                                      "sew-v1" :yield/check-sew-invariants)]
+                                                           (or (:sew/yield-exposure (check-yield world))
+                                                               {:holds? false
+                                                                :violations [{:error :missing-yield-exposure-check}]})
+                                                           {:holds? false
+                                                            :violations [{:error :missing-yield-integration}]})
                      :fee-payouts-sum-equals-total-fees-withdrawn (fee-payouts-sum-equals-total-fees-withdrawn? world)
                      :no-reentrant-guard-leak (no-reentrant-guard-leak? world)}
          ;; Force-auth invariants are only executed when the composition

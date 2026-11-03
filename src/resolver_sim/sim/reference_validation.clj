@@ -14,6 +14,7 @@
             [clojure.string :as str]
             [clojure.tools.cli :as cli]
             [resolver-sim.contract-model.replay.yield :as yield-replay]
+            [resolver-sim.protocols.registry :as protocol-registry]
             [resolver-sim.yield.invariant-catalog :as yield-invariant-catalog]
             [resolver-sim.yield.invariants :as yield-invariants]
             [resolver-sim.sim.reference-validation-evidence :as evidence]
@@ -43,7 +44,11 @@
    [nil "--refresh-expected" "Copy actual/ to expected/ after generation"]])
 
 (defn- sew-replay-wrapper [scenario opts]
-  ((requiring-resolve 'resolver-sim.protocols.sew/replay-with-sew-protocol) scenario opts))
+  (if-let [replay-fn (protocol-registry/get-capability
+                      "sew-v1" :reference-validation/replay)]
+    (replay-fn scenario opts)
+    (throw (ex-info "Sew reference-validation adapter is unavailable"
+                    {:protocol :sew :capability :reference-validation/replay}))))
 
 (defn- protocol-replay-fn [protocol]
   (case protocol
@@ -123,12 +128,15 @@
                    trace))}))
 
 (defn- write-trace-fixture!
-  "Write trace fixture for a protocol. Sew support is resolved only when requested."
+  "Write a trace fixture through the selected protocol's registered adapter."
   [protocol result scenario trace-path]
   (case protocol
-    :sew (let [export-trace-fixture (requiring-resolve 'resolver-sim.protocols.sew.io.trace-export/export-trace-fixture)
-               write-fixture-file (requiring-resolve 'resolver-sim.protocols.sew.io.trace-export/write-fixture-file)]
-           (write-fixture-file (export-trace-fixture result scenario) trace-path))
+    :sew (if-let [write-trace! (protocol-registry/get-capability
+                                "sew-v1" :runner/export-trace-fixture)]
+           (write-trace! result scenario trace-path)
+           (throw (ex-info "Sew trace-export adapter is unavailable"
+                           {:protocol :sew
+                            :capability :runner/export-trace-fixture})))
     :yield (write-json! trace-path (export-yield-trace-fixture result))
     nil))
 
@@ -136,6 +144,17 @@
   [sc actual-dir protocol replay-fn replay-opts]
   (let [{:keys [id trace-slug upgrade-path classification primary-threat
                 invariants-passed claim-id invariant-ids]} sc
+        protocol-checker (when (= protocol :sew)
+                           (protocol-registry/get-capability
+                            "sew-v1" :reference-validation/invariant-checker))
+        world-invariant-ids (case protocol
+                              :yield (set (keys yield-invariant-catalog/catalog))
+                              :sew (:world-invariant-ids protocol-checker))
+        check-all-fn (case protocol
+                       :yield (fn [world]
+                                {:results (yield-invariants/run-invariants
+                                           world (keys yield-invariant-catalog/catalog))})
+                       :sew (:check-all-fn protocol-checker))
         scenario-path (:simulator/scenario-path sc)
         trace-rel (str "actual/traces/" trace-slug ".trace.json")
         trace-path (str actual-dir "/traces/" trace-slug ".trace.json")
@@ -143,13 +162,8 @@
         result (replay-fn scenario replay-opts)]
     (evidence/verify-evidence-invariants!
      result (or invariant-ids [])
-     :world-invariant-ids (if (= protocol :yield)
-                            (set (keys yield-invariant-catalog/catalog))
-                            nil)
-     :check-all-fn (when (= protocol :yield)
-                     (fn [world]
-                       {:results (yield-invariants/run-invariants
-                                  world (keys yield-invariant-catalog/catalog))})))
+     :world-invariant-ids world-invariant-ids
+     :check-all-fn check-all-fn)
     (let [metrics         (or (:metrics result) {})
           inv-violations  (:invariant-violations metrics 0)
           expectations    (:expectations result)

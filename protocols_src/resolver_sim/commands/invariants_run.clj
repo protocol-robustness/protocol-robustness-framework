@@ -48,17 +48,22 @@
 
 (defn run
   [{:keys [run-root protocol] :as _opts}]
-  (let [protocol-id (or protocol "sew-v1")]
-    (when-not run-root
+  (cond
+    (nil? run-root)
+    (do
       (println "Usage: invariants run --run-root DIR")
       {:exit-code 2 :message "Missing --run-root"})
 
     (let [root-dir (io/file run-root)]
-      (when (and (.exists root-dir) (seq (.list root-dir)))
-        (println (str "Run root already exists and is not empty: " run-root))
-        {:exit-code 1 :message "Run root not empty"})
-      (io/make-parents root-dir))
+      (and (.exists root-dir) (seq (.list root-dir))))
+    (do
+      (println (str "Run root already exists and is not empty: " run-root))
+      {:exit-code 1 :message "Run root not empty"})
 
+    :else
+    (let [protocol-id (or protocol "sew-v1")
+          root-dir (io/file run-root)]
+      (io/make-parents root-dir)
     (let [scenario-ids (registry-scenario-ids)
           plan {:plan/version 1
                 :plan/kind "invariant-registry-suite"
@@ -162,5 +167,5 @@
               (println (str "    " (:scenario-id e) "  " (:detail-path e)))))
           {:exit-code (if (and (zero? failed-count) (zero? xfailed-count)) 0 1)
            :message (str "Invariant suite: " passed-count "/" (count results) " passed")
-           :run-root run-root})))))
+           :run-root run-root}))))))
 

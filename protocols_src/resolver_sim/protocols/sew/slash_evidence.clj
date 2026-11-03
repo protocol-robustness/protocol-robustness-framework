@@ -1,7 +1,8 @@
 (ns resolver-sim.protocols.sew.slash-evidence
   "Optional evidence hooks for Sew slash execution.
 
-   This namespace belongs to Sew core and defines the handoff contract only.
+   This namespace belongs to the Sew protocol model and defines the handoff
+   contract only.
    Pro-rata evidence construction and artifact persistence live in the separately
    selected `sew.pro-rata.evidence` integration. When that integration is not
    loaded, slash execution fails before applying slash side effects.")

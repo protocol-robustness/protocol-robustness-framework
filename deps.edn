@@ -50,6 +50,8 @@
     :paths/held-custody-rt       ["extensions/held-custody/src"]
     :paths/force-authorisation   ["extensions/force-authorisation/src" "extensions/force-authorisation/test"]
     :paths/force-authorisation-rt ["extensions/force-authorisation/src"]
+    :paths/sew-core-model ["extensions/sew-core-model/src" "extensions/sew-core-model/test"]
+    :paths/sew-core-model-rt ["extensions/sew-core-model/src"]
     :paths/all           ["src" "yield_runtime_src" "test" "protocols_src" "protocols_src/test" "dev" "scripts"
                           :paths/held-custody :paths/force-authorisation]
     ;; Researchers: opt-in local paths (defined in ~/.clojure/deps.edn as
@@ -108,6 +110,13 @@
 
    :extension/force-authorisation-rt
    {:extra-paths [:paths/force-authorisation-rt]}
+
+   ;; Optional Sew Core behavior profile adapter. The runtime alias omits tests.
+   :extension/sew-core-model
+   {:extra-paths [:paths/sew-core-model]}
+
+   :extension/sew-core-model-rt
+   {:extra-paths [:paths/sew-core-model-rt]}
 
    ;; flow-storm
 ;;   {:1.12-storm {:classpath-overrides {org.clojure/clojure nil}
