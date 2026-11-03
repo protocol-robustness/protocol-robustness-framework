@@ -20,25 +20,34 @@ enforcement requires an adapter at each actual operation boundary.
 
 ## Current candidate status
 
-The in-tree candidate is a partial, offline evaluator, not a qualified
-disclosure decision. `resolver-sim.privacy.policy` validates and hashes one
-immutable policy, matches a caller-supplied operation context, applies
-deny-overrides-allow, and composes the existing Sentinel sink check.
-`resolver-sim.privacy.initialization` can resolve a historical bootstrap only
-when its root is supplied through an external trust set. The evaluator always
-returns authority `:unverified`, currentness `:unknown`, execution
-`:not-executed`, and `usable? false`.
+The candidate implements deterministic offline policy, rooted request, and
+recomputable evaluation-receipt contracts. Requests bind an exact artifact
+root and sensitivity-report root, separate recipient principal from class,
+and name typed prerequisite evidence roots. Evaluation verifies the report
+content hash and signed classification/evidence attestations against explicit
+caller-supplied trust policies, applies every supplied policy restrictively,
+and composes the existing Sentinel sink gate. Receipts retain the request,
+artifact, classification and policy roots, matched rules, separate status
+dimensions, deterministic reasons, `:not-executed`, and `usable? false`.
 
-The current code does not yet satisfy the full request/receipt contract below:
-it does not bind an exact artifact or data-view root to a verified
-classification-report root, distinguish recipient identity from recipient
-class, verify prerequisite evidence roots, aggregate multiple applicable
-policies, or resolve an authorized policy from a fresh active-head observation.
-Its evaluation map is not a canonical, independently verifiable receipt, and
-it does not enforce a decision at an operation boundary. A caller-supplied
-sensitivity value is not proof of classification. Do not treat an `:allow`
-result as permission to disclose or process data. The candidate remains pending
-until these gaps and their acceptance tests are addressed.
+These checks establish integrity relative to the supplied inputs. They do not
+authenticate who configured the trust policies or approve the privacy policy.
+`resolver-sim.privacy.initialization` verifies a historical bootstrap only
+when its root is supplied through an external trust set. No authorized active
+policy binding or trusted fresh head-observation source is integrated, so
+currentness remains `:unknown` and authority remains `:unverified`. The
+evaluator is not a disclosure decision for a live operation. An `:allow` means
+only that the supplied, structurally valid policies permit the rooted request
+under the verified fixture or caller-configured classification/evidence
+inputs. Do not treat it as permission to disclose or process real data.
+
+The remaining implementation boundary is deliberately explicit: connect the
+policy to an approved configuration binding and trusted observation source,
+then qualify a simulated operation boundary that fences against head changes.
+Those pieces must reuse existing configuration activation and trust
+mechanisms. No such privacy configuration seam or approved authority input is
+currently available; do not add a parallel governance store or represent a
+fixture signature as approval.
 
 ## Existing machinery to reuse
 
@@ -131,11 +140,10 @@ freshness requirement. Callers supply the request context, not a policy root
 that can override the active binding. A valid head self-hash alone establishes
 neither legitimate authority nor freshness.
 
-Offline evaluation reports `historical-verified` relative to its supplied trust
-anchor, or `currentness-unknown`; it cannot claim globally current policy. A
-runtime adapter can report `current-observed` only against its documented trusted
-head/freshness mechanism. Historical policy and decision artifacts remain
-immutable when the head advances.
+Offline evaluation reports the pinned policy roots and `currentness-unknown`; it
+cannot claim globally current policy. A runtime adapter can report
+`current-observed` only against its documented trusted head/freshness mechanism.
+Historical policy and decision artifacts remain immutable when the head advances.
 
 ### Evaluation request and receipt
 
@@ -156,9 +164,10 @@ matched rule IDs, and deterministic reasons. Report these dimensions separately:
 * Privacy rule decision (`allow`, `deny`, or `indeterminate`).
 * Execution (`not-executed` in V0).
 
-Only a fully verified allow is usable at an enforcement boundary. Missing data,
-unknown classification, unavailable authority, or stale observation is unusable.
-An offline allow describes an evaluation under its pinned policy; it does not
+Only a fully verified allow is usable at an enforcement boundary. The current
+offline evaluator always marks its receipt unusable. Missing data, unknown
+classification, unavailable authority, or stale observation is unusable. An
+offline allow describes an evaluation under its pinned policy; it does not
 authorize a live operation.
 
 ## Composition and enforcement

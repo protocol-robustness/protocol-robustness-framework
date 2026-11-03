@@ -2,19 +2,22 @@
 
 Design: [Stablecoin privacy policy and sensitivity](STABLECOIN_PRIVACY_POLICY.md).
 Status: partially implemented in a pending, offline candidate. L1 has draft
-concepts and a binding inventory; L2 and L4 have a bounded policy/root and
-single-policy evaluator, but do not meet their full acceptance criteria. L3,
-L5, and L6 remain unimplemented. Do not treat passing tests as policy approval
-or qualification. Work only in `agent-c-2`; preserve its existing changes. Use
-workspace commit identity and JJ workflow. Do not push without the user's
-instruction. Each task can be a separate commit.
+concepts and a binding inventory. L2 and L4 now include rooted requests and
+recomputable receipts, signed fixture/caller-trust attestations, exact report
+verification, recipient identity/class separation, evidence-root checks,
+restrictive multi-policy evaluation, and Sentinel composition. L3 remains
+blocked on an authorized configuration binding and trusted fresh head source;
+L5 and L6 remain unimplemented. Do not treat passing tests as policy approval
+or qualification. Work only in the isolated candidate. Use workspace commit
+identity and JJ workflow. Do not push without the user's instruction. Each
+task can be a separate commit.
 
 | Task | Current status | Remaining boundary |
 |---|---|---|
 | L1 Concepts and binding seam inventory | Partial | Concepts and inventory exist; no authorized active-binding seam or trusted current-head observation is established. |
-| L2 Immutable policy and evaluation contracts | Partial | One policy root and contextual evaluation exist; rooted request/receipt and verified evidence/classification bindings are absent. |
-| L3 Trusted policy resolution | Not implemented | No authorized binding resolution or fresh current-head check. |
-| L4 Privacy evaluator and Sentinel composition | Partial | Deny-overrides, sink checks, and fail-closed usability exist; multi-policy evaluation and verified exact-view classification do not. |
+| L2 Immutable policy and evaluation contracts | Partial | Policy, rooted request, and recomputable receipt exist; approval, root registry additions, commands, and full proposed schema remain. |
+| L3 Trusted policy resolution | Blocked | No authorized privacy binding or trusted fresh current-head observation source is available. |
+| L4 Privacy evaluator and Sentinel composition | Partial | Exact sensitivity report and signed evidence attestations are checked; configured trust provenance, authorization, actual view projection, and complete acceptance matrix remain. |
 | L5 Offline commands and synthetic stablecoin example | Not implemented | No researcher-facing inspect/evaluate/verify commands or complete reproducible example. |
 | L6 Enforcement boundary qualification | Not implemented | No operation adapter or head-fenced simulated effect. |
 
