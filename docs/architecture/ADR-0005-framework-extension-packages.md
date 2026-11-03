@@ -1,6 +1,6 @@
 # ADR-0005: Framework Extension Packages and Economics Capabilities
 
-Status: Proposed (Revision 3 — resolves the six-item acceptance bar)
+Status: Proposed (Revision 3 — resolves the six-item design acceptance bar)
 
 Date: 2026-08-04
 
@@ -76,6 +76,26 @@ assurance classification (Section 12), and capability-specific layering
 (Section 13). These six items form the acceptance bar; remaining details
 (lockfile syntax, application-plan v2 schema, classloader mechanics, full
 conformance suite) are deferred to implementation specifications.
+
+## Implementation status (2026-10-31)
+
+The six items above are **design requirements**, not a claim that every
+extension surface or release gate has been implemented. This ADR remains
+Proposed; the implementation inventory below does not approve the contract,
+authorize external packages, or establish independent verification.
+
+| Phase | Current implementation | Remaining qualification |
+|---|---|---|
+| 1. Package and resolution substrate | `resolver-sim.extensions` has manifest validation, package/capability registration, transitive resolution, lockfiles, execution and evidence-envelope code. | Package dependency closure and runtime sealing still need an independently consumable release and qualification. A local source root is not a published, sealed package. |
+| 2. Economics contracts | The core economics path uses registered capabilities for the supported built-in calculations; composition/economics tests cover in-repository behavior. | The full capability-kind catalogue and a stable external package API are not established merely by the generic registry. |
+| 3. Evidence and assurance | Invocation envelopes, resolution roots, and replay/verification components exist. | Independent verifier implementations, a full conformance kit, and execution isolation are not generally qualified; in-repo replay is not independent verification. |
+| 4. Typed composition | Composition has declarative plans, typed capability resolution, execution, evidence, and comparability components. | Do not infer that all proposed graph forms, package combinations, or third-party use cases are supported. |
+| 5. Typed effects and adapters | Versioned effects and protocol-facing held-custody / with-bounty paths exist in the repository. | The full application-plan contract, generic adapter ecosystem, and independently released protocol handler remain bounded or deferred. |
+| 6. Ecosystem reference | The with-bounty implementation provides an in-repository vertical slice; see ADR-0006 and `docs/proposals/WITH_BOUNTY.md`. | External verifier, external Sew execution/compatibility attestations, published conformance pack, and third-party certification remain deferred. |
+
+These statuses describe repository evidence only. A phase is not externally
+qualified until its remaining qualification is met and the exact release,
+dependency closure, and verifier basis are identified.
 
 ## 1. Sealing and the reproducibility boundary
 

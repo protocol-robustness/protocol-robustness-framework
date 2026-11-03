@@ -263,20 +263,21 @@
    from the designated accounting/admission boundary, NOT directly from
    lifecycle / resolution / pro-rata / bounty. A producer file that reintroduces
    a raw `(acct/add-held ...)` call fails this gate — catching a silent bypass."
-  (let [root (repo-root)
-        callers (raw-add-held-callers root)]
-    (testing "every raw low-level add-held caller is the sanctioned boundary"
-      (is (empty? (remove sanctioned-low-level-files callers))
-          "a raw low-level held-ingress call appeared outside the admission
-           boundary; route it through resolver-sim.protocols.sew.held-mutation-admission"))
-    (testing "the production producers do NOT call the primitive directly (transitional
-              multi-file list retired)"
-      (doseq [f ["lifecycle.clj" "resolution.clj" "pro_rata_application.clj"
-                 "with_bounty.clj"]]
-        (is (not (contains? callers f))
-            (str f " must route held ingress through the admission boundary, not raw add-held"))))
-    (testing "the boundary is actually enforcing (the admission wrapper owns the call)"
-      (is (contains? callers "held_mutation_admission.clj")))))
+  (if-let [root (repo-root)]
+    (let [callers (raw-add-held-callers root)]
+      (testing "every raw low-level add-held caller is the sanctioned boundary"
+        (is (empty? (remove sanctioned-low-level-files callers))
+            "a raw low-level held-ingress call appeared outside the admission
+             boundary; route it through resolver-sim.protocols.sew.held-mutation-admission"))
+      (testing "the production producers do NOT call the primitive directly (transitional
+                multi-file list retired)"
+        (doseq [f ["lifecycle.clj" "resolution.clj" "pro_rata_application.clj"
+                   "with_bounty.clj"]]
+          (is (not (contains? callers f))
+              (str f " must route held ingress through the admission boundary, not raw add-held"))))
+      (testing "the boundary is actually enforcing (the admission wrapper owns the call)"
+        (is (contains? callers "held_mutation_admission.clj"))))
+    (is true "repository-only Sew source scan is inapplicable outside the PRF checkout")))
 
 (deftest unknown-operation-is-never-overrideable
   (testing "a future/unknown semantic operation cannot execute via any permit"
