@@ -187,8 +187,8 @@
                            (policy/evaluate p req opts))))
     (is (= :allow (:privacy-evaluation/decision
                    (policy/evaluate p req
-                                   (assoc opts :evidence-attestations
-                                          [(evidence-attestation consent-root "consent")])))))
+                                    (assoc opts :evidence-attestations
+                                           [(evidence-attestation consent-root "consent")])))))
     (is (= :indeterminate (:privacy-evaluation/decision
                            (policy/evaluate p req
                                             (assoc opts :evidence-attestations

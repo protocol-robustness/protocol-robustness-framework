@@ -32,22 +32,31 @@ dimensions, deterministic reasons, `:not-executed`, and `usable? false`.
 
 These checks establish integrity relative to the supplied inputs. They do not
 authenticate who configured the trust policies or approve the privacy policy.
-`resolver-sim.privacy.initialization` verifies a historical bootstrap only
-when its root is supplied through an external trust set. No authorized active
-policy binding or trusted fresh head-observation source is integrated, so
-currentness remains `:unknown` and authority remains `:unverified`. The
-evaluator is not a disclosure decision for a live operation. An `:allow` means
+`resolver-sim.privacy.resolution` verifies signed binding and head-observation
+fixtures against explicitly supplied trust policies and injected time. It can
+report `:current-observed` only relative to those trust inputs; it is not
+connected to an authorized PRF configuration binding or production head
+service. `resolver-sim.privacy.initialization` verifies a historical bootstrap
+only when its root is supplied through an external trust set. The offline
+evaluator itself keeps currentness `:unknown` and authority `:unverified`.
+The evaluator is not a disclosure decision for a live operation. An `:allow` means
 only that the supplied, structurally valid policies permit the rooted request
 under the verified fixture or caller-configured classification/evidence
 inputs. Do not treat it as permission to disclose or process real data.
 
-The remaining implementation boundary is deliberately explicit: connect the
-policy to an approved configuration binding and trusted observation source,
-then qualify a simulated operation boundary that fences against head changes.
-Those pieces must reuse existing configuration activation and trust
-mechanisms. No such privacy configuration seam or approved authority input is
-currently available; do not add a parallel governance store or represent a
+`resolver-sim.privacy.simulated-boundary` re-resolves and re-evaluates immediately
+before appending an in-memory fixture effect. A compare-and-set fence rejects
+the effect if the observed head changed. This path always reports
+`:real-operation-authorized? false`; it qualifies no live operation adapter.
+The remaining implementation boundary is to connect policy binding to an
+approved existing configuration seam and authenticated production trust
+configuration. No such privacy configuration seam or approved authority input
+is currently available; do not add a parallel governance store or represent a
 fixture signature as approval.
+
+Researcher commands are `privacy policy inspect`, `privacy evaluate`, and
+`privacy verify`. The reproducible synthetic example is documented in
+[`examples/use-cases/stablecoin-privacy/README.md`](../../examples/use-cases/stablecoin-privacy/README.md).
 
 ## Existing machinery to reuse
 
