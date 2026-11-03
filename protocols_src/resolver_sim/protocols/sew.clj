@@ -19,34 +19,26 @@
             [resolver-sim.protocols.sew.trace-metadata :as meta]
             [resolver-sim.protocols.sew.invariants :as inv]
             [resolver-sim.protocols.sew.related-claims :as rc]
-            [resolver-sim.protocols.sew.projection :as sew-proj]
-            [resolver-sim.protocols.sew.equilibrium :as sew-eq]
-            [resolver-sim.protocols.sew.validator-registry :as sew-vreg]
+            [resolver-sim.protocols.sew.accounting-projection :as accounting-projection]
             [resolver-sim.protocols.sew.transition-assurance :as sew-transition]
-            [resolver-sim.protocols.sew.advisory :as sew-adv]
-            [resolver-sim.db.sew :as sew-db]
-            [resolver-sim.db.temporal :as temporal]
-            [resolver-sim.protocols.sew.yield.policy :as yield-policy]
             [resolver-sim.util.attribution :as attr]
             [resolver-sim.evidence.capture :as cap]
-            [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.contract-model.idempotency :as idem]
             [resolver-sim.protocols.sew.snapshot :as sew-snapshot]
-            [resolver-sim.yield.protocols :as yield-proto]
-            [resolver-sim.yield.module :as yield-module]
-            [resolver-sim.yield.risk :as yield-risk]
             [resolver-sim.protocols.sew.compat :as compat]
             [resolver-sim.protocols.sew.action-context :as actx]
-            [resolver-sim.benchmark.researcher-force-authorisation :as researcher-fa]
-            [resolver-sim.benchmark.research-assignment :as research-assignment]
-            [resolver-sim.assurance.governed-authority-consumer :as governed-authority]
             [resolver-sim.extensions.force-authorisation :as force-extension]
             [resolver-sim.composition.semantic :as semantic]
-            [resolver-sim.yield.expectations :as yield-exp]
-            [resolver-sim.yield.evidence :as yield-evi]
             [resolver-sim.time.context :as time-ctx]
             [resolver-sim.hash.canonical :as hash]
-            [resolver-sim.hash.reference :as hash-ref]))
+            [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.protocols.registry :as protocol-registry]))
+
+(defn- yield-capability
+  [capability-id]
+  (or (protocol-registry/get-capability "sew-v1" capability-id)
+      (throw (ex-info "Sew operation requires the yield integration"
+                      {:protocol/id "sew-v1" :capability/id capability-id}))))
 
 ;; ---------------------------------------------------------------------------
 ;; Constants
@@ -1073,21 +1065,6 @@
       (grant-force-authorisation* context world event nil))
     (t/fail :force-authorisation-extension-unavailable)))
 
-(defn- resolved-artifact
-  [resolver reference]
-  (when (and (fn? resolver) (some? reference))
-    (try (resolver reference)
-         (catch Exception _ nil))))
-
-(defn- parse-instant
-  [value]
-  (try
-    (cond
-      (instance? java.time.Instant value) value
-      (string? value) (java.time.Instant/parse value)
-      :else nil)
-    (catch Exception _ nil)))
-
 (defn- consensus-governance-preflight
   "Authenticate the public governance actor before a consensus reservation can
    be claimed. Grant construction repeats the check while producing its final
@@ -1096,100 +1073,6 @@
   (actx/with-governance-actor
     (:agent-index context) event (governance-check context)
     (fn [_addr _actor _check] {:ok true})))
-
-(defn- governed-authority-check [context auth round-ref]
-  (governed-authority/verify-governed-authority context auth round-ref))
-
-(defn- consensus-authorisation-checks
-  "Fail-closed verification for the consensus-to-Sew bridge. Resolvers live in
-   the trusted action context; events contain only the researcher artifact hash.
-   The researcher target must commit the exact scope hash this Sew grant will
-   record."
-  [context world event]
-  (let [pp (:params event)
-        workflow-id (:workflow-id pp)
-        escrow (t/get-transfer world workflow-id)
-        auth-id (str "fa-" (get world :next-force-authorisation-id 0))
-        attribution (select-keys pp [:parameter/context :parameter/address])
-        auth-hash (:researcher-force-authorisation/hash pp)
-        assignment-hash (:research-assignment/hash pp)
-        assignment (resolved-artifact (:research-assignment-resolver context) assignment-hash)
-        auth (resolved-artifact (:researcher-force-authorisation-resolver context) auth-hash)
-        policy-ref (get-in auth [:authorisation/policy :policy/hash])
-        round-ref (get-in auth [:authorisation/review-round :review-round/hash])
-        policy (resolved-artifact (:researcher-force-authorisation-policy-resolver context) policy-ref)
-        round (resolved-artifact (:researcher-force-authorisation-round-resolver context) round-ref)
-        scope (when (and escrow (nil? (held-adjustment/parameter-attribution-error attribution)))
-                (force-authorisation-held-scope auth-id escrow workflow-id
-                                                (get pp :is-release true) attribution))
-        scope-hash (when scope (hash/domain-hash acct/force-authorisation-scope-domain scope))
-        structural (when auth (researcher-fa/validate-authorisation auth))
-        signatures (when auth
-                     (researcher-fa/verify-decision-signatures
-                      (:researcher-public-key-resolver context) auth))
-        policy-check (when (and policy auth) (researcher-fa/verify-against-policy policy auth))
-        round-check (when (and round auth) (researcher-fa/verify-against-round round auth))
-        governed-authority (when auth (governed-authority-check context auth round-ref))
-        consumed? (when-let [checker (:researcher-force-authorisation-consumed? context)]
-                    (try (checker (:authorisation/consumption-key auth))
-                         (catch Exception _ true)))
-        now (parse-instant (:researcher-force-authorisation/now context))
-        valid-from (parse-instant (:authorisation/valid-from auth))
-        expires-at (parse-instant (:authorisation/expires-at auth))
-        actual-policy-hash (or (:policy/hash policy) (get policy "policy_sha256"))
-        target (get auth :authorisation/target)
-        checks {:authorisation-resolved? (and auth (= auth-hash (:authorisation/hash auth)))
-                :structurally-valid? (true? (:valid? structural))
-                :approved? (boolean (and auth (researcher-fa/authorisation-approved? auth)))
-                :decision-signatures-valid? (true? (:valid? signatures))
-                :policy-binding-valid? (and policy-check (:valid? policy-check)
-                                            (= policy-ref actual-policy-hash))
-                :review-round-binding-valid? (and round-check (:valid? round-check)
-                                                  (= round-ref (:review-round/hash round)))
-                :governed-authority-valid? (true? (:valid? governed-authority))
-                :target-kind-valid? (= :governance-mandated (:target/kind target))
-                :assignment-resolved? (and assignment
-                                           (= assignment-hash (:research-assignment/hash assignment)))
-                :assignment-valid? (boolean (and assignment
-                                                 (research-assignment/assignment-valid? assignment)))
-                :assignment-binding-valid?
-                (and assignment auth
-                     (research-assignment/assignment-matches-authorisation? assignment auth)
-                     (= policy-ref (:research-assignment/policy-hash assignment))
-                     (= round-ref (:research-assignment/review-round-hash assignment))
-                     (= workflow-id (get-in assignment [:research-assignment/target :target/workflow-id]))
-                     (= (:reason pp) (get-in assignment [:research-assignment/target :target/reason])))
-                ;; Boundaries are inclusive: valid-from <= now <= expires-at.
-                :time-valid? (and now
-                                  (or (nil? valid-from) (not (.isAfter valid-from now)))
-                                  (or (nil? expires-at) (not (.isBefore expires-at now))))
-                :public-sew-binding-valid? (and scope-hash
-                                                (= (public-force-authorisation-scope-ref scope-hash)
-                                                   (:target/public-force-authorisation-scope-hash target)))
-                :consumption-key-unconsumed? (and (fn? (:researcher-force-authorisation-consumed? context))
-                                                  (false? consumed?))}]
-    {:valid? (every? true? (vals checks))
-     :checks checks
-     :authorisation auth
-     :research-assignment assignment
-     :governed-authority governed-authority
-     :scope scope
-     :scope-hash scope-hash}))
-
-(defn- build-consensus-reservation
-  "Build the immutable pre-grant reservation artifact. These command and plan
-   roots are references supplied by the public command, while the researcher
-   authorisation/hash and consumption key are resolved and verified internally."
-  [authorisation auth-id scope-hash pp]
-  (try
-    (researcher-fa/build-reservation
-     {:reservation/authorisation-hash (:authorisation/hash authorisation)
-      :reservation/consumption-key (:authorisation/consumption-key authorisation)
-      :reservation/execution-attempt-id
-      (:researcher-force-authorisation/execution-attempt-id pp)
-      :reservation/command-root (:researcher-force-authorisation/command-root pp)
-      :reservation/plan-root (:researcher-force-authorisation/plan-root pp)})
-    (catch Exception _ nil)))
 
 (defn- reserve-consensus-grant!
   "Atomically claim a researcher consumption key with its complete Sew grant
@@ -1346,27 +1229,41 @@
   [context world event]
   (if-not (semantic-force-authorisation-active? context)
     (t/fail :force-authorisation-extension-unavailable)
-    (let [governance-result (consensus-governance-preflight context event)
-          {:keys [valid? checks authorisation research-assignment governed-authority scope-hash]}
-          (consensus-authorisation-checks context world event)
-          pp (:params event)
-          auth-id (str "fa-" (get world :next-force-authorisation-id 0))
-          reservation (when valid?
-                        (build-consensus-reservation authorisation auth-id scope-hash pp))
-          consumption-key (:authorisation/consumption-key authorisation)
-          registry (:researcher-force-authorisation-reservation-registry context)
-          trusted-at (:researcher-force-authorisation/now context)
-          decision-hashes (mapv :decision/hash (:authorisation/decision-references authorisation))
-          binding (when reservation
-                    {:status :reserved
-                     :research-assignment/hash (:research-assignment/hash research-assignment)
-                     :researcher-force-authorisation/hash (:authorisation/hash authorisation)
-                     :researcher-force-authorisation/consumption-key consumption-key
-                     :sew/authorization-id auth-id
-                     :sew/scope-hash scope-hash
-                     :reservation/hash (:reservation/hash reservation)
-                     :reservation/execution-attempt-id
-                     (:reservation/execution-attempt-id reservation)})]
+    (if-let [validate-authorisation
+             (protocol-registry/get-capability "sew-v1" :force-authorisation/validate-consensus)]
+      (let [governance-result (consensus-governance-preflight context event)
+            pp (:params event)
+            workflow-id (:workflow-id pp)
+            auth-id (str "fa-" (get world :next-force-authorisation-id 0))
+            escrow (t/get-transfer world workflow-id)
+            attribution (select-keys pp [:parameter/context :parameter/address])
+            scope (when (and escrow (nil? (held-adjustment/parameter-attribution-error attribution)))
+                    (force-authorisation-held-scope auth-id escrow workflow-id
+                                                    (get pp :is-release true) attribution))
+            scope-hash (when scope (hash/domain-hash acct/force-authorisation-scope-domain scope))
+            validation (validate-authorisation
+                        {:context context :event event :workflow-id workflow-id
+                         :scope-hash scope-hash})
+            {:keys [valid? checks authorisation research-assignment governed-authority]}
+            (merge validation {:scope scope :scope-hash scope-hash})
+            reservation-builder (protocol-registry/get-capability
+                                 "sew-v1" :force-authorisation/build-reservation)
+            reservation (when (and valid? reservation-builder)
+                          (reservation-builder authorisation pp))
+            consumption-key (:authorisation/consumption-key authorisation)
+            registry (:researcher-force-authorisation-reservation-registry context)
+            trusted-at (:researcher-force-authorisation/now context)
+            decision-hashes (mapv :decision/hash (:authorisation/decision-references authorisation))
+            binding (when reservation
+                      {:status :reserved
+                       :research-assignment/hash (:research-assignment/hash research-assignment)
+                       :researcher-force-authorisation/hash (:authorisation/hash authorisation)
+                       :researcher-force-authorisation/consumption-key consumption-key
+                       :sew/authorization-id auth-id
+                       :sew/scope-hash scope-hash
+                       :reservation/hash (:reservation/hash reservation)
+                       :reservation/execution-attempt-id
+                       (:reservation/execution-attempt-id reservation)})]
       (cond
         (not (:ok governance-result))
         governance-result
@@ -1424,7 +1321,8 @@
                 ;; CAS may release its exact binding after constructor failure.
                   (when (= :new (:mode claim))
                     (release-consensus-grant-reservation! registry consumption-key binding))
-                  grant)))))))))
+                  grant)))))))
+      (t/fail :force-authorisation-extension-unavailable))))
 
 (defmethod apply-action "revoke-force-authorisation"
   [context world event]
@@ -1880,10 +1778,10 @@
             yield-profile-id (:yield-profile-id p)
             world (reg/register-stake world addr amount yield-profile-id)]
         (if yield-profile-id
-          (let [{:keys [module-id]} (yield-proto/resolve-yield-profile yield-profile-id)]
+          (let [{:keys [module-id]} ((yield-capability :yield/resolve-profile) yield-profile-id)]
             (if (get-in world [:yield/modules module-id :ops :yield/deposit])
               (let [world' (-> world
-                               (yield-proto/apply-op {:op/type :yield/deposit
+                               ((yield-capability :yield/apply-op) {:op/type :yield/deposit
                                                       :owner/id (lc/resolver-yield-owner-id addr)
                                                       :module/id module-id
                                                       :amount amount
@@ -1940,7 +1838,7 @@
                   ;; :active position keeps accruing into :total-held after the
                   ;; stake is gone. Held accounting applies only to positive yield
                   ;; (negative yield already reduced :total-held at accrual).
-                  (let [{:keys [module-id]} (yield-proto/resolve-yield-profile yield-profile-id)
+                  (let [{:keys [module-id]} ((yield-capability :yield/resolve-profile) yield-profile-id)
                         world'' (cond-> world'
                                   (pos? yield-amt)
                                   (-> (acct/sub-held token
@@ -1951,7 +1849,7 @@
                                                               :held/resolver resolver-addr
                                                               :held/owner-id owner-id}})
                                       (update-in [:total-withdrawn token] (fnil + 0) yield-amt)))
-                        world''' (yield-proto/apply-op world'' {:op/type :yield/withdraw
+                        world''' ((yield-capability :yield/apply-op) world'' {:op/type :yield/withdraw
                                                                 :owner/id owner-id
                                                                 :module/id module-id})]
                     (t/ok world'''))
@@ -1965,7 +1863,7 @@
     (fn [addr]
       (let [yield-id (or (get-in event [:params :yield-profile-id])
                          (get-in world [:params :yield-generation-module]))
-            module-id (:module-id (yield-proto/resolve-yield-profile yield-id))
+            module-id (:module-id ((yield-capability :yield/resolve-profile) yield-id))
             raw-owner (get-in event [:params :owner-id])
             owner-id (cond
                        (nil? raw-owner) (str "resolver:" addr)
@@ -1974,7 +1872,7 @@
                        :else raw-owner)
             pos-key [:yield/positions owner-id]
             old-pos (get-in world pos-key)
-            world' (yield-proto/apply-op world {:op/type :yield/claim-deferred
+            world' ((yield-capability :yield/apply-op) world {:op/type :yield/claim-deferred
                                                 :owner/id owner-id
                                                 :module/id module-id})
             new-pos (get-in world' pos-key)
@@ -2295,9 +2193,9 @@
   (run-governance-action context world event
                          (fn [_addr _agent _provenance]
                            (let [{:keys [module-id token]} (:params event)
-                                 mid (yield-module/resolve-module-id world module-id)
+                                 mid ((yield-capability :yield/resolve-module-id) world module-id)
                                  tok (keyword token)]
-                             (t/ok (yield-risk/apply-market-shock world mid tok (:params event)))))))
+                             (t/ok ((yield-capability :yield/apply-market-shock) world mid tok (:params event)))))))
 
 (defmethod apply-action :default
   [_ctx world event]
@@ -2313,7 +2211,7 @@
 (defn- run-single-invariants [world]
   (let [scenario-id (get-in world [:params :scenario-id])
         r (inv/check-all world scenario-id)
-        exp-res (yield-exp/check-expectations world)
+        exp-res ((yield-capability :yield/check-expectations) world)
         ;; Surface invariants that could not be evaluated (e.g. held-adjustment
         ;; reconstruction when the history is incomplete). These are reported as
         ;; :status :not-evaluated and must not fail the step; they are surfaced
@@ -2341,8 +2239,8 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- world-snapshot [world]
-  (let [time-ctx (time-ctx/temporal-context world)]
-    (merge
+  (let [time-ctx (time-ctx/temporal-context world)
+        snapshot (merge
      {:block-time (:block-ts time-ctx)
       :time time-ctx
       :escrow-count (count (:escrow-transfers world))
@@ -2372,7 +2270,12 @@
       :held-ledger/index (:held-ledger/index world {})
       :yield/positions (:yield/positions world {})
       :yield-positions (:yield-positions world {})
-      :yield-evidence (yield-evi/get-evidence world)})))
+      :yield-evidence (when-let [get-evidence
+                                 (protocol-registry/get-capability
+                                  "sew-v1" :analysis/yield-evidence)]
+                        (get-evidence world))})]
+    (cond-> snapshot
+      (:protocol-profile world) (assoc :protocol-profile (:protocol-profile world)))))
 
 (def ^:private sew-state-error-codes
   ;; State machine / lifecycle transition rejections
@@ -2536,7 +2439,15 @@
   (protocol-id [_] "sew-v1")
 
   (init-world [_ scenario]
-    (let [init-time (get scenario :initial-block-time 1000)
+    (let [core-profile? (= :sew-core-v1 (:protocol-profile scenario))
+          _ (when core-profile?
+              (if-let [validate (protocol-registry/get-capability
+                                 "sew-v1" :sew-core/validate-scenario)]
+                (validate scenario)
+                (throw (ex-info "Sew Core extension is required by the scenario profile"
+                                {:protocol-profile :sew-core-v1
+                                 :capability/id :sew-core/validate-scenario}))))
+          init-time (get scenario :initial-block-time 1000)
           tp (:token-params scenario)
           pp (assoc (:protocol-params scenario {})
                     :scenario-id (:scenario-id scenario)
@@ -2564,11 +2475,16 @@
                            ;; propagation that assocs :total-held directly) must explicitly
                            ;; clear this flag, keeping strong replay honestly :not-evaluated.
                    (assoc-in [:params :held-adjustments/complete?] true)
-                   (yield-proto/init-world pp (:yield-config scenario)))
-          base (sew-proj/attach-scenario-accounting-metadata base scenario)]
+                   ((yield-capability :yield/init-world) pp (:yield-config scenario)))
+          base (if (contains? scenario :accounting-metadata)
+                 (accounting-projection/with-accounting-metadata
+                  base (:accounting-metadata scenario))
+                 base)]
       (let [world (if (and fot-bps (pos? fot-bps) (seq s-tokens))
                     (reduce (fn [w tok] (assoc-in w [:token-fot-bps tok] fot-bps)) base s-tokens)
-                    base)]
+                    base)
+            world (cond-> world
+                    core-profile? (assoc :protocol-profile :sew-core-v1))]
         ;; A supplied semantic composition owns live-region admission. Legacy
          ;; scenarios without one retain their pre-Phase-2 initialized shape.
         (if (and composition
@@ -2643,7 +2559,21 @@
                    (let [result (apply-action context w event)]
                      (if (:ok result)
                        (update result :world bind-scenario-result event result)
-                       result)))]
+                       result)))
+          dispatch! (fn [w]
+                      (let [continue
+                            (fn [w']
+                              (if (and eid (replay-sensitive-action? event))
+                                (idem/apply-once w' (dedupe-op-key w' event) apply!)
+                                (apply! w')))]
+                        (if (= :sew-core-v1 (:protocol-profile w))
+                          (if-let [core-dispatch
+                                   (protocol-registry/get-capability
+                                    "sew-v1" :sew-core/dispatch-action)]
+                            (core-dispatch context w event continue)
+                            {:ok false :error :sew-core-extension-unavailable
+                             :detail {:capability/id :sew-core/dispatch-action}})
+                          (continue w))))]
       (cond
         (not (semantic-action-permitted? context (:action event)))
         {:ok false :error :semantic-composition-action-not-permitted
@@ -2664,11 +2594,8 @@
         {:ok false :error :missing-event-id
          :detail {:action (:action event) :seq (:seq event)}}
 
-        (and eid (replay-sensitive-action? event))
-        (idem/apply-once world (dedupe-op-key world event) apply!)
-
         :else
-        (apply! world))))
+        (dispatch! world))))
 
   (check-invariants-single [_ world]
     (run-single-invariants world))
@@ -2924,14 +2851,16 @@
         (update :funds-lost + funds-lost-delta))))
 
   (summarise-batch [_ outcomes]
-    (sew-db/sew-summarise-batch outcomes))
+    (if-let [summarise (protocol-registry/get-capability "sew-v1" :runner/summarise-batch)]
+      (summarise outcomes)
+      (throw (ex-info "Sew batch summaries require the runner component"
+                      {:protocol/id "sew-v1"
+                       :capability/id :runner/summarise-batch}))))
 
   (advisory [_ world request-type context]
-    (case request-type
-      :suggest-actions (sew-adv/suggest-actions world context)
-      :session-signals (sew-adv/session-signals world context)
-      :evaluate-payoff (sew-adv/evaluate-payoff world context)
-      :evaluate-attack-objective (sew-adv/evaluate-attack-objective world context)
+    (if-let [handler (get (protocol-registry/get-capability "sew-v1" :analysis/advisory)
+                          request-type)]
+      (handler world context)
       {:not-supported true}))
 
   proto/AnalysisModule
@@ -2944,15 +2873,18 @@
      :resolution/path (meta/resolution-path action)})
 
   (trace-projection [this result]
-    (sew-proj/trace-end-projection this result))
+    (when-let [project (protocol-registry/get-capability "sew-v1" :analysis/trace-projection)]
+      (project this result)))
 
   (io-projection [_ data target-type]
     (case target-type
       :funds-ledger-view
-      (sew-proj/funds-ledger-view data)
+      (when-let [project (protocol-registry/get-capability "sew-v1" :analysis/funds-ledger-view)]
+        (project data))
 
       :accounting-projection-v1
-      (sew-proj/accounting-projection-v1 data)
+      (when-let [project (protocol-registry/get-capability "sew-v1" :analysis/accounting-projection)]
+        (project data))
 
       :world-view
       {:block-time (:block-time data)
@@ -2991,18 +2923,17 @@
 
       :forge-trace
       (let [scenario (:scenario data)]
-        (do
-          (require 'resolver-sim.protocols.sew.io.trace-export)
-          ((resolve 'resolver-sim.protocols.sew.io.trace-export/export-trace-fixture)
-           data scenario)))
+        (when-let [export (protocol-registry/get-capability
+                           "sew-v1" :runner/export-trace-fixture)]
+          (export data scenario)))
 
       nil))
 
   (mechanism-property-validators [_]
-    sew-eq/mechanism-property-validators)
+    (or (protocol-registry/get-capability "sew-v1" :analysis/mechanism-property-validators) {}))
 
   (equilibrium-concept-validators [_]
-    sew-eq/equilibrium-concept-validators)
+    (or (protocol-registry/get-capability "sew-v1" :analysis/equilibrium-concept-validators) {}))
 
   (reference-model [_ scenario]
     nil)
@@ -3010,19 +2941,19 @@
   proto/ValidatorDescriptorCatalog
 
   (validator-descriptors [_]
-    sew-vreg/validator-descriptors))
+    (or (protocol-registry/get-capability "sew-v1" :analysis/validator-descriptors) [])))
 
 (def protocol (SewProtocol.))
 
 (defn replay-with-sew-protocol
+  "Compatibility entrypoint for runner-owned Sew replay orchestration.
+
+   The runner capability is optional; model-only profiles fail explicitly when
+   replay is requested without selecting the runner component."
   ([scenario] (replay-with-sew-protocol scenario {}))
   ([scenario replay-opts]
-   (let [scenario*
-         (if-let [te (:temporal-evidence scenario)]
-           (if (and (:enabled? te) (not (:recorder te)))
-             (assoc scenario :temporal-evidence
-                    (assoc te :recorder temporal/record-from-replay!
-                           :protocol protocol))
-             scenario)
-           scenario)]
-     (replay/replay-with-protocol protocol scenario* replay-opts))))
+   (if-let [replay-fn (protocol-registry/get-capability "sew-v1" :runner/replay)]
+     (replay-fn scenario replay-opts)
+     (throw (ex-info "Sew replay requires the runner component"
+                     {:protocol/id "sew-v1"
+                      :capability/id :runner/replay})))))

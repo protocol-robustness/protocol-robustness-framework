@@ -36,11 +36,13 @@ def test_source_tree_hash_respects_roots(tmp_path: Path):
     assert included_roots == ["src"]
 
 
-def test_default_source_hash_includes_extracted_yield_runtime(tmp_path: Path):
+def test_default_source_hash_includes_extracted_yield_and_extension_sources(tmp_path: Path):
     for root in sut.DEFAULT_SOURCE_ROOTS:
         (tmp_path / root).mkdir(parents=True)
     yield_source = tmp_path / "yield_runtime_src" / "resolver_sim" / "yield" / "partial_fill.clj"
+    extension_source = tmp_path / "extensions" / "sew-core-model" / "src" / "adapter.clj"
     _write(yield_source, "(def value 1)\n")
+    _write(extension_source, "(def adapter 1)\n")
 
     before, included_roots = sut.compute_source_tree_hash(tmp_path, None)
     _write(yield_source, "(def value 2)\n")
@@ -48,6 +50,11 @@ def test_default_source_hash_includes_extracted_yield_runtime(tmp_path: Path):
 
     assert before != after
     assert included_roots == sut.DEFAULT_SOURCE_ROOTS
+
+    before, _ = sut.compute_source_tree_hash(tmp_path, None)
+    _write(extension_source, "(def adapter 2)\n")
+    after, _ = sut.compute_source_tree_hash(tmp_path, None)
+    assert before != after
 
 
 def test_generated_source_snapshot_preserves_default_roots(tmp_path: Path, monkeypatch):

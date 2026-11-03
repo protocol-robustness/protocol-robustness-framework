@@ -20,25 +20,82 @@
     resolver-sim.time.context
     resolver-sim.time.deadlines]
    :component/material
-   [{:path "config" :kind :runtime-configuration}]}
+   [{:path "config" :kind :runtime-configuration}
+    {:path "test/resolver_sim/protocols/registry_test.clj"
+     :kind :test-source}]}
 
   ;; Runnable/application assembly is deliberately separate from the portable
   ;; framework base. It may compose protocol and semantic implementations.
   :prf/runner-v1
   {:component/plane :runner
-   :component/requires [:prf/framework-v1]
+   ;; The runnable simulation CLI assembles Sew phases and research adapters.
+   ;; Keep that dependency explicit so framework-only consumers can select the
+   ;; portable framework without treating the application runner as core.
+   :component/requires [:prf/framework-v1
+                        :prf/sew-protocol-model-v1
+                        :prf/sew-analysis-v1
+                        :prf/sew-pro-rata-slashing-v1]
    :component/owned-namespaces
    [resolver-sim.core.phases
+    resolver-sim.definitions.runner-execution-registry
+    resolver-sim.protocols.sew.runner-extension
+    resolver-sim.protocols.sew.runner-replay
+    resolver-sim.protocols.sew.io.trace-export
+    resolver-sim.protocols.sew.research-models.ring-batch
+    resolver-sim.protocols.sew.dispute-context.case-bundle
+    resolver-sim.protocols.sew.dispute-context.disagree
+    resolver-sim.commands.protocol-finality
+    resolver-sim.commands.invariants-run
+    resolver-sim.sim.fixtures
+    resolver-sim.sim.reference-validation
+    resolver-sim.sim.reference-validation-evidence
     resolver-sim.io.scenario-runner
     resolver-sim.server.grpc
     resolver-sim.io.diff-runner]
    :component/entry-namespaces
    [resolver-sim.core.phases
+    resolver-sim.definitions.runner-execution-registry
+    resolver-sim.protocols.sew.runner-extension
+    resolver-sim.protocols.sew.runner-replay
+    resolver-sim.protocols.sew.io.trace-export
+    resolver-sim.protocols.sew.research-models.ring-batch
+    resolver-sim.protocols.sew.dispute-context.case-bundle
+    resolver-sim.protocols.sew.dispute-context.disagree
+    resolver-sim.commands.protocol-finality
+    resolver-sim.commands.invariants-run
+    resolver-sim.sim.fixtures
+    resolver-sim.sim.reference-validation
+    resolver-sim.sim.reference-validation-evidence
     resolver-sim.io.scenario-runner
     resolver-sim.server.grpc
-    resolver-sim.io.diff-runner]}
+    resolver-sim.io.diff-runner]
+   :component/material
+   [{:path "test/resolver_sim/sim/fixtures_mc_batch_test.clj"
+     :kind :test-source}
+    {:path "test/resolver_sim/sim/reference_validation_evidence_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/research_models/ring_batch_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/replay_test.clj"
+     :kind :test-source}
+    {:path "test/resolver_sim/definitions/runner_execution_registry_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
+     :kind :test-source}
+    {:path "test/resolver_sim/contract_model/replay_batch_sew_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/commands/invariants_run_test.clj"
+     :kind :test-source}
+    {:path "test/resolver_sim/contract_model/replay/analysis_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/dispute_context/case_bundle_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/dispute_context/disagree_test.clj"
+     :kind :test-source}
+    {:path "data/fixtures/protocol"
+     :kind :runtime-fixtures}]}
 
-  :prf/sew-core-v1
+  :prf/sew-protocol-model-v1
   {:component/plane :protocol
    :component/requires [:prf/framework-v1
                         :prf/sew-escrow-kernel-v1
@@ -46,9 +103,90 @@
                         :prf/sew-pro-rata-economics-v1]
    :component/owned-namespaces
    [resolver-sim.protocols.sew
-    resolver-sim.protocols.sew.slash-evidence]
+    resolver-sim.protocols.sew.yield-extension
+    resolver-sim.protocols.sew.yield.policy
+    resolver-sim.protocols.sew.yield.invariants
+    resolver-sim.protocols.sew.slash-evidence
+    resolver-sim.protocols.sew.appeal-bond-projection
+    resolver-sim.protocols.sew.replay.appeal-bond
+    resolver-sim.cancellation.sew-projection]
    :component/entry-namespaces
-   [resolver-sim.protocols.sew]}
+   [resolver-sim.protocols.sew
+    resolver-sim.protocols.sew.yield-extension
+    resolver-sim.protocols.sew.appeal-bond-projection
+    resolver-sim.cancellation.sew-projection
+    resolver-sim.protocols.sew.replay.appeal-bond]
+   :component/material
+   [{:path "protocols_src/test/resolver_sim/cancellation/projection_conformance_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/replay/appeal_bond_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/accounting_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
+     :kind :test-source}]}
+
+  ;; Operation-limited behavior candidate aligned to the Solidity Sew Core
+  ;; deployment profile. This adapts the in-tree model and therefore still
+  ;; carries the full model's dependency closure; it is not a standalone
+  ;; package boundary.
+  :prf/sew-core-extension-v1
+  {:component/plane :protocol-extension
+   :component/requires [:prf/sew-protocol-model-v1]
+   :component/owned-namespaces
+   [prf.extensions.sew-core-model.adapter]
+   :component/entry-namespaces
+   [prf.extensions.sew-core-model.adapter]
+   :component/material
+   [{:path "extensions/sew-core-model/deps.edn"
+     :kind :package-manifest}
+    {:path "packages/sew-protocol-model/deps.edn"
+     :kind :package-manifest}
+    {:path "extensions/sew-core-model/test/prf/extensions/sew_core_model/adapter_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-core-model/test/prf/extensions/sew_core_model/solidity_vectors.edn"
+     :kind :conformance-fixture}]}
+
+  ;; Consensus force-authorisation verification is an optional protocol
+  ;; integration. The Sew adapter delegates researcher artifact validation to
+  ;; the shared benchmark and governed-authority APIs.
+  :prf/sew-force-authorisation-v1
+  {:component/plane :protocol-extension
+   :component/requires [:prf/framework-v1]
+   :component/owned-namespaces
+   [resolver-sim.protocols.sew.force-authorisation
+    resolver-sim.protocols.sew.force-authorisation-extension]
+   :component/entry-namespaces
+   [resolver-sim.protocols.sew.force-authorisation-extension]
+   :component/material
+   [{:path "protocols_src/test/resolver_sim/protocols/sew/force_authorisation_test.clj"
+     :kind :test-source}]}
+
+  ;; Trace projections and game-theoretic validators are optional Sew analysis
+  ;; integrations. The protocol model keeps stable fallback behavior when this
+  ;; component is not selected.
+  :prf/sew-analysis-v1
+  {:component/plane :protocol-extension
+   :component/requires [:prf/sew-protocol-model-v1]
+   :component/owned-namespaces
+   [resolver-sim.protocols.sew.analysis-extension
+    resolver-sim.protocols.sew.advisory
+    resolver-sim.protocols.sew.equilibrium
+    resolver-sim.protocols.sew.projection
+    resolver-sim.protocols.sew.validator-registry]
+   :component/entry-namespaces
+   [resolver-sim.protocols.sew.analysis-extension]
+   :component/material
+   [{:path "protocols_src/test/resolver_sim/protocols/sew/accounting_projection_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/funds_ledger_projection_test.clj"
+     :kind :test-source}
+    {:path "test/resolver_sim/protocols/sew/validator_registry_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
+     :kind :test-source}
+    {:path "test/resolver_sim/scenario/equilibrium_test.clj"
+     :kind :test-source}]}
 
   ;; Shared yield state and operations are a reusable runtime subsystem. Sew
   ;; composes it for stake, accrual, settlement, risk, and evidence behavior.
@@ -151,7 +289,7 @@
    [{:path "test/resolver_sim/pro_rata/programme_test.clj" :kind :test-source}]}
 
   ;; Sew slash economics is an adapter over portable allocation and evaluated
-  ;; evidence. Sew core uses this integration for its allocation projection.
+  ;; evidence. Sew protocol model uses this integration for its allocation projection.
   :prf/sew-pro-rata-economics-v1
   {:component/plane :protocol-adapter
    :component/requires [:prf/pro-rata-evaluation-v1]
@@ -167,7 +305,7 @@
   ;; If omitted, evidence-producing slash execution fails before side effects.
   :prf/sew-pro-rata-slashing-v1
   {:component/plane :protocol-adapter
-   :component/requires [:prf/sew-core-v1
+   :component/requires [:prf/sew-protocol-model-v1
                         :prf/sew-pro-rata-economics-v1
                         :prf/pro-rata-evaluation-v1]
    :component/owned-namespaces
@@ -188,7 +326,7 @@
 
   :prf/sew-pro-rata-application-v1
   {:component/plane :protocol-adapter
-   :component/requires [:prf/ideal-pro-rata-v1 :prf/sew-core-v1]
+   :component/requires [:prf/ideal-pro-rata-v1 :prf/sew-protocol-model-v1]
    :component/owned-namespaces
    [resolver-sim.protocols.sew.pro-rata-application]
    :component/entry-namespaces
@@ -217,8 +355,7 @@
    :component/entry-namespaces
    [resolver-sim.pro-rata.exact-verifier]
    :component/material
-   [{:path "coprocessor/core" :kind :rust-crate}
-    {:path "test/resolver_sim/pro_rata/exact_verifier_test.clj"
+   [{:path "test/resolver_sim/pro_rata/exact_verifier_test.clj"
      :kind :test-source}]}}
 
  ;; Claimant options is an implemented runtime capability, but not a source or

@@ -5,6 +5,7 @@
             [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.protocols.sew.lifecycle :as lc]
             [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
+            [resolver-sim.time.context :as time-ctx]
 
             [resolver-sim.cancellation.sew-projection :as proj]))
 
@@ -49,7 +50,8 @@
        (assoc-in [:escrow-transfers 0 :auto-cancel-time] auto-cancel-time))))
 
 (defn- set-block-time [world ts]
-  (assoc world :block-time ts))
+  (time-ctx/with-temporal-context
+   world (assoc (time-ctx/temporal-context world) :block-ts ts)))
 
 (defn- execute-and-project
   "Execute Surface A path and project from the SAME initial world state.
