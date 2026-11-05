@@ -17,10 +17,10 @@
 
    The gate does NOT re-implement force-authorisation verification. Lifecycle
    usability is delegated to the authoritative core validator
-   resolver-sim.assurance.force-authorisation/verify-authorisation-usable — the
-   same engine the force-authorisation extension's scope-verification facade
-   forwards to. Override-eligibility is a property of the SEMANTIC OPERATION
-   (held-admission/semantic-operation-class), never of :in/:out, add-held/sub-held,
+   api/verify-authorisation-usable — the same engine the force-authorisation
+   extension's scope-verification facade forwards to. Override-eligibility is a
+   property of the SEMANTIC OPERATION
+   (api/semantic-operation-class), never of :in/:out, add-held/sub-held,
    or disclosure sensitivity. The disclosure/evidence sentinel is deliberately
    NOT consulted for authority: a disclosure-policy change must not alter mutation
    authority. The override-enabled posture MUST be resolved by the caller from
@@ -43,8 +43,7 @@
      - resolver-sim.protocols.sew
      - any form under protocols_src/
      - resolver-sim.evidence.force-authorisation (deleted legacy core domain)"
-  (:require [resolver-sim.assurance.force-authorisation :as fa]
-            [resolver-sim.assurance.held-admission :as held-admission]))
+  (:require [resolver-sim.extensions.api.v1 :as api]))
 
 (def vocabulary
   "The classification vocabulary. :forbidden-authorized is reserved for an
@@ -120,7 +119,7 @@
    a disclosure-policy change must never alter mutation authority."
   [operation-id]
   (= :force-authorisation-override
-     (held-admission/semantic-operation-class operation-id)))
+     (api/semantic-operation-class operation-id)))
 
 (defn override-enabled?
   "Resolve the governed override-enabled posture from AUTHORITATIVE
@@ -135,7 +134,7 @@
 (defn- lifecycle-error-codes
   "Extract the authoritative validator's error codes for a permit/scope pair."
   [permit scope consumption-registry now-ts]
-  (mapv :code (:errors (fa/verify-authorisation-usable
+  (mapv :code (:errors (api/verify-authorisation-usable
                         permit consumption-registry scope now-ts))))
 
 (defn usable-permit?
@@ -147,7 +146,7 @@
    stale at commit time fails closed)."
   [permit scope consumption-registry now-ts]
   (boolean
-   (:valid? (fa/verify-authorisation-usable
+   (:valid? (api/verify-authorisation-usable
              permit (or consumption-registry {}) scope (or now-ts 0)))))
 
 (defn usable-permits

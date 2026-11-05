@@ -40,3 +40,16 @@
         (is (= 2 (:passed-count completion)))
         (is (zero? (:unknown-count completion)))
         (is (= ["pass" "pass"] (mapv :status (:results index))))))))
+
+(deftest unknown-results-fail-the-command
+  (let [root (Files/createTempDirectory "prf-invariants-unknown"
+                                        (make-array java.nio.file.attribute.FileAttribute 0))]
+    (with-redefs [sr/run-registry-suite
+                  (fn [_] {:results [{:scenario-id "unknown-result"
+                                      :outcome :unknown}]})]
+      (let [result (invariants-run/run {:run-root (.toString root)})
+            completion (json/read-str (slurp (io/file (.toFile root) "completion.json"))
+                                      :key-fn keyword)]
+        (is (= 1 (:exit-code result)))
+        (is (= "failed" (:status completion)))
+        (is (= 1 (:unknown-count completion)))))))

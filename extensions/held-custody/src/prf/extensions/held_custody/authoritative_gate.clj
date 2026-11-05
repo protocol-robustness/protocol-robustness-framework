@@ -32,7 +32,7 @@
      - resolver-sim.protocols.sew
      - any form under protocols_src/
      - resolver-sim.evidence.force-authorisation (deleted legacy core domain)"
-  (:require [resolver-sim.configuration-head :as configuration-head]
+  (:require [resolver-sim.extensions.api.v1 :as api]
             [prf.extensions.held-custody.authorisation-classification :as gate]))
 
 (def override-capability
@@ -48,7 +48,7 @@
 
    configuration-head   — a configuration-head-state.v1 (the current head owned by
                           the AuthorityStateStore). Validated by
-                          configuration-head/valid-head-state? (self-rooted,
+                          api/valid-configuration-head-state? (self-rooted,
                           content-rooted); an invalid/stale/forged head fails closed.
    extension-resolution — the authoritative resolution result from
                           resolver-sim.extensions.resolution/resolve-requested
@@ -57,7 +57,7 @@
                           capability all fail closed."
   [configuration-head extension-resolution]
   (let [head-ok? (and (map? configuration-head)
-                      (configuration-head/valid-head-state? configuration-head))
+                      (api/valid-configuration-head-state? configuration-head))
         resolution-ok? (and (map? extension-resolution)
                             (true? (:valid? extension-resolution)))
         capabilities (when resolution-ok?

@@ -87,6 +87,9 @@
    :ref-file 'resolver-sim.commands.ref-file/run
    :publication-trace 'resolver-sim.commands.publication/trace-run
    :sentinel-check 'resolver-sim.commands.sentinel/run
+   :privacy-policy-inspect 'resolver-sim.commands.privacy/policy-inspect
+   :privacy-evaluate 'resolver-sim.commands.privacy/evaluate
+   :privacy-verify 'resolver-sim.commands.privacy/verify
    :publish-check 'resolver-sim.commands.publish/run
    :resubmission-issue 'resolver-sim.commands.resubmission-issue/run
    :resubmission-issue-admission-v2 'resolver-sim.commands.resubmission-issue-admission-v2/run
