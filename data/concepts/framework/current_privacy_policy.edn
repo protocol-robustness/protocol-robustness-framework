@@ -1,0 +1,23 @@
+{:concept/id :framework/current-privacy-policy
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Current privacy policy"
+ :concept/summary
+ "The policy resolved for a specific issuer, domain-qualified asset, jurisdiction, operation, and evaluation time from an authorized binding and trusted head observation. Currentness is a qualified observation, not a mutable label or a policy self-hash."
+ :concept/stakeholder-question "Which authorized privacy policy applies to this operation now, and how fresh and trusted is that observation?"
+ :concept/protocols #{:protocol/prf}
+ :concept/related [:framework/privacy-policy :concept/configuration :framework/content-root]
+ :concept/roles {:head-observer {:description "Source providing a head observation under a documented trust and freshness rule."}
+                 :policy-resolver {:description "Verifier that follows the authorized head binding to retained policy content."}}
+ :concept/entities {:policy-binding {:description "Authorized association from operation scope to an immutable privacy policy root."}
+                    :head-observation {:description "Evidence of a configuration head at a time, with a defined trust anchor and freshness context."}}
+ :concept/actions {:resolve-current-privacy-policy {:description "Resolve and verify the applicable policy through the trusted head and scoped binding."}
+                   :verify-historical-privacy-policy {:description "Reconstruct a past decision against its pinned policy and trust anchor."}}
+ :concept/outcomes {:current-observed {:description "The binding and policy verify against a sufficiently fresh trusted head observation."}
+                    :historical-verified {:description "The past binding and policy verify relative to a supplied historical trust anchor."}
+                    :currentness-unknown {:description "Policy integrity may be verifiable, but present applicability or freshness is not established."}}
+ :concept/failure-modes [{:failure/id :privacy-policy-stale-head :failure/name "Stale policy observation" :failure/summary "A decision is used after the trusted head advances." :protocol-mechanisms [:configuration-head :policy-binding] :stakeholder-impact "A withdrawn policy continues to govern new disclosures."}
+                         {:failure/id :privacy-policy-self-hash-as-authority :failure/name "Self-hash mistaken for authority" :failure/summary "A correctly hashed head or policy is treated as externally authorized." :protocol-mechanisms [:content-root :policy-binding] :stakeholder-impact "Unapproved policy appears current."}
+                         {:failure/id :privacy-policy-historical-as-current :failure/name "Historical result presented as current" :failure/summary "A reproducible old decision is shown as applicable to present operations." :protocol-mechanisms [:head-observation] :stakeholder-impact "Researchers and operators rely on superseded rules."}]
+ :concept/assumptions ["A head hash alone proves neither authority nor freshness." "Historical validity and present applicability are separate claims." "The applicable policy scope includes issuer, asset identity, jurisdiction, and operation."]
+ :concept/out-of-scope ["Providing global real-time currentness without a trusted observation source." "Authorizing transfers or settlement." "Approving policy content."]}

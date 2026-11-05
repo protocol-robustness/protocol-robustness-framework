@@ -182,7 +182,9 @@
             (doseq [e detail-entries
                     :when (#{"failed" "xfailed"} (:status e))]
               (println (str "    " (:scenario-id e) "  " (:detail-path e)))))
-          {:exit-code (if (and (zero? failed-count) (zero? xfailed-count)) 0 1)
+          {:exit-code (if (and (zero? failed-count)
+                               (zero? xfailed-count)
+                               (zero? unknown-count)) 0 1)
            :message (str "Invariant suite: " passed-count "/" (count results) " passed")
            :run-root run-root}))))))
 
