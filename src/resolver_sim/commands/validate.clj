@@ -4,8 +4,9 @@
   (:require [clojure.java.shell :as shell]
             [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.string :as str])
-  (:import [java.nio.file AtomicMoveNotSupportedException CopyOption Files Path StandardCopyOption]
+            [clojure.string :as str]
+            [resolver-sim.io.atomic-file :as atomic-file])
+  (:import [java.nio.file Files Path]
            [java.time Instant]
            [java.time.format DateTimeFormatter]
            [java.util UUID]
@@ -89,16 +90,8 @@
     run-dir))
 
 (defn- write-report! [^Path run-dir report]
-  (let [target (.resolve run-dir "validation-report.edn")
-        temporary (.resolve run-dir "validation-report.edn.tmp")]
-    (spit (.toFile temporary) (str (pr-str report) "\n"))
-    (try
-      (Files/move temporary target
-                  (into-array CopyOption [StandardCopyOption/ATOMIC_MOVE
-                                          StandardCopyOption/REPLACE_EXISTING]))
-      (catch AtomicMoveNotSupportedException _
-        (Files/move temporary target
-                    (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))))
+  (let [target (.resolve run-dir "validation-report.edn")]
+    (atomic-file/write-text! target (str (pr-str report) "\n"))
     target))
 
 (defn- stream-log! [path destination]

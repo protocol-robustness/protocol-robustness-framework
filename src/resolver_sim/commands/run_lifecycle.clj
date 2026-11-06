@@ -2,12 +2,13 @@
   "Shared root ownership and terminal lifecycle primitives for run bundles."
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.string :as str]
+            [clojure.string]
+            [resolver-sim.io.atomic-file :as atomic-file]
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.paths :as paths]
             [resolver-sim.io.edn :as ppedn])
   (:import [java.math BigInteger]
-           [java.nio.file FileAlreadyExistsException Files LinkOption Path Paths StandardCopyOption]
+           [java.nio.file FileAlreadyExistsException Files LinkOption Path Paths]
            [java.security MessageDigest]))
 
 (defn root-state [root]
@@ -40,14 +41,8 @@
     (format "%064x" (BigInteger. 1 (.digest digest)))))
 
 (defn atomic-json! [file value]
-  (let [target (io/file (str file))
-        temp (io/file (.getParentFile target)
-                      (str "." (.getName target) ".tmp-" (java.util.UUID/randomUUID)))]
-    (.mkdirs (.getParentFile target))
-    (spit temp (json/write-str value :indent true))
-    (Files/move (.toPath temp) (.toPath target)
-                (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING StandardCopyOption/ATOMIC_MOVE]))
-    value))
+  (atomic-file/write-text! file (json/write-str value :indent true))
+  value)
 
 (defn build-run-envelope
   "Resolve and validate the common top-level context for a canonical run."

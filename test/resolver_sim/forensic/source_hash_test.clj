@@ -78,7 +78,7 @@
   (is (= ["src"
           "protocols_src"
           "benchmarks"
-          "data/concepts"
+          "data/concept-mappings"
           "scenarios"
           "suites"
           "resources"]
