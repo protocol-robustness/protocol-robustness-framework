@@ -8,7 +8,11 @@
             [clojure.tools.namespace.parse :as ns-parse]))
 
 (def source-roots
-  ["src" "test" "protocols_src/resolver_sim" "protocols_src/test/resolver_sim"
+  ["src" "test" "packages/sew-protocol-model/src/resolver_sim"
+   "extensions/sew-pro-rata-slashing/src/resolver_sim"
+   "packages/sew-protocol-model/test/resolver_sim"
+   "extensions/sew-pro-rata-slashing/test/resolver_sim"
+   "protocols_src/resolver_sim" "protocols_src/test/resolver_sim"
    "extensions/force-authorisation/src"
    "extensions/force-authorisation/test"
    "extensions/held-custody/src"

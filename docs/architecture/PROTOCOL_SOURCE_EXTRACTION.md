@@ -15,11 +15,16 @@ code does not accidentally deepen the coupling.
 
 ## Current workspace workaround
 
-The checkout currently keeps the two source trees separate:
-
-- `src/` contains the framework and shared implementation;
-- `protocols_src/` contains the Sew protocol implementation and its protocol
-  tests (`protocols_src/test`).
+The checkout keeps framework and shared implementation in `src/`, while most
+optional Sew integrations and research code remain in `protocols_src/`. The
+Sew escrow kernel and 48 additional core model namespaces, plus four component
+contract tests, have moved into `packages/sew-protocol-model/{src,test}`.
+The pro-rata slash-evidence adapter and its dedicated slashing tests now live
+in `extensions/sew-pro-rata-slashing/{src,test}`. Force-authorisation, analysis,
+slash economics, and shared adapter tests remain in `protocols_src` under
+separate component owners. The package manifest still includes
+`../../protocols_src`, so this is a partial relocation, not a standalone package
+boundary.
 
 The base `deps.edn` classpath includes `src` but not `protocols_src`. The
 `:with-sew` alias opts into the protocol tree:
@@ -41,10 +46,11 @@ artifact.
 
 ## Intermediate experiment: separate workspaces and `deps.edn`
 
-`workspaces/framework/deps.edn` and `workspaces/sew/deps.edn` now select two
-workspace-local classpaths. Both reuse the root project's pinned dependencies
-and framework paths through a local-root dependency; only the Sew workspace
-adds `protocols_src` and its tests. Run commands from the matching directory
+`workspaces/framework/deps.edn` and `workspaces/sew/deps.edn` select two
+workspace-local classpaths. The framework workspace still uses a local-root
+dependency. The Sew workspace adds the package's test tree and the remaining
+`protocols_src` tests; the package source itself includes the moved kernel and
+still reaches into `protocols_src` for other Sew namespaces. Run commands from the matching directory
 with `-Srepro` so home-level Clojure configuration cannot add paths or deps:
 
 ```bash
@@ -54,10 +60,11 @@ with `-Srepro` so home-level Clojure configuration cannot add paths or deps:
 (cd workspaces/sew && clojure -Srepro -M -e "(require 'resolver-sim.protocols.sew.kernel)")
 ```
 
-This is scaffolding only: both workspaces still consume the same local project,
-so source versions and most dependency inputs remain coupled. The next package
-boundary experiment should replace the local-root dependency with an immutable
-framework artifact or an explicit sibling checkout.
+This is scaffolding only: source versions and most dependency inputs remain
+coupled to the PRF checkout. The next extraction steps must move remaining
+Sew-owned production sources and tests into the package, then replace its
+framework local-root dependency with an independently resolvable framework
+package.
 
 The initial namespace probe showed that `resolver-sim.core` is an application
 runner, not a framework API: it loads Sew research and simulation phases. The

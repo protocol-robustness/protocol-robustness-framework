@@ -1789,7 +1789,7 @@ Available trace and golden files:
 | `protocols_src/.../Sew.clj` | 701-703 | `grant-force-authorization` (US-spelling alias) |
 | `protocols_src/.../Sew.clj` | 705-744 | `revoke-force-authorisation` action handler |
 | `protocols_src/.../Sew.clj` | 750-876 | `execute-force-authorised-action` action handler |
-| `protocols_src/.../Sew/types.clj` | 282-283 | World state keys (`:force-authorisations`, `:next-force-authorisation-id`) |
+| `packages/sew-protocol-model/src/.../sew/types.clj` | 282-283 | World state keys (`:force-authorisations`, `:next-force-authorisation-id`) |
 | `protocols_src/.../Sew/resolution.clj` | 652-721 | `apply-resolution-transition` provenance plumbing |
 | `protocols_src/.../Sew/resolution.clj` | 784-794 | `execute-pending-settlement` provenance read-back |
 | `protocols_src/.../Sew/resolution.clj` | 2145-2163 | `finalize` (resolution internal) provenance forwarding |
@@ -2669,7 +2669,7 @@ create scenario variants that test each side of every deadline boundary:
 
 ### 4.7 State Machine Deadline Predicates
 
-The Sew state machine (`protocols_src/resolver_sim/protocols/Sew/state_machine.clj:399`)
+The Sew state machine (`packages/sew-protocol-model/src/resolver_sim/protocols/sew/state_machine.clj:399`)
 defines five deadline guard predicates with precise short-circuit ordering
 to prevent nil-pointer crashes on invalid workflow-ids:
 
@@ -3527,8 +3527,8 @@ The lifecycle is tested across scenarios in the following categories:
 
 | File | Content |
 |------|---------|
-| `protocols_src/.../Sew/types.clj` | PendingSettlement, EscrowTransfer, world state, state machine graph |
-| `protocols_src/.../Sew/state_machine.clj` | State transition functions, deadline predicates (`pending-settlement-executable?`, `auto-release-due?`, `auto-cancel-due?`, `dispute-timeout-exceeded?`, `auto-cancel-due-on-disputed?`) |
+| `packages/sew-protocol-model/src/.../sew/types.clj` | PendingSettlement, EscrowTransfer, world state, state machine graph |
+| `packages/sew-protocol-model/src/.../sew/state_machine.clj` | State transition functions, deadline predicates (`pending-settlement-executable?`, `auto-release-due?`, `auto-cancel-due?`, `dispute-timeout-exceeded?`, `auto-cancel-due-on-disputed?`) |
 | `protocols_src/.../Sew/resolution.clj` | `execute-resolution`, `execute-pending-settlement`, `escalate-dispute`, `challenge-resolution`, `automate-timed-actions` |
 | `protocols_src/.../Sew/lifecycle.clj` | `create-escrow`, `release`, `cancel`, `finalize`, `auto-cancel-disputed` |
 | `protocols_src/.../Sew/invariants.clj` | All Sew invariants including settlement-specific |

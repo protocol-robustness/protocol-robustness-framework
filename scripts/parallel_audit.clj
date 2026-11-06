@@ -18,7 +18,9 @@
             [clojure.string :as str]))
 
 (def search-roots
-  ["test" "protocols_src/test" "src" "yield_runtime_src" "protocols_src"])
+  ["test" "protocols_src/test" "src" "yield_runtime_src"
+   "packages/sew-protocol-model/src" "packages/sew-protocol-model/test"
+   "extensions/sew-pro-rata-slashing/src" "extensions/sew-pro-rata-slashing/test" "protocols_src"])
 
 (defn ns->path
   [sym]

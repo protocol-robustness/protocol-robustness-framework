@@ -14,7 +14,14 @@ from pathlib import Path
 from typing import Iterable
 
 SOURCE_TREE_HASH_ALGORITHM = "source-tree-hash.v1.path-content-sha256"
-DEFAULT_SOURCE_ROOTS = ["src", "yield_runtime_src", "protocols_src", "extensions"]
+DEFAULT_SOURCE_ROOTS = [
+    "src",
+    "yield_runtime_src",
+    "protocols_src",
+    "packages/sew-protocol-model/src",
+    "packages/sew-protocol-model/test",
+    "extensions",
+]
 
 
 def normalize_source_roots(raw: str | Iterable[str] | None) -> list[str]:

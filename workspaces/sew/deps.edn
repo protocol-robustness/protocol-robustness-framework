@@ -2,4 +2,5 @@
 {:deps {org.clojure/clojure {:mvn/version "1.12.0"}
         org.protocol-robustness/prf-sew-protocol-model
         {:local/root "../../packages/sew-protocol-model"}}
- :paths ["../../protocols_src/test"]}
+ :paths ["../../packages/sew-protocol-model/test"
+         "../../protocols_src/test"]}

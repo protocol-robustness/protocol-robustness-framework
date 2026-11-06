@@ -19,7 +19,8 @@
             [clojure.string :as str]
             [clojure.tools.namespace.find :as find]))
 
-(def ^:private default-roots ["src" "yield_runtime_src" "protocols_src"])
+(def ^:private default-roots
+  ["src" "yield_runtime_src" "packages/sew-protocol-model/src" "extensions/sew-pro-rata-slashing/src" "protocols_src"])
 
 (defn- root-set [args]
   (let [args (or args [])]

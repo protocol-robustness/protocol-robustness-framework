@@ -2,6 +2,6 @@
 ;; subdirectory from an immutable PRF Git revision; its framework dependency
 ;; intentionally resolves from the same repository checkout. Publish this
 ;; package and the framework before replacing that relative dependency.
-{:paths ["../../protocols_src"]
+{:paths ["src" "../../protocols_src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
         prf/framework {:local/root "../.."}}}

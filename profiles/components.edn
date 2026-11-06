@@ -102,14 +102,54 @@
                         :prf/yield-runtime-v1
                         :prf/sew-pro-rata-economics-v1]
    :component/owned-namespaces
-   [resolver-sim.protocols.sew
-    resolver-sim.protocols.sew.yield-extension
-    resolver-sim.protocols.sew.yield.policy
-    resolver-sim.protocols.sew.yield.invariants
-    resolver-sim.protocols.sew.slash-evidence
+   [resolver-sim.cancellation.sew-projection
+    resolver-sim.protocols.sew
+    resolver-sim.protocols.sew.accounting
+    resolver-sim.protocols.sew.accounting-projection
+    resolver-sim.protocols.sew.action-context
+    resolver-sim.protocols.sew.adjudication-case
+    resolver-sim.protocols.sew.adjudication-instance
+    resolver-sim.protocols.sew.adjudication-snapshot
     resolver-sim.protocols.sew.appeal-bond-projection
+    resolver-sim.protocols.sew.authority
+    resolver-sim.protocols.sew.claimable-outcome
+    resolver-sim.protocols.sew.compat
+    resolver-sim.protocols.sew.diff
+    resolver-sim.protocols.sew.dispute-resolution-closure
+    resolver-sim.protocols.sew.dispute-ruling
+    resolver-sim.protocols.sew.dispute-ruling-finality
+    resolver-sim.protocols.sew.economics
+    resolver-sim.protocols.sew.evidence-admission
+    resolver-sim.protocols.sew.financial.concentration
+    resolver-sim.protocols.sew.financial.finality
+    resolver-sim.protocols.sew.financial.liabilities
+    resolver-sim.protocols.sew.financial.loss
+    resolver-sim.protocols.sew.financial.solvency
+    resolver-sim.protocols.sew.held-mutation-admission
+    resolver-sim.protocols.sew.invariants
+    resolver-sim.protocols.sew.invariants.bond
+    resolver-sim.protocols.sew.invariants.dispute
+    resolver-sim.protocols.sew.invariants.escrow
+    resolver-sim.protocols.sew.invariants.fees
+    resolver-sim.protocols.sew.invariants.governance
+    resolver-sim.protocols.sew.invariants.settlement
+    resolver-sim.protocols.sew.invariants.solvency
+    resolver-sim.protocols.sew.invariants.state
+    resolver-sim.protocols.sew.invariants.temporal
+    resolver-sim.protocols.sew.lifecycle
+    resolver-sim.protocols.sew.registry
+    resolver-sim.protocols.sew.related-claims
     resolver-sim.protocols.sew.replay.appeal-bond
-    resolver-sim.cancellation.sew-projection]
+    resolver-sim.protocols.sew.resolution
+    resolver-sim.protocols.sew.resolution-basis
+    resolver-sim.protocols.sew.resolution-decision
+    resolver-sim.protocols.sew.slash-evidence
+    resolver-sim.protocols.sew.snapshot
+    resolver-sim.protocols.sew.trace-metadata
+    resolver-sim.protocols.sew.transition-assurance
+    resolver-sim.protocols.sew.yield.invariants
+    resolver-sim.protocols.sew.yield.policy
+    resolver-sim.protocols.sew.yield-extension]
    :component/entry-namespaces
    [resolver-sim.protocols.sew
     resolver-sim.protocols.sew.yield-extension
@@ -117,11 +157,11 @@
     resolver-sim.cancellation.sew-projection
     resolver-sim.protocols.sew.replay.appeal-bond]
    :component/material
-   [{:path "protocols_src/test/resolver_sim/cancellation/projection_conformance_test.clj"
+   [{:path "packages/sew-protocol-model/test/resolver_sim/cancellation/projection_conformance_test.clj"
      :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/replay/appeal_bond_test.clj"
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/replay/appeal_bond_test.clj"
      :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/accounting_test.clj"
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/accounting_test.clj"
      :kind :test-source}
     {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
      :kind :test-source}]}
@@ -261,7 +301,7 @@
    :component/entry-namespaces
    [resolver-sim.protocols.sew.kernel]
    :component/material
-   [{:path "protocols_src/test/resolver_sim/protocols/sew/kernel_test.clj"
+   [{:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/kernel_test.clj"
      :kind :test-source}]}
 
   :prf/ideal-pro-rata-v1
@@ -315,11 +355,13 @@
    [resolver-sim.protocols.sew.extension
     resolver-sim.protocols.sew.pro-rata.evidence]
    :component/material
-   [{:path "protocols_src/test/resolver_sim/protocols/sew/evidence/slashing_test.clj"
+   [{:path "extensions/sew-pro-rata-slashing/deps.edn"
+     :kind :package-manifest}
+    {:path "extensions/sew-pro-rata-slashing/test/resolver_sim/protocols/sew/evidence/slashing_test.clj"
      :kind :test-source}
     {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
      :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/slashing_test.clj"
+    {:path "extensions/sew-pro-rata-slashing/test/resolver_sim/protocols/sew/slashing_test.clj"
      :kind :test-source}
     {:path "test/resolver_sim/yield/pro_rata_claims_test.clj"
      :kind :test-source}]}
