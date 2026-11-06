@@ -9,14 +9,14 @@ and follow-up work; it does not authorize changing canonical identities.
 | --- | --- | --- |
 | `packages/pro-rata-allocation/` | Linkage README only | `prf-pro-rata-allocation`; implementation, contract, tests, and package metadata live in the pinned external repo. |
 | `packages/canonical/` | Canonical codecs and generic hashing used by the allocator and PRF | `prf-canonical`; dependency is pinned separately. Do not copy implementations into either consumer. |
-| `portable-pro-rata-contract/` | Normative allocation/effect/transition specs, manifest, vectors, canonical bytes, and extraction plan | Mixed ownership requiring a follow-up decision. Allocation vectors/spec portions belong with allocation; generic effect/transition material needs its own owner. Keep the frozen material authoritative until consumers and roots are migrated. |
-| `pro_rata_contract_src/` | Independent Clojure reference implementation for allocation plus effect/state/transition projections | Independent conformance/reference code. It is not the extracted allocator implementation. Keep it independent while it is the oracle; later package it with the relevant frozen vectors or replace it only after equivalent independent conformance exists. |
-| `pro_rata_contract_test/` | Tests and runner for the independent contract implementation | PRF conformance integration for now; likely co-locate with the reference contract material when that boundary is resolved. |
+| `pro-rata/portable-contract/` | Normative allocation/effect/transition specs, manifest, vectors, canonical bytes, and extraction plan | Mixed ownership requiring a follow-up decision. Allocation vectors/spec portions belong with allocation; generic effect/transition material needs its own owner. Keep the frozen material authoritative until consumers and roots are migrated. |
+| `pro-rata/contract-source/` | Independent Clojure reference implementation for allocation plus effect/state/transition projections | Independent conformance/reference code. It is not the extracted allocator implementation. Keep it independent while it is the oracle; later package it with the relevant frozen vectors or replace it only after equivalent independent conformance exists. |
+| `pro-rata/contract-tests/` | Tests and runner for the independent contract implementation | PRF conformance integration for now; likely co-locate with the reference contract material when that boundary is resolved. |
 | `src/resolver_sim/pro_rata/` | PRF host integration, execution/progress, protocol application, evidence, policy, EVM, assurance, evaluation, and publication code | PRF. This directory is intentionally broader than the portable allocation package and should not move wholesale. Separate sub-boundaries only where a consumer exists and ownership is explicit. |
 | `test/resolver_sim/pro_rata/` | PRF integration, protocol, EVM, assurance, evidence, and package parity tests | PRF. Portable allocator tests belong in its repo; tests that exercise PRF adapters and downstream contracts remain here. |
 | `resources/test-vectors/pro-rata/`, `test/fixtures/pro-rata/`, `data/fixtures/pro-rata/` | PRF policy/application/evidence fixtures and vectors | PRF unless a vector is normative for the portable allocation API. Normative allocation vectors should have one owner and be consumed by pinned revision. |
 | `profiles/pro-rata*.edn`, `profiles/components.edn`, `scripts/profile_view.clj` | PRF source composition profiles and generator | PRF. These profiles select framework, Sew, bounty, runtime, and verifier components. They are not allocation-library profiles. |
-| `pro-rata-evm-v2-conformance/`, `examples/assured-operations/pro-rata-conformance/` | EVM V2 conformance inputs and assurance integration | PRF / EVM and assurance boundaries. Do not move into the portable allocation package based on shared terminology. |
+| `pro-rata/evm-v2-conformance/`, `examples/assured-operations/pro-rata-conformance/` | EVM V2 conformance inputs and assurance integration | PRF / EVM and assurance boundaries. Do not move into the portable allocation package based on shared terminology. |
 | `examples/use-cases/pro-rata-allocation/`, `notebooks/`, `scenarios/` | PRF demos and applied scenarios | PRF examples/scenarios. They should consume the extracted package through pinned dependencies where they use portable allocation. |
 
 ## Current dependency picture
@@ -25,7 +25,7 @@ and follow-up work; it does not authorize changing canonical identities.
 PRF integration (`src/resolver_sim/pro_rata`, allocation/evidence adapters)
   ├── prf-pro-rata-allocation (Git revision pinned in integration deps.edn)
   │     └── prf-canonical (Git revision pinned in integration deps.edn)
-  ├── independent reference (`pro_rata_contract_src`)
+  ├── independent reference (`pro-rata/contract-source`)
   │     └── independent canonical codec in that reference tree
   ├── PRF protocol/runtime/assurance code
   └── coprocessor and EVM conformance boundaries
@@ -35,9 +35,8 @@ PRF profile views
 ```
 
 The extracted package and the independent contract reference are separate
-implementations with different purposes. The old `portable-pro-rata-contract`
-name currently groups allocation and effect/transition contracts, so a global
-rename or wholesale move would obscure ownership rather than clarify it.
+implementations with different purposes. The `pro-rata/` parent groups related paths for navigation while retaining
+separate names and ownership for each contract and evidence boundary.
 
 ## Qualification and migration status
 
@@ -91,12 +90,10 @@ qualification evidence, not release promotion.
 
 ## Remaining sequence
 
-1. **Path presentation cleanup (deferred).** Rename/group `pro_rata_contract_src`,
-   its test tree, and the historical `portable-pro-rata-contract` path only
-   after consumer paths and evidence inventories are enumerated. Update build
-   aliases, scripts, profile source roots, fixture lookups, conformance runners,
-   docs, and CI references. Preserve the historical mixed-bundle root and all
-   canonical bytes exactly.
+1. **Path presentation cleanup (complete).** The four related directories are
+   grouped under `pro-rata/` with consistent names. Consumer paths and current
+   documentation are updated; historical evidence inventories remain intact, and
+   the mixed-bundle root and canonical bytes are preserved.
 
 The ownership split is documented below and the external packages are already
 pinned. PRF integration tests and profile composition remain PRF-owned; no
@@ -112,7 +109,7 @@ independent contract suite (7 tests / 80 assertions), and `bb check:defs`.
 
 ## Contract bundle ownership split
 
-`portable-pro-rata-contract/` is a mixed normative bundle. Its current manifest
+`pro-rata/portable-contract/` is a mixed normative bundle. Its current manifest
 hashes every listed file and binds them under release root
 `b863e04a61d0dded845dc3351626ebf57c4d5abea7e18ea19a89cacf4b1ad12a`. Treat that
 bundle and root as historical immutable evidence. A physical split must create
@@ -159,7 +156,7 @@ exploratory, unreviewed, and release-unqualified. Clojure reads the EDN vectors 
 Rust mirrors the inputs in test literals and checks their frozen roots and byte
 resources, so automatic detection of drift between those inputs remains open.
 
-The independent `pro_rata_contract_src/` implementation remains PRF-owned as a
+The independent `pro-rata/contract-source/` implementation remains PRF-owned as a
 conformance oracle for now. Before replacing or relocating it, consumers need
 to validate both new package pins against the same frozen allocation and
 transition bytes in clean checkouts. No contract file, namespace, schema name,

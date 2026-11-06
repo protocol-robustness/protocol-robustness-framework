@@ -1,6 +1,7 @@
 {:concept/id :allocation/fractional-remainder
  :concept/type :evidence
  :concept/layer :framework-explanation
+ :concept/protocols #{:protocol/sew-v1}
  :concept/version 1
  :concept/display-name "Fractional Remainder"
  :concept/name "Fractional remainder"

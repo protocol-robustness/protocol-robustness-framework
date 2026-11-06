@@ -12,7 +12,7 @@
                    "floor-residual-001.edn"])
 
 (def fixture-resource-root
-  "prf/pro_rata/fixtures/portable-pro-rata-contract/vectors/")
+  "pro-rata/portable-contract/vectors/")
 
 (defn- vector-data [name]
   (let [resource (io/resource (str fixture-resource-root name))]

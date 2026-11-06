@@ -202,9 +202,10 @@
 
 (defn verify-withdrawal-attribution
   "Require a reconstructed category ledger to show that the entire withdrawal
-   is the bounty category. Returns typed failures for incomplete or mixed
-   claims. This is a necessary attribution check, not payment evidence."
-  [{:keys [route workflow-id token recipient category-deltas withdrawn-amount
+   is the bounty category, and bind it to the caller's expected obligation.
+   Returns typed failures for incomplete or mixed claims. This is a necessary
+   attribution check, not payment evidence."
+  [{:keys [route expected-obligation-root workflow-id token recipient category-deltas withdrawn-amount
            independently-reconstructed?]}]
   (let [deltas (when (map? category-deltas) category-deltas)
         bounty-amount (:liability/challenge-bounty deltas)
@@ -215,6 +216,8 @@
     (cond
       (not (:valid? (verify-route route [route])))
       {:valid? false :reason :invalid-route}
+      (not= expected-obligation-root (:route/obligation-root route))
+      {:valid? false :reason :obligation-mismatch}
       (not (true? independently-reconstructed?))
       {:valid? false :reason :claim-categories-unverified}
       (and deltas (not= claim-categories (set (keys deltas))))

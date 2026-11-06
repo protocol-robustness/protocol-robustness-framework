@@ -21,6 +21,11 @@ jobs:
           curl -fsSL https://download.clojure.org/install/linux-install-1.12.5.1654.sh -o /tmp/install-clojure.sh
           chmod +x /tmp/install-clojure.sh
           sudo /tmp/install-clojure.sh
+      - name: Install Babashka
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/babashka/babashka/b2c41ecf62bb6ad3c8945e3d9e40fbbaa54888b6/install -o /tmp/install-bb.sh
+          chmod +x /tmp/install-bb.sh
+          sudo /tmp/install-bb.sh --version 1.13.228 --checksum cf643eb2bd1064fe3cbeab9751d59c2877094516ce692e89893fce56ec98ab00 --static
       - name: Cache Maven deps
         uses: actions/cache@v4
         with:

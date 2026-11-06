@@ -1,5 +1,5 @@
 (ns resolver-sim.community.core-test
-  (:require [clojure.test :refer [deftest is testing thrown-with-msg? use-fixtures]]
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [resolver-sim.community.task :as task]
             [resolver-sim.community.finding :as finding]
             [resolver-sim.community.attestation :as att]

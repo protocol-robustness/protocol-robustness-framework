@@ -23,7 +23,7 @@ verifiability, invariant compliance, and complete allocation reporting.
 
 The claim is declared in
 `src/resolver_sim/benchmark/strategic_claim_validation.clj` and evaluated by
-closed-form checks in `src/resolver_sim/yield/partial_fill.clj`. Until the
+closed-form checks in `yield_runtime_src/resolver_sim/yield/partial_fill.clj`. Until the
 provability path (Change 5, below) is green, a claim `:pass` remains
 evidence-scoped post-hoc validation — its
 `:claim/interpretation` says exactly that and must keep saying it.

@@ -17,33 +17,33 @@
 
  :concept/roles
  {:review-round-admin {:description "Entity that defines a review round whose members receive indices."
-                       :maps-to [:protocol.actor/governance]}
+                       }
   :index-verifier {:description "Entity that rederives expected indices and compares against the artifact."
-                   :maps-to [:protocol.role/verifier]}
+                   }
   :member {:description "A reviewed researcher assigned a canonical index."
-           :maps-to [:protocol.actor/verifier]}}
+           }}
 
  :concept/entities
  {:canonical-indices-artifact {:description "Content-addressed review-member-canonical-indices.v1 artifact mapping researcher ids to zero-based integer indices."
-                               :maps-to [:protocol.entity/evidence]}
+                               }
   :indices-hash {:description "Indented content hash committing to the entries vector independently of the full artifact."
-                 :maps-to [:protocol.entity/canonical-hash]}
+                 }
   :member-index {:description "Zero-based integer index derived for a single member by canonical string ordering."
-                 :maps-to [:protocol.entity/index]}}
+                 }}
 
  :concept/actions
  {:build-canonical-indices {:description "Derive canonical-ordered member indices from a review round and hash the artifact."
-                            :maps-to [:protocol.action/build-registry]}
+                            }
   :verify-canonical-indices {:description "Rederive expected indices from the round and compare against the artifact (source-round binding, derived mapping, self-hash)."
-                             :maps-to [:protocol.action/check-invariant]}
+                             }
   :lookup-member-index {:description "Resolve the canonical index for a given researcher id."
-                        :maps-to [:protocol.action/verify-allocation]}}
+                        }}
 
  :concept/outcomes
  {:indices-valid {:description "Source-round binding, derived mapping, and self-hash all hold."
-                  :maps-to [:protocol.outcome/released]}
+                  }
   :indices-mismatch {:description "Derived indices disagree with the artifact or the round binding."
-                     :maps-to [:protocol.outcome/adversarial-resolution]}}
+                     }}
 
  :concept/failure-modes
  [{:failure/id :canonical-indices-derived-mapping-mismatch

@@ -97,8 +97,17 @@ falsifier vocabulary `:observed | :not-observed | :untested`), and its
   committed parameter domain.
 - `verify-conclusion-support` applies the transitive commitment rule: every
   supporting theorem must resolve through a theorem resolver to a theorem whose
-  own `:theorem/hash` recomputes to the claimed hash — missing or substituted
-  theorems fail.
+  own `:theorem/hash` recomputes to the claimed hash and passes structural/hash
+  validation — missing or substituted theorems fail.
+- `qualify-conclusion` (also exposed as
+  `research.api/qualify-research-conclusion`) creates a read-only researcher
+  projection. It reports structural integrity, supporting-theorem integrity,
+  the declared conclusion status, and method verification separately. Without
+  a method-specific verifier, the projection reports `:unverified-method`,
+  even when the artifact declares `:established`. A method verifier must bind
+  its verified result to the exact conclusion root and provide a content
+  addressed evidence root. This projection does not modify V1 hashes, establish
+  ratification, or grant operational authority.
 - `conclusion-collective-hash` derives the `:conclusion-root` used in
   outcome-hashes, so a researcher can challenge one finding without disputing
   the whole outcome.

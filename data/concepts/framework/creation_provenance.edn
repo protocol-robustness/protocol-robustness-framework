@@ -17,29 +17,29 @@
 
  :concept/roles
  {:provenance-creator {:description "Entity that records the creation provenance of an artifact."
-                       :maps-to [:protocol.actor/verifier]}
+                       }
   :provenance-verifier {:description "Entity that checks creation provenance is a known value."
-                        :maps-to [:protocol.role/verifier]}}
+                        }}
 
  :concept/entities
  {:creation-provenance-field {:description "The :creation/provenance value stored in an evidence node's :execution map. Defaults to :in-band for backward compatibility."
-                              :maps-to [:protocol.entity/evidence]}
+                              }
   :creation-provenance-commitment {:description "An independent root-bound commitment over creation provenance, produced via the :creation-provenance hash intent, so provenance tampering is detectable when provenance is separately committed."
-                                    :maps-to [:protocol.entity/canonical-hash]}}
+                                    }}
 
  :concept/actions
  {:record-creation-provenance {:description "Set :creation/provenance on an evidence node to :in-band or :out-of-band."
-                                :maps-to [:protocol.action/commit-root]}
+                                }
   :validate-creation-provenance {:description "Check :creation/provenance is a known value (:in-band or :out-of-band)."
-                                 :maps-to [:protocol.action/check-invariant]}
+                                 }
   :commit-creation-provenance {:description "Independently root-bind creation provenance via the :creation-provenance hash intent."
-                               :maps-to [:protocol.action/commit-root]}}
+                               }}
 
  :concept/outcomes
  {:creation-provenance-recorded {:description "Evidence node carries a :creation/provenance value in its :execution map."
-                                 :maps-to [:protocol.outcome/released]}
+                                 }
   :creation-provenance-committed {:description "Creation provenance is separately root-bound so tampering is detectable."
-                                  :maps-to [:protocol.outcome/released]}}
+                                  }}
 
  :concept/failure-modes
  [{:failure/id :creation-provenance-unrecorded

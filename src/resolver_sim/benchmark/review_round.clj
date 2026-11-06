@@ -61,7 +61,8 @@
   "Controlled vocabulary for review-round purposes."
   #{:model-admission :model-replication :model-challenge
     :model-revision :sampling-report :force-authorisation
-    :pro-rata-allocation :pro-rata-application :pro-rata-execution})
+    :pro-rata-allocation :pro-rata-application :pro-rata-execution
+    :research-policy-approval})
 
 (def ^:const review-statuses
   "Controlled vocabulary for review-round status."
@@ -112,7 +113,8 @@
                            :review-round/propagation-ref
                            :review-round/application-ref}
    :pro-rata-execution   #{:benchmark/content-root
-                           :review-round/outcome-manifest-ref}})
+                           :review-round/outcome-manifest-ref}
+   :research-policy-approval #{:benchmark/content-root :review-round/policy-root}})
 
 (def ^:private ^:const finalisation-requirements
   "Outputs required to FINALISE a review round for each purpose.
@@ -132,7 +134,8 @@
    :pro-rata-execution   #{:review-round/allocation-evidence-ref
                            :review-round/application-evidence-ref
                            :review-round/theorem-refs
-                           :review-round/conclusion-refs}})
+                           :review-round/conclusion-refs}
+   :research-policy-approval nil})
 
 (def ^:private purpose-material-fields
   (disj (into #{}

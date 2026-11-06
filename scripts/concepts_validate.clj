@@ -113,6 +113,8 @@
 (def conceptual-maturities #{:illustrative :mapping-reviewed :scenario-backed :benchmark-backed})
 (def support-statuses #{:not-asserted})
 (def mapping-statuses #{:native :derived :approximate :not-modelled})
+(def mapping-categories #{:concept/roles :concept/entities :concept/actions :concept/outcomes})
+(def mapping-value-keys #{:maps-to :mapping/status :mapping/confidence :mapping/note})
 
 (defn check-use-case-contract [path concept errors]
   (when (= :use-case (:concept/type concept))
@@ -175,6 +177,72 @@
       (doseq [s oos]
         (when (and (string? s) (re-find known-gap-patterns s))
           (swap! errors conj (str path " :concept/out-of-scope entry appears to describe a temporary known gap rather than a permanent boundary: " (pr-str s))))))))
+
+(defn check-protocol-mapping-files [registry concepts errors]
+  (let [entries (:concepts registry)
+        concepts-by-id (into {} (map (juxt :concept/id identity) concepts))
+        mapping-files (:concept-mapping-files registry)
+        duplicate-protocols (->> mapping-files (map :mapping/protocol) frequencies
+                                 (keep (fn [[protocol n]] (when (> n 1) protocol))) set)
+        registered-protocols (set (map :mapping/protocol mapping-files))
+        protocol-mapping-files (set/intersection known-protocols registered-protocols)]
+    (doseq [protocol (set/difference known-protocols protocol-mapping-files)]
+      (swap! errors conj (str "missing protocol mapping file for " protocol)))
+    (doseq [protocol duplicate-protocols]
+      (swap! errors conj (str "duplicate protocol mapping file for " protocol)))
+    (doseq [mapping-entry mapping-files]
+      (let [protocol (:mapping/protocol mapping-entry)
+            mapping-file (:mapping/file mapping-entry)
+            f (io/file mapping-file)
+            [mapping-set parse-error] (if (.exists f) (parse-edn f) [nil "file not found"])]
+        (when-not (or (= :shared protocol) (contains? known-protocols protocol))
+          (swap! errors conj (str mapping-file " declares unknown protocol " protocol)))
+        (if parse-error
+          (swap! errors conj (str mapping-file ": " parse-error))
+          (do
+            (when-not (= protocol (:mapping-set/protocol mapping-set))
+              (swap! errors conj (str mapping-file " declares protocol "
+                                      (:mapping-set/protocol mapping-set) " but registry declares " protocol)))
+            (when-not (= 1 (:mapping-set/version mapping-set))
+              (swap! errors conj (str mapping-file " has unsupported mapping-set version "
+                                      (:mapping-set/version mapping-set))))
+            (when-not (vector? (:mappings mapping-set))
+              (swap! errors conj (str mapping-file " :mappings must be a vector")))
+            (let [rows (:mappings mapping-set)
+                  duplicate-keys (->> rows
+                                      (map (juxt :concept/id :mapping/category :mapping/id))
+                                      frequencies
+                                      (keep (fn [[k n]] (when (> n 1) k))))]
+              (doseq [duplicate duplicate-keys]
+                (swap! errors conj (str mapping-file " has duplicate mapping " (pr-str duplicate))))
+              (doseq [row rows]
+                (let [concept-id (:concept/id row)
+                      category (:mapping/category row)
+                      mapping-id (:mapping/id row)
+                      values (:mapping/values row)
+                      concept (get concepts-by-id concept-id)
+                      entry (first (filter #(= concept-id (:concept/id %)) entries))
+                      target (get-in concept [category mapping-id])]
+                  (when-not concept
+                    (swap! errors conj (str mapping-file " references unknown concept " concept-id)))
+                  (when (and entry (not (contains? (:concept/protocols entry) protocol)))
+                    (when-not (= :shared protocol)
+                      (swap! errors conj (str mapping-file " maps " concept-id " for unsupported protocol " protocol))))
+                  (when (and entry (= :shared protocol) (not= :shared (:concept/owner entry)))
+                    (swap! errors conj (str mapping-file " contains protocol-neutral mapping for non-shared concept " concept-id)))
+                  (when-not (contains? mapping-categories category)
+                    (swap! errors conj (str mapping-file " has invalid mapping category " category)))
+                  (when-not target
+                    (swap! errors conj (str mapping-file " references unknown mapping " category "/" mapping-id " in " concept-id)))
+                  (when-not (map? values)
+                    (swap! errors conj (str mapping-file " mapping values must be a map for " concept-id "/" mapping-id)))
+                  (when (and (map? values) (seq (set/difference (set (keys values)) mapping-value-keys)))
+                    (swap! errors conj
+                           (str mapping-file " has unsupported mapping value keys "
+                                (pr-str (set/difference (set (keys values)) mapping-value-keys)))))
+                  (when (map? values)
+                    (check-value-maps-to (str mapping-file "/" concept-id "/" category "/" mapping-id)
+                                         values errors)))))))))))
 
 (def known-gaps-root (io/file "data/known-gaps"))
 (def known-gap-required-keys
@@ -276,7 +344,17 @@
           (swap! errors conj (str "duplicate concept ID " id " in registry"))
           (println "    FAIL duplicate concept ID" id)))
       (doseq [entry reg-entries]
-        (let [ps (:concept/protocols entry)]
+        (let [ps (:concept/protocols entry)
+              owner (:concept/owner entry)]
+          (when-not (or (= :shared owner) (contains? known-protocols owner))
+            (swap! errors conj (str "entry " (:concept/id entry) " has invalid or missing :concept/owner " owner))
+            (println "    FAIL entry" (:concept/id entry) "invalid or missing owner:" owner))
+          (when (and (contains? known-protocols owner) (not (contains? ps owner)))
+            (swap! errors conj (str "entry " (:concept/id entry) " owner " owner " is not in :concept/protocols"))
+            (println "    FAIL entry" (:concept/id entry) "owner is not an applicable protocol:" owner))
+          (when (and (= :shared owner) (< (count ps) 2))
+            (swap! errors conj (str "entry " (:concept/id entry) " is shared but applies to fewer than two protocols"))
+            (println "    FAIL entry" (:concept/id entry) "shared owner requires at least two applicable protocols"))
           (when ps
             (doseq [p ps]
               (when-not (known-protocols p)
@@ -325,7 +403,10 @@
                       (let [fl (:concept/layer data) rl (:concept/layer reg-entry)]
                         (when (not= fl rl)
                           (swap! errors conj (str rel ": layer mismatch, file has " fl ", registry has " rl))
-                          (println "    FAIL" rel "layer mismatch"))))
+                          (println "    FAIL" rel "layer mismatch")))
+                      (when (not= (:concept/protocols data) (:concept/protocols reg-entry))
+                        (swap! errors conj (str rel ": :concept/protocols differs from registry entry"))
+                        (println "    FAIL" rel "protocol applicability differs from registry")))
                     (let [expected-dir (get type-dir-map ctype)]
                       (when (and expected-dir (not (.startsWith rel (str expected-dir "/")))
                                  (not= rel (str expected-dir ".edn")))
@@ -344,6 +425,8 @@
                      (check-mapping-statuses rel data errors)
                      (check-out-of-scope rel data errors)
                      (check-known-gaps rel data known-gaps-by-id known-gap-ids errors))))))))
+      (println "  Checking protocol mapping files...")
+      (check-protocol-mapping-files registry @loaded-concepts errors)
       (println "  Checking related concept references...")
       (doseq [{:keys [from to]} (concepts-registry/missing-related-concepts @loaded-concepts)]
         (swap! errors conj (str "concept " from " references missing related concept " to))

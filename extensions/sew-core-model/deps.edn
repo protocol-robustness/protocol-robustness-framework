@@ -1,0 +1,6 @@
+{:paths ["src" "test"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        ;; Independently selectable in-tree package. Replace with the released
+        ;; Maven coordinate after this package is published.
+        org.protocol-robustness/prf-sew-protocol-model
+        {:local/root "../../packages/sew-protocol-model"}}}

@@ -42,11 +42,12 @@ Its source checkout now has a described Jujutsu change and local bookmark that u
 adopted baseline
 `e0e33c5ab0f976df2be635124dbc7c0a0bea1619b31af6f3a8d787a3da3c366e`. PRF's
 immutable dependency now points to
-`e0788f911e4fba3a27544cbccbb95d59d7daf2f7`, which exposes the frozen
-allocation fixtures as Clojure classpath resources. This is a source pin, not
-package-registry publication or release qualification.
+`cf38de1ea4ef03654ee3de8bead56c32ef078b10`, matching the published allocation
+repository `main`. The revision adds a deployment-scoped claim candidate and
+shared candidate vectors; PRF does not adopt or consume that profile. This is a
+source pin, not package-registry publication or release qualification.
 
-See the [pinned allocation repository](https://github.com/protocol-robustness/prf-pro-rata-allocation/tree/e0788f911e4fba3a27544cbccbb95d59d7daf2f7)
+See the [pinned allocation repository](https://github.com/protocol-robustness/prf-pro-rata-allocation/tree/cf38de1ea4ef03654ee3de8bead56c32ef078b10)
 for the portable package boundary, adapter contracts, conformance ownership,
 and remaining release gates. Its source qualification does not promote release,
 SP1, or Solidity proof qualification.
@@ -397,7 +398,7 @@ PRF checkout
 ├── src/resolver_sim/allocation/                statement, context, lifecycle,
 │                                             execution, proof, entitlement blend
 ├── src/resolver_sim/shortfall/                 scarcity and reserve/application bindings
-├── pro_rata_contract_src/                     independent aggregate contract reference
+├── pro-rata/contract-source/                     independent aggregate contract reference
 ├── prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/                         Rust codec, selection/fill/lifecycle,
 │                                             Shortfall, entitlement and execution blend
 ├── prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/*-sp1-program/                 distinct guest/profile identities

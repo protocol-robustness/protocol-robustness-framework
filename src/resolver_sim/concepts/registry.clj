@@ -24,7 +24,7 @@
     :concept/stakeholder-question :concept/protocols
     :concept/roles :concept/entities :concept/actions
     :concept/outcomes :concept/failure-modes
-    :concept/metrics :concept/assumptions
+    :concept/assumptions
     :concept/out-of-scope})
 
 (def mapping-statuses
@@ -98,6 +98,71 @@
                           {:concept-id (:concept/id concept-entry)
                            :path rel-path})))))))
 
+(defn- resolve-data-file
+  [rel-path]
+  (if (.exists (java.io.File. rel-path))
+    rel-path
+    (let [resource-path (str hash-ref/resource-prefix rel-path)]
+      (if (rp/path-exists? resource-path)
+        resource-path
+        (throw (ex-info (str "Registered data file not found: " rel-path)
+                        {:path rel-path}))))))
+
+(def ^:private mapping-categories
+  #{:concept/roles :concept/entities :concept/actions :concept/outcomes})
+
+(defn- load-mapping-sets
+  [registry]
+  (into {}
+        (map (fn [mapping-entry]
+               (let [protocol (:mapping/protocol mapping-entry)
+                     mapping-file (:mapping/file mapping-entry)
+                     mapping-set (load-edn (resolve-data-file mapping-file))]
+                 (when-not (= protocol (:mapping-set/protocol mapping-set))
+                   (throw (ex-info "concept mapping file protocol mismatch"
+                                   {:declared protocol
+                                    :actual (:mapping-set/protocol mapping-set)
+                                    :file mapping-file})))
+                 [protocol
+                  (reduce (fn [index mapping]
+                            (assoc index
+                                   [(:concept/id mapping)
+                                    (:mapping/category mapping)
+                                    (:mapping/id mapping)]
+                                   (:mapping/values mapping)))
+                          {}
+                          (:mappings mapping-set))]))
+             (:concept-mapping-files registry))))
+
+(defn- apply-mapping-index
+  [concept mapping-index]
+  (reduce-kv (fn [result [concept-id category mapping-id] values]
+               (if (= concept-id (:concept/id result))
+                 (update-in result [category mapping-id] merge values)
+                 result))
+             concept
+             mapping-index))
+
+(defn- with-mapping-context
+  [concept base mapping-indexes]
+  (with-meta concept
+    (assoc (meta concept)
+           ::base-concept base
+           ::mapping-indexes mapping-indexes)))
+
+(defn- concept-for-protocol
+  [concept protocol-id]
+  (let [metadata (meta concept)
+        base (or (::base-concept metadata) concept)
+        mapping-indexes (::mapping-indexes metadata)
+        mapped (apply-mapping-index
+                base
+                (merge (get mapping-indexes :shared {})
+                       (get mapping-indexes protocol-id {})))]
+    (if (contains? standard-concept-types (:concept/type mapped))
+      (normalize-concept mapped)
+      mapped)))
+
 (defn- missing-keys-violations
   "Schema-integrity violations for a concept definition: missing required
    members are errors (an invalid concept must not enter the usable registry),
@@ -133,7 +198,8 @@
     (when is-standard
       (doseq [category [:concept/roles :concept/entities :concept/actions :concept/outcomes]
               [mapping-key mapping] (get concept category)]
-        (when-not (vector? (:maps-to mapping))
+        (when (and (contains? mapping :maps-to)
+                   (not (vector? (:maps-to mapping))))
           (log/warn! "concept/invalid-maps-to"
                      {:concept-id id :category category :mapping mapping-key
                       :maps-to (:maps-to mapping)}))
@@ -142,7 +208,7 @@
           (log/warn! "concept/invalid-mapping-status"
                      {:concept-id id :category category :mapping mapping-key
                       :mapping/status (:mapping/status mapping)}))))
-    {:concept (if is-standard (normalize-concept concept) concept)
+    {:concept concept
      :errors errors}))
 
 (defn- duplicate-concept-violations
@@ -195,10 +261,12 @@
    (or @registry-cache
        (let [registry (load-edn registry-path)
              entries (:concepts registry)
+             mapping-indexes (load-mapping-sets registry)
              loaded (mapv (fn [entry]
                             (let [path (resolve-concept-file entry)
-                                  concept (load-edn path)]
-                              (validate-concept concept)))
+                                  concept (load-edn path)
+                                  validated (validate-concept concept)]
+                              (assoc validated :entry entry)))
                           entries)
              integrity (registry-integrity-violations entries (map :concept loaded))]
          (when (seq integrity)
@@ -207,8 +275,20 @@
                             :violations integrity})))
          (log/info! "concepts/loaded" {:count (count entries)
                                        :ids (mapv :concept/id (map :concept loaded))})
-         (let [result {:registry registry
-                       :concepts (mapv :concept loaded)}]
+         (let [concepts (mapv (fn [{:keys [concept entry]}]
+                                (let [base (assoc concept
+                                                  :concept/owner (:concept/owner entry)
+                                                  :concept/protocols (:concept/protocols entry))
+                                      owner (:concept/owner entry)
+                                      default-protocol owner
+                                      mapped (concept-for-protocol
+                                              (with-mapping-context base base mapping-indexes)
+                                              default-protocol)]
+                                  (with-mapping-context mapped base mapping-indexes)))
+                              loaded)
+               result {:registry registry
+                       :mapping-sets mapping-indexes
+                       :concepts concepts}]
            (reset! registry-cache result)
            result)))))
 
@@ -228,9 +308,10 @@
   (mapv :concept/id concepts))
 
 (defn concepts-for-protocol
-  "Return concept definitions that support a given protocol."
+  "Return concepts with mappings resolved for the requested protocol."
   [concepts protocol-id]
-  (filter #(contains? (:concept/protocols %) protocol-id) concepts))
+  (map #(concept-for-protocol % protocol-id)
+       (filter #(contains? (:concept/protocols %) protocol-id) concepts)))
 
 (defn missing-related-concepts
   "Return unresolved :concept/related references as

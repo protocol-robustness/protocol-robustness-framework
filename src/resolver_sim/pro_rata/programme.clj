@@ -91,6 +91,10 @@
                 (when-not (#{:requested :not-requested} v)
                   (throw (ex-info "Stage flag must be :requested or :not-requested"
                                   {:stage k :value v})))
+                (when (and (contains? (set required-stage-keys) k)
+                           (= :not-requested v))
+                  (throw (ex-info "Required programme stage cannot be :not-requested"
+                                  {:stage k :value v})))
                 (assoc acc k v)))
             {}
             programme-stage-keys)))
@@ -101,17 +105,65 @@
 
 (def ^:const plan-schema-version "programme-plan.v1")
 
+(defn- valid-root? [value]
+  (and (string? value) (boolean (re-matches #"[0-9a-f]{64}" value))))
+
+(defn- canonical-scalar? [value]
+  (or (keyword? value) (string? value) (symbol? value) (integer? value)))
+
+(defn- validate-identity-plan-fields!
+  "Fail closed on malformed identity-mode plans before idempotence checks.
+   Re-normalizing arbitrary values must not turn them into accepted identity."
+  [plan]
+  (let [expected-keys #{:schema-version :programme/id :allocation-request-root
+                        :semantic-ids :stages :validation-profile-root
+                        :statement-profile-root :proof-profile-id
+                        :admission-profile-id}]
+    (when-not (= expected-keys (set (keys plan)))
+      (throw (ex-info "Canonical programme plan has an invalid field set"
+                      {:expected expected-keys :actual (set (keys plan))}))))
+  (when-not (= plan-schema-version (:schema-version plan))
+    (throw (ex-info "Unsupported programme plan schema version"
+                    {:schema-version (:schema-version plan)
+                     :expected plan-schema-version})))
+  (when-not (valid-root? (:allocation-request-root plan))
+    (throw (ex-info "Canonical programme plan requires a valid allocation request root"
+                    {:allocation-request-root (:allocation-request-root plan)})))
+  (when-not (and (vector? (:semantic-ids plan))
+                 (every? canonical-scalar? (:semantic-ids plan)))
+    (throw (ex-info "Canonical programme plan requires semantic IDs as a vector of canonical scalars"
+                    {:semantic-ids (:semantic-ids plan)})))
+  (when-not (and (map? (:stages plan))
+                 (= (set programme-stage-keys) (set (keys (:stages plan)))))
+    (throw (ex-info "Canonical programme plan requires the complete stage map"
+                    {:stages (:stages plan)})))
+  (doseq [key [:validation-profile-root :statement-profile-root]]
+    (when-not (or (nil? (get plan key)) (valid-root? (get plan key)))
+      (throw (ex-info "Canonical programme profile root must be nil or a valid root"
+                      {:field key :value (get plan key)}))))
+  (doseq [key [:proof-profile-id :admission-profile-id]]
+    (when-not (or (nil? (get plan key)) (canonical-scalar? (get plan key)))
+      (throw (ex-info "Canonical programme profile ID must be nil or a canonical scalar"
+                      {:field key :value (get plan key)}))))
+  (when (some? (:validation-profile-root plan))
+    (throw (ex-info "Validation profiles are not supported until profile selection is implemented"
+                    {:validation-profile-root (:validation-profile-root plan)})))
+  plan)
+
 (defn allocation-request-root
   "Root identity of the exact allocation request. Frozen and independent of any
    execution state (no parallelism/progress/budget/timestamps)."
-  [{:keys [schema-version amount participants policy use-case unit]}]
+  [{:keys [schema-version allocation/id amount participants policy use-case unit source metadata]}]
   (hc/domain-hash :programme-allocation-request-v1
                   {:schema-version (or schema-version 1)
+                   :allocation/id id
                    :amount amount
                    :participants (mapv #(select-keys % [:id :weight :cap]) participants)
                    :policy (or policy {})
                    :use-case use-case
-                   :unit unit}))
+                   :unit unit
+                   :source (or source {})
+                   :metadata (or metadata {})}))
 
 (defn semantic-allocation-ids
   "The semantic allocation set/order: participant IDs in request order."
@@ -138,8 +190,13 @@
    worker pools, host, timestamps, paths, cancel atom) are deliberately dropped."
   [plan]
   (let [has-request (some? (:request plan))
+        _profile-check (when (and has-request (some? (:validation-profile plan)))
+                         (throw (ex-info "Validation profiles are not supported until profile selection is implemented"
+                                         {:validation-profile (:validation-profile plan)})))
+        _identity-check (when-not has-request (validate-identity-plan-fields! plan))
         cid (or (:programme/id plan) (get-in plan [:request :programme/id]))
-        stages (normalize-stages (:stages plan))]
+        stages (normalize-stages (:stages plan))
+        normalized-plan (assoc plan :stages stages)]
     (when (nil? cid)
       (throw (ex-info "Programme requires :programme/id" {})))
     (when-not (or (keyword? cid) (string? cid) (symbol? cid) (integer? cid))
@@ -157,11 +214,11 @@
                      (:semantic-ids plan))
      :stages stages
      :validation-profile-root (if has-request
-                                (profile-root plan :validation-profile :validation
+                                (profile-root normalized-plan :validation-profile :validation
                                               "PROGRAMME_VALIDATION_PROFILE_V1")
                                 (:validation-profile-root plan))
      :statement-profile-root (if has-request
-                               (profile-root plan :statement-profile :statement
+                               (profile-root normalized-plan :statement-profile :statement
                                              "PROGRAMME_STATEMENT_PROFILE_V1")
                                (:statement-profile-root plan))
      :proof-profile-id (if has-request
@@ -440,11 +497,22 @@
                                   :evaluation evaluation
                                   :validation-status validation-status
                                   :validation-details validation-details})
+              expected-evaluation
+              (pro-rata-evaluation/evaluate-pro-rata-allocation request)
               expected-evaluation-request
-              (get-in (pro-rata-evaluation/evaluate-pro-rata-allocation request)
-                      [:result :artifact/value :canonical-request])
+              (get-in expected-evaluation [:result :artifact/value :canonical-request])
               evaluation-request
               (get-in evaluation [:result :artifact/value :canonical-request])
+              expected-projection (get expected-evaluation :projection)
+              evaluation-projection (get evaluation :projection)
+              expected-result-value
+              (get-in expected-evaluation [:result :artifact/value])
+              evaluation-result-value
+              (get-in evaluation [:result :artifact/value])
+              expected-result-projection-hash
+              (get-in expected-evaluation [:result :artifact/value :projection-hash])
+              evaluation-result-projection-hash
+              (get-in evaluation [:result :artifact/value :projection-hash])
               evaluation-allocation
               (get-in evaluation [:result :artifact/value :allocation])
               expected-stage-ids {:allocation request-root
@@ -496,6 +564,21 @@
                        :expected expected-evaluation-request
                        :actual evaluation-request})
 
+                (not= expected-projection evaluation-projection)
+                (conj {:field :evaluation/projection
+                       :expected expected-projection
+                       :actual evaluation-projection})
+
+                (not= expected-result-value evaluation-result-value)
+                (conj {:field :evaluation/result
+                       :expected expected-result-value
+                       :actual evaluation-result-value})
+
+                (not= expected-result-projection-hash evaluation-result-projection-hash)
+                (conj {:field :evaluation/result-projection-hash
+                       :expected expected-result-projection-hash
+                       :actual evaluation-result-projection-hash})
+
                 (not= evaluation-allocation (:allocation evaluation))
                 (conj {:field :evaluation/allocation
                        :expected evaluation-allocation
@@ -535,15 +618,17 @@
 (defn- execute-required-stages
   [plan canonical opts on-complete]
   (let [request (:request plan)]
-    (emit opts {:event :phase-started :phase :allocating :total 3})
+    (emit opts {:event :phase-started :phase :allocating
+                :status :running :current 0 :total 4})
     (let [evaluation (pro-rata-evaluation/evaluate-pro-rata-allocation request)]
-      (emit opts {:event :allocation-completed :phase :allocating})
+      (emit opts {:event :phase-completed :phase :allocating
+                  :status :running :current 1})
       (emit opts {:event :phase-started :phase :validating})
       (let [verdict (programme-validation-result evaluation)
             validation-status (:status verdict)
             validation-details (:details verdict)]
         (emit opts {:event :phase-completed :phase :validating
-                    :validation-status validation-status})
+                    :validation-status validation-status :status :running :current 2})
         (emit opts {:event :phase-started :phase :evidence})
         (let [evidence (programme-evidence-artifact
                         {:programme/id (:programme/id canonical)
@@ -551,8 +636,8 @@
                          :evaluation evaluation
                          :validation-status validation-status
                          :validation-details validation-details})]
-          (emit opts {:event :phase-completed :phase :evidence})
-          (emit opts {:event :phase-completed :phase :completed :status :completed})
+          (emit opts {:event :phase-completed :phase :evidence
+                      :status :running :current 3})
           (let [stage-ids {:allocation (:allocation-request-root canonical)
                            :validation (:allocation-request-root canonical)
                            :evidence (:evidence/id evidence)}]
@@ -571,45 +656,58 @@
    Operational options (excluded from identity): :on-progress (SP-A typed event
    callback), :progress-atom, :budget-permits (execution budget)."
   [plan & {:keys [on-progress progress-atom budget-permits]}]
-  (let [opts {:on-progress on-progress :progress-atom progress-atom}
-        canonical (canonical-programme-plan plan)
-        requested-optional (filterv #(= :requested (get-in canonical [:stages %]))
-                                    optional-stage-keys)
-        _ (when (seq requested-optional)
-            (throw (ex-info "Requested programme stage is not implemented"
-                            {:unsupported-stages requested-optional})))
-        stages (:stages canonical)
-        run (fn []
-              (let [execution (execute-required-stages plan canonical opts identity)
-                    programme-plan-root (programme-plan-root canonical)
-                    finished-stages (merge stages
-                                           {:allocation :completed
-                                            :validation (:validation-status execution)
-                                            :evidence :completed})
-                    stage-ids (:stage-ids execution)
-                    reconciliation (reconcile-programme-ids
-                                    {:planned stage-ids
-                                     :executed stage-ids
-                                     :recorded stage-ids})
-                    receipt (build-programme-receipt
-                             (assoc execution
-                                    :programme/id (:programme/id canonical)
-                                    :programme-plan-root programme-plan-root
-                                    :stages finished-stages
-                                    :reconciliation reconciliation))
-                    verification (verify-programme-receipt
-                                  {:plan plan
-                                   :request (:request execution)
-                                   :evaluation (:evaluation execution)
-                                   :evidence-artifact (:evidence-artifact execution)}
-                                  receipt)]
-                {:canonical-plan canonical
-                 :stages finished-stages
-                 :evaluation (:evaluation execution)
-                 :evidence-artifact (:evidence-artifact execution)
-                 :reconciliation reconciliation
-                 :receipt receipt
-                 :verification verification}))]
-    (if (and budget-permits (pos? budget-permits))
-      (budget/with-execution-budget budget-permits (run))
-      (run))))
+  (let [opts {:on-progress on-progress :progress-atom progress-atom}]
+    (emit opts {:event :phase-started :phase :preparing
+                :status :running :current 0 :total 4})
+    (try
+      (let [canonical (canonical-programme-plan plan)
+            requested-optional (filterv #(= :requested (get-in canonical [:stages %]))
+                                        optional-stage-keys)
+            _ (when (seq requested-optional)
+                (throw (ex-info "Requested programme stage is not implemented"
+                                {:unsupported-stages requested-optional})))
+            stages (:stages canonical)
+            run (fn []
+                  (let [execution (execute-required-stages plan canonical opts identity)
+                        programme-plan-root (programme-plan-root canonical)
+                        finished-stages (merge stages
+                                               {:allocation :completed
+                                                :validation (:validation-status execution)
+                                                :evidence :completed})
+                        stage-ids (:stage-ids execution)
+                        reconciliation (reconcile-programme-ids
+                                        {:planned stage-ids
+                                         :executed stage-ids
+                                         :recorded stage-ids})
+                        receipt (build-programme-receipt
+                                 (assoc execution
+                                        :programme/id (:programme/id canonical)
+                                        :programme-plan-root programme-plan-root
+                                        :stages finished-stages
+                                        :reconciliation reconciliation))
+                        _ (emit opts {:event :phase-started :phase :verifying
+                                      :status :running :current 3})
+                        verification (verify-programme-receipt
+                                      {:plan plan
+                                       :request (:request execution)
+                                       :evaluation (:evaluation execution)
+                                       :evidence-artifact (:evidence-artifact execution)}
+                                      receipt)
+                        completed? (and (= :passed (:status verification))
+                                        (= :completed (:programme/status receipt)))]
+                    (emit opts {:event :phase-completed :phase :completed
+                                :status (if completed? :completed :failed)
+                                :current (if completed? 4 3)})
+                    {:canonical-plan canonical
+                     :stages finished-stages
+                     :evaluation (:evaluation execution)
+                     :evidence-artifact (:evidence-artifact execution)
+                     :reconciliation reconciliation
+                     :receipt receipt
+                     :verification verification}))]
+        (if (and budget-permits (pos? budget-permits))
+          (budget/with-execution-budget budget-permits (run))
+          (run)))
+      (catch Exception e
+        (emit opts {:event :phase-completed :status :failed})
+        (throw e)))))

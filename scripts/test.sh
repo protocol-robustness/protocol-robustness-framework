@@ -72,7 +72,7 @@ fi
 # Resolve the canonical `all` target set once. Execution mode must not change
 # which targets `all` means.
 all_target_pairs() {
-  ALL_TARGETS=(suites unit lab generators invariants contracts coverage triage)
+  ALL_TARGETS=(suites unit extension-packages lab generators invariants contracts coverage triage)
   if [ "$FAST_MODE" = false ]; then
     ALL_TARGETS=(monte-carlo "${ALL_TARGETS[@]}")
   fi
@@ -312,6 +312,7 @@ run_unit() {
   echo "Running unit tests (all — framework + Sew, parallel namespaces)..."
   PARALLEL_TEST_LEAK_CHECK=1 clojure -M:test:with-sew -m scripts.parallel-test-runner \
     resolver-sim.core-tests \
+    resolver-sim.commands.backstop-test \
     resolver-sim.protocol-alignment-test \
     resolver-sim.protocols.sew.replay-test \
     resolver-sim.protocols.sew.forking-strategist-expectations-test \
@@ -357,6 +358,7 @@ run_unit() {
     resolver-sim.allocation.vectors-test \
     resolver-sim.pro-rata.allocation-test \
     resolver-sim.pro-rata.dependency-boundary-test \
+    resolver-sim.pro-rata.vector-drift-test \
     resolver-sim.test-vectors.pro-rata-test \
     resolver-sim.benchmark.packs.partial-fill.pro-rata-evidence-test \
     resolver-sim.yield.pro-rata-claims-test \
@@ -390,6 +392,12 @@ run_unit() {
     resolver-sim.evidence.finalization-test \
     resolver-sim.evidence.qol-test
   return $?
+}
+
+run_extension_packages() {
+  require_clojure || return $?
+  echo "Running extension package API boundary and package-local test suites..."
+  bash scripts/test_extension_packages.sh
 }
 
 run_lab() {
@@ -1141,6 +1149,9 @@ case "$MODE" in
   unit)
     run_unit || FAILURES=$((FAILURES + 1))
     ;;
+  extension-packages)
+    run_target extension-packages run_extension_packages || FAILURES=$((FAILURES + 1))
+    ;;
   lab)
     run_target lab run_lab || FAILURES=$((FAILURES + 1))
     ;;
@@ -1276,6 +1287,7 @@ case "$MODE" in
           "monte-carlo:run_monte_carlo" \
           "suites:run_suites" \
           "unit:run_unit" \
+          "extension-packages:run_extension_packages" \
           "lab:run_lab" \
           "generators:run_generators" \
           "invariants:run_invariants" \
@@ -1285,6 +1297,8 @@ case "$MODE" in
         run_target reference-validation run_reference_validation || FAILURES=$((FAILURES + 1))
       else
         run_target unit run_unit || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target extension-packages run_extension_packages || FAILURES=$((FAILURES + 1))
         echo ""
         run_target lab run_lab || FAILURES=$((FAILURES + 1))
         echo ""
@@ -1338,7 +1352,7 @@ case "$MODE" in
       ;;
   *)
     echo "Unknown test mode: $MODE"
-    echo "Usage: $0 [unit|framework|sew|invariants|...|all]"
+    echo "Usage: $0 [unit|extension-packages|framework|sew|invariants|...|all]"
     exit 1
     ;;
 esac

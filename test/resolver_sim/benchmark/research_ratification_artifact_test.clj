@@ -153,7 +153,9 @@
            (get-in saved [:artifact/ratification :ratification/status])))
     (is (false? (:artifact/authority-issued? saved)))
     (is (false? (:artifact/rewards-created? saved)))
-    (is (= :externally-anchored (:verification/trust-roots verification)))))
+    (is (= :unverified (:verification/trust-roots verification)))
+    (is (= :unverified (:verification/authority verification)))
+    (is (= :unverified (:verification/history-completeness verification)))))
 
 (deftest tampering-and-incentive-links-do-not-create-authority-or-payment
   (let [inputs (bundle)

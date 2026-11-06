@@ -159,14 +159,14 @@ core-deps-str (pr-str
                                 io.grpc/grpc-netty-shaded {:mvn/version "1.64.0"}
                                 io.grpc/grpc-stub {:mvn/version "1.64.0"}
                                 scicloj/tablecloth {:mvn/version "7.029.2"}}
-                        :paths ["src" "resources"]})
+                        :paths ["src" "yield_runtime_src" "pro-rata/contract-source" "resources"]})
         sew-deps-str (pr-str
                       '{:deps {org.clojure/clojure {:mvn/version "1.12.0"}
                                prf/canonical {:git/url "https://github.com/protocol-robustness/prf-canonical.git"
                                               :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
                                               :deps/root "clj"}
                                prf/pro-rata-allocation {:git/url "https://github.com/protocol-robustness/prf-pro-rata-allocation.git"
-                                                        :git/sha "e0788f911e4fba3a27544cbccbb95d59d7daf2f7"
+                                                        :git/sha "cf38de1ea4ef03654ee3de8bead56c32ef078b10"
                                                         :deps/root "clj"}
                                org.clojure/tools.logging {:mvn/version "1.2.4"}
                                org.slf4j/slf4j-api {:mvn/version "1.7.36"}
@@ -174,10 +174,15 @@ core-deps-str (pr-str
                                org.clojure/tools.cli {:mvn/version "1.0.219"}
                                org.clojure/data.json {:mvn/version "2.4.0"}
                                buddy/buddy-core {:mvn/version "1.12.0-430"}
+                               ;; Keep Buddy's Bouncy Castle provider and ASN.1
+                               ;; support artifacts on one compatible release.
+                               org.bouncycastle/bcprov-jdk18on {:mvn/version "1.78.1"}
+                               org.bouncycastle/bcutil-jdk18on {:mvn/version "1.78.1"}
+                               org.bouncycastle/bcpkix-jdk18on {:mvn/version "1.78.1"}
                                com.github.seancorfield/next.jdbc {:mvn/version "1.3.939"}
                                org.postgresql/postgresql {:mvn/version "42.7.2"}
                                metosin/malli {:mvn/version "0.17.0"}}
-                        :paths ["src" "protocols_src" "resources"]})
+                        :paths ["src" "yield_runtime_src" "pro-rata/contract-source" "protocols_src" "resources"]})
         deps-str (if (or is-prf is-prf-runnable) core-deps-str sew-deps-str)
         deps-path (str (System/getProperty "java.io.tmpdir")
                        "/prf-build-deps-" (System/nanoTime) ".edn")
@@ -185,8 +190,8 @@ core-deps-str (pr-str
         basis (b/create-basis {:project deps-path})
         src-dirs (cond
                            is-prf [".profile-view/framework"]
-                           is-prf-runnable ["src" "resources" "scenarios"]
-                           :else ["src" "protocols_src" "resources" "scenarios"])
+                           is-prf-runnable ["src" "yield_runtime_src" "pro-rata/contract-source" "resources" "scenarios"]
+                           :else ["src" "yield_runtime_src" "pro-rata/contract-source" "protocols_src" "resources" "scenarios"])
         class-dir (str (System/getProperty "java.io.tmpdir")
                        "/prf-build-" (System/nanoTime))
         jar-file (cond is-prf "target/prf.jar"
@@ -339,7 +344,7 @@ core-deps-str (pr-str
         class-dir "target/classes"]
     (.mkdirs (java.io.File. class-dir))
     (println "\n=== AOT compile Sew protocol sources ===")
-    (doseq [src-dir ["protocols_src" "src"]]
+    (doseq [src-dir ["protocols_src" "src" "yield_runtime_src"]]
       (let [d (java.io.File. src-dir)]
         (when (.exists d)
           (try

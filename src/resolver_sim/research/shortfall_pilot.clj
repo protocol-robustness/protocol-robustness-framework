@@ -11,6 +11,7 @@
             [resolver-sim.benchmark.outcome-manifest :as outcome]
             [resolver-sim.benchmark.research-analysis :as analysis]
             [resolver-sim.benchmark.research-analysis-closure :as closure]
+            [resolver-sim.research.resolution-view :as resolution-view]
             [resolver-sim.evidence.forensic-graph :as forensic]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as reference]))
@@ -191,6 +192,32 @@
        :falsification-condition-met? (pos? value)
        :novelty/review-required? true
        :witness (counterexample-witness-projection comparison)})))
+
+(defn qualify-case
+  "Recompute and present one frozen shortfall case through the shared
+   researcher-facing resolution view. A zero difference is bounded support for
+   this case only; a positive difference is a finite counterexample."
+  [candidate comparison]
+  (let [checked (validate-challenge-001-scope-candidate! candidate comparison)
+        claim-status (case (:result/classification checked)
+                       :counterexample-found :counterexample-found
+                       :supported :supported-within-scope
+                       :not-established)
+        subject-root (root :prf-research-subject (:subject candidate))]
+    (resolution-view/build-view
+     {:subject-root subject-root
+      :scope-root (:case/root comparison)
+      :method-root method-root
+      :evidence-root (:artifact/root comparison)
+      :claim-status claim-status
+      :method-status :verified
+      :method-source-status :unverified
+      :reproduction-status :same-implementation
+      :ratification-status :absent
+      :limitations [:single-finite-policy-pair
+                    :same-implementation-replay
+                    :novelty-requires-review
+                    :no-operational-authority]})))
 
 (defn- economic-model [subject policies]
   (model/build-model

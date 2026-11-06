@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://protocol-robustness-framework/schemas/research-dependency-observation-comparison.v1.json",
+  "title": "Research Dependency Observation Comparison v1",
+  "description": "Retains all dependency observations for one comparison. Conflicting observations are reported without winner selection.",
+  "type": "object",
+  "required": [
+    "artifact/schema",
+    "observation/historical-assessment-root",
+    "observation/baseline-resolved-root",
+    "observation/trusted-baseline-root",
+    "observation/records",
+    "observation/impact-report-roots",
+    "observation/reference-roots",
+    "observation/resolved-state-roots",
+    "observation/status",
+    "observation/observer-authentication",
+    "observation/observer-independence",
+    "observation/latestness",
+    "observation/operational-authority?",
+    "research-dependency-observation-comparison/root"
+  ],
+  "properties": {
+    "artifact/schema": { "const": "research-dependency-observation-comparison.v1" },
+    "observation/historical-assessment-root": { "$ref": "#/$defs/root" },
+    "observation/baseline-resolved-root": { "$ref": "#/$defs/root" },
+    "observation/trusted-baseline-root": {
+      "oneOf": [{ "$ref": "#/$defs/root" }, { "type": "null" }]
+    },
+    "observation/records": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/record" } },
+    "observation/impact-report-roots": { "type": "array", "items": { "$ref": "#/$defs/root" } },
+    "observation/reference-roots": { "type": "array", "items": { "$ref": "#/$defs/root" } },
+    "observation/resolved-state-roots": { "type": "array", "items": { "$ref": "#/$defs/root" } },
+    "observation/status": { "enum": ["single-observation", "observers-agree", "conflicting", "not-comparable"] },
+    "observation/observer-authentication": { "const": "not-evaluated" },
+    "observation/observer-independence": { "const": "not-established" },
+    "observation/latestness": { "const": "not-established" },
+    "observation/operational-authority?": { "const": false },
+    "research-dependency-observation-comparison/root": { "$ref": "#/$defs/root" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "root": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "record": {
+      "type": "object",
+      "required": ["observation/observer-root", "observation/reference-root", "observation/resolved-root", "observation/impact-report", "dependency-observation/root"],
+      "properties": {
+        "observation/observer-root": { "$ref": "#/$defs/root" },
+        "observation/reference-root": { "$ref": "#/$defs/root" },
+        "observation/resolved-root": { "$ref": "#/$defs/root" },
+        "observation/impact-report": { "$ref": "research-dependency-impact-report.v1.json" },
+        "dependency-observation/root": { "$ref": "#/$defs/root" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

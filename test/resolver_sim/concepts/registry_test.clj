@@ -67,3 +67,14 @@
       (is (empty? (cr/registry-integrity-violations
                    (:concepts (:registry (cr/load-registry)))
                    concepts))))))
+
+(deftest pro-rata-evm-v2-assurance-concept-is-registered-and-bounded
+  (let [{:keys [concepts]} (cr/load-registry)
+        concept (cr/lookup-concept concepts :assurance/pro-rata-evm-v2)]
+    (is (= "Pro-rata EVM V2 assurance" (:concept/name concept)))
+    (is (contains? (:concept/outcomes concept) :execution-unestablished)
+        "the concept must retain reconstruction versus execution limits")
+    (is (some #(= :configuration-commitment-mistaken-for-authority (:failure/id %))
+              (:concept/failure-modes concept)))
+    (is (some #(re-find #"Checking allocation arithmetic" %)
+              (:concept/out-of-scope concept)))))
