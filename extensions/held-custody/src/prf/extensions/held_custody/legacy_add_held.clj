@@ -28,7 +28,7 @@
    Historical member verification is extension-owned: the frozen v1/v2
    validators live in prf.extensions.held-custody.legacy-validate, the
    extension's permanent historical-read contract."
-  (:require [resolver-sim.assurance.force-authorisation :as fa]
+  (:require [resolver-sim.extensions.api.v1 :as api]
             [prf.extensions.held-custody.mutation :as mutation]
             [prf.extensions.held-custody.legacy-validate :as lv]))
 
@@ -68,7 +68,7 @@
    may disagree with a projection rebuilt from member fields); for v2 the
    committed :authorization/scope-projection is used verbatim."
   [artifact]
-  (assoc (fa/normalize-force-authorisation-scope
+  (assoc (api/normalize-force-authorisation-scope
           {:authorization/id (:authorization/id artifact)
            :authorization/type (:authorization/type artifact)
            :held/direction (:held/direction artifact)

@@ -5,6 +5,7 @@
    autoCancelDisputedEscrow — happy paths and every revert condition."
   (:require [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
             [clojure.test :refer [deftest is testing run-tests]]
+            [resolver-sim.protocols.registry :as protocol-registry]
             [resolver-sim.protocols.sew.types        :as t]
             [resolver-sim.protocols.sew.lifecycle    :as lc]
             [resolver-sim.protocols.sew.accounting   :as acct]
@@ -21,6 +22,12 @@
 (def bob   "0xBob")
 (def carol "0xCarol")
 (def usdc  :0xUSDC)
+
+(deftest yield-integration-lookup-fails-closed
+  (let [yield-capability (ns-resolve 'resolver-sim.protocols.sew.lifecycle 'yield-capability)]
+    (with-redefs [protocol-registry/get-capability (fn [_ _] nil)]
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (yield-capability :yield/apply-yield-op))))))
 
 (def base-snapshot
   (snap-fix/escrow-snapshot

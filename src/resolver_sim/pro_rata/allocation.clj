@@ -89,3 +89,15 @@
   [result]
   (= (:allocation/hash result)
      (allocation-identity/allocation-result-root result)))
+
+(defn allocation-matches-request?
+  "Return true only when `result` is the allocation recomputed from `request`.
+
+   Hash integrity alone proves that a result body matches its declared root;
+   this check establishes the separate mathematical relationship to the
+   canonical request and its policy fields. It does not authenticate the
+   request or establish authority to settle the result."
+  [request result]
+  (try
+    (= (allocate request) result)
+    (catch Exception _ false)))

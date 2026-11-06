@@ -3,6 +3,10 @@
   {:doc "Print the resolved component closure for a named profile. Usage: bb profile:describe <profile-name>"
    :task (apply shell "bb" "scripts/profile_view.clj" "describe" *command-line-args*)}
 
+  concepts:validate
+  {:doc "Validate the canonical stakeholder concept registry, concept files, protocol mappings, and cross references."
+   :task (shell "clojure" "-M" "scripts/concepts_validate.clj")}
+
   profile:diff
   {:doc "Compare resolved component/source closures. Usage: bb profile:diff <left-profile> <right-profile>"
    :task (apply shell "bb" "scripts/profile_view.clj" "diff" *command-line-args*)}
@@ -448,7 +452,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                 :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "triage")}
 
    test:notebooks {:doc "Load every notebook namespace to verify it compiles"
-                    :task (shell "clojure" "-M:notebooks:with-sew" "-m" "prf.notebooks.host-load-check")}
+                    :task (shell "clojure" "-M:notebooks:with-sew" "-m" "resolver-sim.notebook-support.host-load-check")}
 
 
    demo:reorder-chain

@@ -20,8 +20,8 @@ state.  The shortfall card shows `available-ratio 0.5`: half the yield is
 fulfilled immediately, half deferred.  The presets are defined in:
 
 ```
-src/resolver_sim/yield/presets.clj           # preset definitions
-src/resolver_sim/yield/modules/liquid_lending.clj   # per-function failure-mode logic
+yield_runtime_src/resolver_sim/yield/presets.clj           # preset definitions
+yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj   # per-function failure-mode logic
 ```
 
 ---
@@ -74,7 +74,7 @@ in the scenario (the yield module has a fixed 5 % rate).
 
 ### Where the shortfall calculation happens
 
-Open `src/resolver_sim/yield/accounting.clj`:
+Open `yield_runtime_src/resolver_sim/yield/accounting.clj`:
 
 ```
 apply-liquidity-stress     — split amount into fulfilled / deferred / haircut
@@ -83,7 +83,7 @@ apply-liquidity-stress-for-withdraw  — for partial-liquidity,
 partial-yield-shortfall?   — true when basis-amount < principal
 ```
 
-Then `src/resolver_sim/yield/modules/liquid_lending.clj`:
+Then `yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj`:
 
 ```
 withdraw                   — entry point; recoverable is scoped to the escrow's
@@ -104,7 +104,7 @@ shortfall result enrichment — position status set to :unwinding; the negative
 ### The invariant that checks correctness
 
 ```
-src/resolver_sim/yield/invariants.clj    :yield/shortfall-splits
+yield_runtime_src/resolver_sim/yield/invariants.clj    :yield/shortfall-splits
 ```
 
 This verifies that `fulfilled-amount + deferred-amount + haircut-amount +
@@ -147,9 +147,9 @@ the JSON).  No position is ever created.
 ### Where the guard fires
 
 ```
-src/resolver_sim/yield/modules/liquid_lending.clj:44  deposit-blocked?
+yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj:44  deposit-blocked?
   — returns true when liquidity-mode ∈ #{:shortfall :frozen :paused}
-src/resolver_sim/yield/modules/liquid_lending.clj:77  deposit
+yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj:77  deposit
   — guard: (when (deposit-blocked? ...) (throw ...))
 ```
 
@@ -215,12 +215,12 @@ clojure -M:run -- --invariants --scenario scenarios/yield/Y03_partial-liquidity-
 
 | What | File | Where to look |
 |------|------|---------------|
-| Shortfall stress calculator | `src/resolver_sim/yield/accounting.clj` | `apply-liquidity-stress` (line 122) |
-| Withdraw + shortfall enrichment | `src/resolver_sim/yield/modules/liquid_lending.clj` | `withdraw` (line 128), liquidity branch (line 176) |
-| Deposit shortage guard | `src/resolver_sim/yield/modules/liquid_lending.clj` | `deposit-blocked?` (line 44), `deposit` guard (line 77) |
-| Yield presets | `src/resolver_sim/yield/presets.clj` | Shortfall-partial preset (line 23) |
-| Risk/liquidity mode | `src/resolver_sim/yield/risk.clj` | Liquidity effective-mode (line 21) |
-| Shortfall invariant | `src/resolver_sim/yield/invariants.clj` | `:yield/shortfall-splits` (line 41) |
+| Shortfall stress calculator | `yield_runtime_src/resolver_sim/yield/accounting.clj` | `apply-liquidity-stress` (line 122) |
+| Withdraw + shortfall enrichment | `yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj` | `withdraw` (line 128), liquidity branch (line 176) |
+| Deposit shortage guard | `yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj` | `deposit-blocked?` (line 44), `deposit` guard (line 77) |
+| Yield presets | `yield_runtime_src/resolver_sim/yield/presets.clj` | Shortfall-partial preset (line 23) |
+| Risk/liquidity mode | `yield_runtime_src/resolver_sim/yield/risk.clj` | Liquidity effective-mode (line 21) |
+| Shortfall invariant | `yield_runtime_src/resolver_sim/yield/invariants.clj` | `:yield/shortfall-splits` (line 41) |
 | Y03 scenario JSON | `scenarios/yield/Y03_partial-liquidity-shortfall-affected.json` | Events + expected-outcome |
 | Y06 scenario JSON | `scenarios/yield/Y06_liquidity-shortage-deposit-blocked.json` | Events + expected-outcome |
 | Generator (builds shortfall scenarios) | `src/resolver_sim/generators/yield/scenario.clj` | `build-shortfall-scenario` (line 45), `build-liquidity-shortage-scenario` (line 60) |

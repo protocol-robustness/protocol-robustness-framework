@@ -119,6 +119,43 @@
     (is (= :requested (:evidence (:stages canonical))))
     (is (= :not-requested (:proof (:stages canonical))) "optional stages default not-requested")))
 
+(deftest unsupported-validation-profiles-fail-closed
+  (let [plan (assoc a-plan :validation-profile
+                    {:profile/id :profile-a :checks [:unimplemented-check]})]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"Validation profiles are not supported"
+                          (prog/canonical-programme-plan plan)))
+    (is (= :invalid (:status (prog/verify-programme-plan plan))))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"Validation profiles are not supported"
+                          (prog/run-programme plan)))))
+
+(deftest identity-mode-plan-validates-schema-and-field-shapes
+  (let [canonical (prog/canonical-programme-plan a-plan)
+        malformed [(assoc canonical :schema-version "programme-plan.v999")
+                   (assoc canonical :allocation-request-root "not-a-root")
+                   (dissoc canonical :semantic-ids)
+                   (assoc canonical :semantic-ids [:a nil])
+                   (assoc canonical :stages (dissoc (:stages canonical) :validation))
+                   (assoc canonical :unrecognized :extra-field)]]
+    (doseq [plan malformed]
+      (is (= :invalid (:status (prog/verify-programme-plan plan)))
+          (pr-str plan)))))
+
+(deftest required-stages-cannot-be-disabled
+  (doseq [stage prog/required-stage-keys]
+    (let [plan (assoc-in a-plan [:stages stage] :not-requested)]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"Required programme stage"
+                            (prog/canonical-programme-plan plan))
+          (str stage " cannot be disabled"))
+      (is (= :invalid (:status (prog/verify-programme-plan plan)))
+          (str stage " disabled makes the plan invalid"))))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                        #"Required programme stage"
+                        (prog/run-programme
+                         (assoc-in a-plan [:stages :validation] :not-requested)))))
+
 (deftest canonical-plan-excludes-operational-state
   (testing "parallelism / progress / worker pools / host / paths / cancel atom are dropped"
     (let [op (assoc a-plan :parallelism 8 :worker-pools {:claimants 16}
@@ -303,6 +340,21 @@
     (is (= :failed (:status verification)))
     (is (some #(= :evaluation/request-root (:field %)) (:mismatches verification)))))
 
+(deftest receipt-verification-binds-provenance-to-plan-request
+  (let [plan (assoc-in a-plan [:request :source :forensic/source-id] "trusted-source")
+        substituted-plan (assoc-in plan [:request :source :forensic/source-id]
+                                   "different-source")
+        result (prog/run-programme substituted-plan)
+        rebuilt (rebuilt-receipt substituted-plan (:evaluation result))
+        verification (prog/verify-programme-receipt
+                      (assoc (:artifacts rebuilt) :plan plan)
+                      (:receipt rebuilt))]
+    (is (not= (prog/allocation-request-root (:request plan))
+              (prog/allocation-request-root (:request substituted-plan))))
+    (is (= :failed (:status verification)))
+    (is (some #(= :plan/request-root (:field %))
+              (:mismatches verification)))))
+
 (deftest receipt-verification-reconstructs-projection-from-original-request
   (let [result (prog/run-programme a-plan)
         original-evaluation (:evaluation result)
@@ -439,8 +491,56 @@
         atom-progress (atom (progress/initial-progress {:programme/id :prog-1}))]
     (prog/run-programme a-plan :on-progress (fn [e] (swap! events conj e))
                         :progress-atom atom-progress)
-    (is (some #(= :allocation-completed (:event %)) @events)
+    (is (some #(and (= :phase-completed (:event %))
+                    (= :allocating (:phase %))) @events)
         "typed progress events are emitted")
     (is (= :completed (:status @atom-progress))
         "the caller-owned progress atom converges to a terminal state")
     (is (= :completed (:phase @atom-progress)))))
+
+(deftest programme-progress-completes-only-after-receipt-verification
+  (let [state (progress/make-progress-atom)
+        snapshots (atom [])
+        capture (fn [event]
+                  (swap! snapshots conj
+                         (select-keys (swap! state progress/reducer event)
+                                      [:status :phase :current :total])))
+        result (prog/run-programme a-plan :on-progress capture)]
+    (is (= :passed (get-in result [:verification :status])))
+    (is (every? #(= :running (:status %)) (butlast @snapshots)))
+    (is (= {:status :completed :phase :completed :current 4 :total 4}
+           (last @snapshots)))
+    (is (apply <= (map :current @snapshots)))
+    (is (some #(and (= :validating (:phase %)) (= 1 (:current %))) @snapshots))
+    (is (some #(and (= :verifying (:phase %)) (= 3 (:current %))) @snapshots))))
+
+(deftest programme-exceptions-publish-failure-and-preserve-the-exception
+  (doseq [stage [#'prog/canonical-programme-plan
+                 #'pro-rata-evaluation/evaluate-pro-rata-allocation
+                 #'prog/programme-validation-result
+                 #'prog/programme-evidence-artifact
+                 #'prog/build-programme-receipt
+                 #'prog/verify-programme-receipt]]
+    (testing (str stage)
+      (let [state (progress/make-progress-atom)
+            events (atom [])
+            failure (ex-info "injected stage failure" {:stage (str stage)})
+            caught (try
+                     (with-redefs-fn {stage (fn [& _] (throw failure))}
+                       #(prog/run-programme a-plan :progress-atom state
+                                            :on-progress (fn [e] (swap! events conj e))))
+                     nil
+                     (catch Exception e e))]
+        (is (identical? failure caught))
+        (is (= :failed (:status @state)))
+        (is (= :failed (:status (last @events))))
+        (is (not-any? #(= :completed (:status %)) @events))))))
+
+(deftest programme-receipt-verification-failure-is-not-progress-success
+  (let [state (progress/make-progress-atom)
+        result (with-redefs [prog/verify-programme-receipt
+                             (fn [& _] {:status :failed :mismatches [:injected]})]
+                 (prog/run-programme a-plan :progress-atom state))]
+    (is (= :failed (get-in result [:verification :status])))
+    (is (= :failed (:status @state)))
+    (is (< (:current @state) (:total @state)))))

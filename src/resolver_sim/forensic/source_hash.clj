@@ -13,6 +13,7 @@
    "protocols_src"
    "benchmarks"
    (paths/concepts-dir)
+   "data/concept-mappings"
    "scenarios"
    "suites"
    "resources"])

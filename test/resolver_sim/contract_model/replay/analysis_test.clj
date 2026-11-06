@@ -5,21 +5,27 @@
    from authoritative checkpoint projections, failing closed on zero results or
    on an ambiguous multiple-group coexistence."
   (:require [clojure.test :refer [deftest is]]
-            [resolver-sim.contract-model.replay.analysis :as analysis]))
+            [resolver-sim.protocols.sew.replay.appeal-bond :as appeal-bond]))
 
-(defn- open-record [id ordinal funder]
-  {:bond/id id
-   :workflow/id 0
-   :appeal/ordinal ordinal
-   :asset :USDC
-   :bond/posted-amount 100
-   :bond/posting-fee 10
-   :bond/custodied-amount 90
-   :bond/remaining-custody 90
-   :bond/payer funder
-   :bond/funder funder
-   :posting-operation/id (str "post-" id)
-   :bond/status :open})
+(defn- open-record [ordinal funder]
+  (let [id (str "appeal-bond:0:" funder ":" ordinal)]
+    {:bond/id id
+     :workflow/id 0
+     :dispute/id "dispute:0"
+     :appeal/ordinal ordinal
+     :escalation/from-level ordinal
+     :escalation/to-level (inc ordinal)
+     :asset :USDC
+     :bond/posted-amount 100
+     :bond/posting-fee 10
+     :bond/custodied-amount 90
+     :bond/remaining-custody 90
+     :bond/payer funder
+     :bond/funder funder
+     :posting-operation/id (str "post-" id)
+     :posting-cause/type :appeal
+     :posting-cause/root "posting-cause-root"
+     :bond/status :open}))
 
 (defn- world-with-bonds [records]
   {:appeal-bond/records records
@@ -30,21 +36,22 @@
   ;; seq 0: only bond-a (ordinal 0) exists. seq 5: bond-b (ordinal 1) posted.
   ;; The selector must pick the earliest point (seq 5) where both coexist.
   (let [result {:world-checkpoints
-                {0 (world-with-bonds {"bond-a" (open-record "bond-a" 0 "0xchallenger")})
-                 5 (world-with-bonds {"bond-a" (open-record "bond-a" 0 "0xchallenger")
-                                      "bond-b" (open-record "bond-b" 1 "0xchallenger")})}}
-        pair (#'analysis/earliest-coexistence-bond-pair result)]
+                {0 (world-with-bonds {"appeal-bond:0:0xchallenger:0" (open-record 0 "0xchallenger")})
+                 5 (world-with-bonds {"appeal-bond:0:0xchallenger:0" (open-record 0 "0xchallenger")
+                                      "appeal-bond:0:0xchallenger:1" (open-record 1 "0xchallenger")})}}
+        pair (appeal-bond/earliest-coexistence-bond-pair result)]
     (is (some? pair))
     (is (= 2 (count pair)))
-    (is (= ["bond-a" "bond-b"] (mapv :bond/id pair)))
+    (is (= ["appeal-bond:0:0xchallenger:0" "appeal-bond:0:0xchallenger:1"]
+           (mapv :bond/id pair)))
     (is (= [0 1] (mapv :appeal/ordinal pair)))))
 
 (deftest no-repeated-bond-group-fails-closed
   (let [result {:world-checkpoints
-                {0 (world-with-bonds {"bond-a" (open-record "bond-a" 0 "0xchallenger")})
-                 5 (world-with-bonds {"bond-a" (open-record "bond-a" 0 "0xchallenger")
-                                      "bond-c" (open-record "bond-c" 0 "0xother")})}}
-        pair (#'analysis/earliest-coexistence-bond-pair result)]
+                {0 (world-with-bonds {"appeal-bond:0:0xchallenger:0" (open-record 0 "0xchallenger")})
+                 5 (world-with-bonds {"appeal-bond:0:0xchallenger:0" (open-record 0 "0xchallenger")
+                                      "appeal-bond:0:0xother:0" (open-record 0 "0xother")})}}
+        pair (appeal-bond/earliest-coexistence-bond-pair result)]
     ;; bond-c is a different funder, so no single funder has two rounds.
     (is (nil? pair))))
 
@@ -54,11 +61,11 @@
   (let [result {:world-checkpoints
                 {0 (world-with-bonds {})}
                 5 {:appeal-bond/records
-                   {"bond-a" (open-record "bond-a" 0 "0xf1")
-                    "bond-b" (open-record "bond-b" 1 "0xf1")
-                    "bond-c" (open-record "bond-c" 0 "0xf2")
-                    "bond-d" (open-record "bond-d" 1 "0xf2")}
+                   {"appeal-bond:0:0xf1:0" (open-record 0 "0xf1")
+                    "appeal-bond:0:0xf1:1" (open-record 1 "0xf1")
+                    "appeal-bond:0:0xf2:0" (open-record 0 "0xf2")
+                    "appeal-bond:0:0xf2:1" (open-record 1 "0xf2")}
                    :appeal-bond/dispositions {}
                    :appeal-bond/claims {}}}
-        pair (#'analysis/earliest-coexistence-bond-pair result)]
+        pair (appeal-bond/earliest-coexistence-bond-pair result)]
     (is (nil? pair))))

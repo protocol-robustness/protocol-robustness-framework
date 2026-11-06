@@ -25,61 +25,61 @@
  :concept/roles
  {:yield-provider
   {:description "Entity managing the yield position that falls short."
-   :maps-to [:protocol.actor/recipient]}
+   }
   :claimant
   {:description "Party with a valid claim against the yield position."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+   }
   :shortfall-detector
   {:description "Protocol logic that detects when claims exceed available value."
-   :maps-to [:protocol.actor/resolution-module]}
+   }
   :auditor
   {:description "Party examining shortfall records for correctness."
-   :maps-to [:protocol.actor/verifier]}}
+   }}
 
  :concept/entities
  {:shortfall
   {:description "Recorded deficit between valid claims and available value."
-   :maps-to [:protocol.entity/shortfall]}
+   }
   :basis-amount
   {:description "The reference amount against which shortfall is measured."
-   :maps-to [:protocol.entity/claim]}
+   }
   :fulfilled-amount
   {:description "Portion of the shortfall basis that was actually paid."
-   :maps-to [:protocol.entity/settlement]}
+   }
   :deferred-amount
   {:description "Shortfall remainder preserved for future recovery."
-   :maps-to [:protocol.entity/deferred-claim]}
+   }
   :haircut-amount
   {:description "Shortfall portion permanently written off."
-   :maps-to [:protocol.entity/haircut]}}
+   }}
 
  :concept/actions
  {:detect-shortfall
   {:description "Determine that available value is insufficient for valid claims."
-   :maps-to [:protocol.action/calculate-shortfall]}
+   }
   :record-shortfall
   {:description "Persist the shortfall amount, fulfilled portion, and deferred remainder."
-   :maps-to [:protocol.action/record-shortfall]}
+   }
   :verify-shortfall
   {:description "Check that shortfall was correctly detected and recorded."
-   :maps-to [:protocol.action/verify-allocation :protocol.action/check-invariant]}
+   }
   :resolve-shortfall
   {:description "Deferred recovery or haircut execution when shortfall is resolved."
-   :maps-to [:protocol.action/settle :protocol.action/partial-fill]}}
+   }}
 
  :concept/outcomes
  {:shortfall-detected
   {:description "Shortfall is correctly identified and recorded."
-   :maps-to [:protocol.outcome/deferred]}
+   }
   :shortfall-missed
   {:description "Shortfall exists but is not detected — claims appear satisfied when they are not."
-   :maps-to [:protocol.outcome/adversarial-resolution]}
+   }
   :shortfall-resolved
   {:description "Previously recorded shortfall has been fully or partially cured."
-   :maps-to [:protocol.outcome/released]}
+   }
   :shortfall-hidden
   {:description "Shortfall is detected but not recorded, preventing audit and recovery."
-   :maps-to [:protocol.outcome/stuck]}}
+   }}
 
  :concept/failure-modes
  [{:failure/id :undetected-shortfall

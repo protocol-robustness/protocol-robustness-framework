@@ -5,9 +5,14 @@
    this namespace owns no schemas, hashing rules, or lifecycle semantics. It is
    a package boundary candidate, not yet an independently released package."
   (:require [resolver-sim.benchmark.incentive-model :as incentive-model]
+            [resolver-sim.benchmark.research-conclusion :as conclusion]
             [resolver-sim.benchmark.research-analysis :as analysis]
             [resolver-sim.benchmark.research-claim-acceptance :as acceptance]
             [resolver-sim.benchmark.research-claim-lifecycle :as lifecycle]
+            [resolver-sim.research.resolution-view :as resolution-view]
+            [resolver-sim.research.dependency-assurance :as dependency]
+            [resolver-sim.research.policy-approval :as policy-approval]
+            [resolver-sim.research.integer-sum-verifier :as integer-sum-verifier]
             [resolver-sim.hash.reference :as canonical-reference]))
 
 ;; Research-result verification and analytical-claim derivation.
@@ -15,6 +20,30 @@
 (def analysis-verification-valid? analysis/verification-valid?)
 (def derive-analytical-claim analysis/derive-claim)
 (def validate-analytical-claim analysis/validate-claim)
+
+;; Research-conclusion qualification is explanatory and leaves V1 roots intact.
+(def qualify-research-conclusion conclusion/qualify-conclusion)
+(def build-research-policy-approval policy-approval/build-policy-approval)
+(def prepare-research-policy-approval policy-approval/prepare-policy-approval)
+(def build-research-policy-approval-ratification-policy
+  policy-approval/build-approval-ratification-policy)
+(def verify-research-policy-approval policy-approval/verify-policy-approval)
+(def research-integer-sum-verifier-root integer-sum-verifier/verifier-root)
+(def build-research-integer-sum-evidence integer-sum-verifier/build-evidence)
+(def build-research-integer-sum-conclusion integer-sum-verifier/build-fixture-conclusion)
+(def build-research-resolution-view resolution-view/build-view)
+(def validate-research-resolution-view resolution-view/validate-view)
+
+;; Research dependency drift is an explanatory report, not a freshness oracle.
+(def compare-research-dependency-state dependency/compare-dependency-state)
+(def validate-research-dependency-impact-report dependency/validate-impact-report)
+(def compare-research-dependency-observations dependency/compare-dependency-observations)
+(def validate-research-dependency-observation-comparison
+  dependency/validate-dependency-observation-comparison)
+(def assess-research-dependency-temporal-applicability
+  dependency/assess-observation-temporal-applicability)
+(def validate-research-dependency-temporal-assessment
+  dependency/validate-temporal-assessment)
 
 ;; Authoritative acceptance and lifecycle operations.
 (def build-claim-acceptance-policy acceptance/build-policy)

@@ -18,21 +18,21 @@
             [resolver-sim.protocols.sew.accounting    :as acct]
             [resolver-sim.protocols.sew.held-mutation-admission :as held-admission]
             [resolver-sim.protocols.sew.registry      :as reg]
+            [resolver-sim.protocols.registry :as protocol-registry]
             [resolver-sim.protocols.sew.economics     :as sew-econ]
             [resolver-sim.accounting.held-adjustment  :as held-adj]
-            [resolver-sim.yield.ops                    :as yield-ops]
-            [resolver-sim.yield.partial-fill            :as partial-fill]
-            [resolver-sim.yield.module                 :as yield-module]
-            [resolver-sim.yield.accounting             :as yield-acct]
-            [resolver-sim.yield.expectations           :as yield-exp]
-            [resolver-sim.yield.registry               :as yield-reg]
-            [resolver-sim.protocols.sew.yield.policy  :as yield-policy]
             [resolver-sim.util.attribution             :as attr]
             [resolver-sim.util.attributed-monad        :as am]
             [resolver-sim.util.state-monad             :as monad]
             [resolver-sim.time.context                 :as time-ctx]
             [resolver-sim.evidence.capture            :as cap]
             [resolver-sim.protocols.sew.related-claims :as rc]))
+
+(defn- yield-capability
+  [capability-id]
+  (or (protocol-registry/get-capability "sew-v1" capability-id)
+      (throw (ex-info "Sew lifecycle operation requires the yield integration"
+                      {:protocol/id "sew-v1" :capability/id capability-id}))))
 
 ;; ---------------------------------------------------------------------------
 ;; Guard logging helper — returns (t/fail kw) with :guard-context attached
@@ -57,7 +57,7 @@
           status (get-in world [:yield/module-status mid] :active)
           mode   (get-in world [:yield/risk mid token :liquidity-mode] :available)]
       (and (= status :active)
-           (not (contains? yield-acct/liquidity-modes mode))))))
+           (not (contains? (yield-capability :yield/liquidity-modes) mode))))))
 
 (defn- resolver-available? [world resolver]
   (if (or (nil? resolver) (= resolver t/zero-address))
@@ -98,7 +98,7 @@
                           :yield/resolver-addr resolver-addr}
     (let [profile-id (reg/get-resolver-yield-profile world resolver-addr)]
       (if profile-id
-        (let [{:keys [module-id]} (yield-reg/resolve-yield-profile profile-id)
+        (let [{:keys [module-id]} ((yield-capability :yield/resolve-profile) profile-id)
               owner-id (resolver-yield-owner-id resolver-addr)
               now      (time-ctx/block-ts world)
               last     (get-in world [:resolver-yield-accrual-times resolver-addr] now)
@@ -106,7 +106,7 @@
               tok      (if (keyword? token) token (keyword token))]
           (if (pos? dt)
             (let [pos-before (get-in world [:yield/positions owner-id])
-                  world' (yield-ops/apply-yield-op
+                  world' ((yield-capability :yield/apply-yield-op)
                           world {:op/type :yield/accrue
                                  :module/id module-id
                                  :owner/id owner-id
@@ -200,7 +200,7 @@
         (-> world
             (accrue-yield workflow-id)
             (cond-> (and mid (contains? (:yield/modules world) mid))
-              (yield-ops/apply-yield-op {:op/type :yield/withdraw
+              ((yield-capability :yield/apply-yield-op) {:op/type :yield/withdraw
                                          :module/id mid
                                          :owner/id owner-id})))
         ;; Under a liquidity shortfall, only fulfilled-amount is immediately settleable.
@@ -208,11 +208,12 @@
         pos           (when mid (get-in world-after-yield [:yield/positions owner-id]))
         pos-shortfall (:shortfall pos)
         partial-yield? (and pos pos-shortfall
-                            (yield-acct/partial-yield-shortfall? pos pos-shortfall))
+                            ((yield-capability :yield/partial-yield-shortfall?) pos pos-shortfall))
         ;; Partial-yield shortfall: principal is immediate; liquid yield is settled in policy.
         principal-immediate (if partial-yield? (:principal pos 0) net-amt)
         world-after-policy
-        (yield-policy/apply-yield-policy world-after-yield workflow-id direction)
+        ((yield-capability :yield/apply-settlement-policy)
+         world-after-yield workflow-id direction)
         ;; Sub-held (computed after policy so accrual-in-held is reconciled):
         ;; - no-shortfall: remove gross afa (amt), capped at available total-held
         ;; - partial-yield shortfall: held after policy minus deferred obligation
@@ -389,7 +390,7 @@
                      :reason :missing-recipient
                      :workflow-id workflow-id})))
   (let [owner-id (or (:owner/id position)
-                     (-> (resolver-sim.yield.position/position-identity position) second))
+                     (-> ((yield-capability :yield/position-identity) position) second))
         current-position (get-in world [:yield/positions owner-id])
         token (:token position)
         filled (:filled decision {})
@@ -406,20 +407,20 @@
                       {:type :invalid-partial-fill-settlement
                        :reason :stale-position
                        :owner-id owner-id})))
-    (when (not= (partial-fill/filled-total decision) (+ principal yield-amount))
+    (when (not= ((yield-capability :yield/filled-total) decision) (+ principal yield-amount))
       (throw (ex-info "partial-fill decision contains unsupported payout buckets"
                       {:type :invalid-partial-fill-settlement
                        :reason :unsupported-filled-bucket
                        :filled filled})))
-    (partial-fill/validate-partial-fill-application! current-position decision)
-    (let [settlement-filled (partial-fill/filled-total decision)
+    ((yield-capability :yield/validate-partial-fill-application!) current-position decision)
+    (let [settlement-filled ((yield-capability :yield/filled-total) decision)
           ;; Settlement-scoped custody attribution identity (P2 / L4b).
           settlement-root (held-adj/settlement-identity
                            {:workflow-id workflow-id :token token
                             :direction (if (pos? principal) :released :refunded)
                             :filled settlement-filled
                             :recipient recipient})
-          world' (partial-fill/apply-partial-fill world current-position decision)
+          world' ((yield-capability :yield/apply-partial-fill) world current-position decision)
           settled (cond-> world'
                     (pos? principal)
                     (acct/sub-held token principal
@@ -471,7 +472,7 @@
          {:settlement/workflow-id workflow-id
           :settlement/recipient recipient
           :settlement/token token
-          :settlement/filled (partial-fill/filled-total decision)
+          :settlement/filled ((yield-capability :yield/filled-total) decision)
           :settlement/decision decision}
          nil
          {:world-before world :world-after settled}))
@@ -679,7 +680,7 @@
                                   :last-accrual-time (time-ctx/block-ts world)
                                   :escrow-state      :pending})
                    ymid          (when-let [m (:yield-generation-module snapshot)]
-                                   (yield-module/resolve-module-id world m))
+                                   ((yield-capability :yield/resolve-module-id) world m))
                    world'        (-> world
                                     (assoc :next-workflow-id (inc workflow-id))
                                     (assoc-in [:escrow-transfers workflow-id] et)
@@ -703,7 +704,7 @@
                    world''       (if (and ymid
                                           (t/yield-preset-yield-enabled? (:yield-preset settings))
                                           (contains? (:yield/modules world') ymid))
-                                   (yield-ops/apply-yield-op world' {:op/type :yield/deposit
+                                   ((yield-capability :yield/apply-yield-op) world' {:op/type :yield/deposit
                                                                      :module/id ymid
                                                                      :owner/id (t/escrow-yield-owner-id workflow-id)
                                                                      :amount afa
@@ -1263,7 +1264,7 @@
            (if (pos? dt)
              (let [unrealized-before (:unrealized-yield pos-before 0)
                    realized-before   (:realized-yield pos-before 0)
-                   world' (yield-ops/apply-yield-op world {:op/type :yield/accrue
+                   world' ((yield-capability :yield/apply-yield-op) world {:op/type :yield/accrue
                                                            :module/id mid
                                                            :owner/id oid
                                                            :token tok

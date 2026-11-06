@@ -1,0 +1,23 @@
+{:concept/id :framework/privacy-policy
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Privacy policy"
+ :concept/summary
+ "A versioned, scope-bound set of rules governing which data operations are permitted for a purpose, recipient, sink, and retention period. Policy identity does not prove lawful authority or enforce the rule at a real operation boundary."
+ :concept/stakeholder-question "May this data be used or disclosed to this recipient for this purpose under the applicable authorized policy?"
+ :concept/protocols #{:protocol/prf}
+ :concept/related [:framework/evidence-policy :assurance/evidence-backed-classification :concept/configuration]
+ :concept/roles {:policy-authority {:description "Authority that approves and binds a policy to its scope."}
+                 :policy-evaluator {:description "Verifier that evaluates an exact operation context against the bound policy."}}
+ :concept/entities {:privacy-policy {:description "Immutable rules for data categories, purposes, recipients, operations, sinks, prerequisites, and retention."}
+                    :privacy-request {:description "A root-bound description of the exact data view and proposed operation."}}
+ :concept/actions {:evaluate-privacy-request {:description "Evaluate a request against every applicable policy and disclosure gate."}
+                   :bind-privacy-policy {:description "Bind an authorized policy root to an issuer, asset, jurisdiction, and operation scope."}}
+ :concept/outcomes {:privacy-allowed {:description "All applicable policy rules and required disclosure gates permit this request."}
+                    :privacy-denied {:description "At least one applicable rule denies the request, or no allow rule covers it."}
+                    :privacy-indeterminate {:description "Required policy, authority, classification, or context is unavailable or unverified."}}
+ :concept/failure-modes [{:failure/id :privacy-policy-unbound :failure/name "Policy binding absent" :failure/summary "A caller-selected policy is treated as applicable without an authorized scope binding." :protocol-mechanisms [:configuration :privacy-policy] :stakeholder-impact "A permissive or unrelated policy may be substituted."}
+                         {:failure/id :privacy-policy-as-lawfulness :failure/name "Policy identity mistaken for legal authority" :failure/summary "A valid content hash is treated as proof that a policy is lawful or properly approved." :protocol-mechanisms [:privacy-policy] :stakeholder-impact "Integrity is confused with legitimate authority."}
+                         {:failure/id :privacy-policy-bypasses-sensitivity :failure/name "Privacy allow bypasses disclosure gate" :failure/summary "A privacy rule permits movement despite a sensitivity or Sentinel denial." :protocol-mechanisms [:privacy-policy :evidence-backed-classification] :stakeholder-impact "Sensitive information is disclosed."}]
+ :concept/assumptions ["Sensitivity classification informs policy evaluation but does not grant permission." "Applicable policies compose restrictively; unresolved scope fails closed." "Offline evaluation does not authorize a live operation."]
+ :concept/out-of-scope ["Determining legal compliance." "Collecting consent or proving deletion." "Enforcing rules in a live issuer or token integration."]}

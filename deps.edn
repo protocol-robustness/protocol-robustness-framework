@@ -1,4 +1,4 @@
-{:paths ["." "src" "pro_rata_contract_src" "resources"]
+{:paths ["." "src" "yield_runtime_src" "pro_rata_contract_src" "resources"]
 
  :mvn/repos {"central" {:url "https://repo1.maven.org/maven2/"}
              "clojars" {:url "https://repo.clojars.org/"}
@@ -9,7 +9,7 @@
                                            :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
                                            :deps/root "clj"}
         prf/pro-rata-allocation          {:git/url "https://github.com/protocol-robustness/prf-pro-rata-allocation.git"
-                                           :git/sha "e0788f911e4fba3a27544cbccbb95d59d7daf2f7"
+                                           :git/sha "cf38de1ea4ef03654ee3de8bead56c32ef078b10"
                                            :deps/root "clj"}
         prf/accounting-reductions        {:local/root "packages/accounting-reductions/clj"}
         org.clojure/tools.logging         {:mvn/version "1.2.4"}
@@ -44,13 +44,15 @@
     :paths/protocols-src ["protocols_src"]
     :paths/protocols     ["protocols_src" "protocols_src/test"]
     :paths/dev           ["dev" "test"]              ;; = dev + test
-     :paths/src           ["src"]
+     :paths/src           ["src" "yield_runtime_src"]
      :paths/pro-rata-contract ["pro_rata_contract_src"]
 :paths/held-custody          ["extensions/held-custody/src" "extensions/held-custody/test"]
     :paths/held-custody-rt       ["extensions/held-custody/src"]
     :paths/force-authorisation   ["extensions/force-authorisation/src" "extensions/force-authorisation/test"]
     :paths/force-authorisation-rt ["extensions/force-authorisation/src"]
-    :paths/all           ["src" "test" "protocols_src" "protocols_src/test" "dev" "scripts"
+    :paths/sew-core-model ["extensions/sew-core-model/src" "extensions/sew-core-model/test"]
+    :paths/sew-core-model-rt ["extensions/sew-core-model/src"]
+    :paths/all           ["src" "yield_runtime_src" "test" "protocols_src" "protocols_src/test" "dev" "scripts"
                           :paths/held-custody :paths/force-authorisation]
     ;; Researchers: opt-in local paths (defined in ~/.clojure/deps.edn as
     ;; :researcher/paths, e.g. {:aliases {:researcher/paths [".researcher/src"]}}).
@@ -108,6 +110,13 @@
 
    :extension/force-authorisation-rt
    {:extra-paths [:paths/force-authorisation-rt]}
+
+   ;; Optional Sew Core behavior profile adapter. The runtime alias omits tests.
+   :extension/sew-core-model
+   {:extra-paths [:paths/sew-core-model]}
+
+   :extension/sew-core-model-rt
+   {:extra-paths [:paths/sew-core-model-rt]}
 
    ;; flow-storm
 ;;   {:1.12-storm {:classpath-overrides {org.clojure/clojure nil}
@@ -252,12 +261,12 @@
    :fmt
    {:mvn/repos {"clojars" {:url "https://repo.clojars.org/"}}
     :extra-deps {dev.weavejester/cljfmt {:mvn/version "0.16.4"}}
-    :main-opts ["-m" "cljfmt.main" "fix" "src" "test"]}
+   :main-opts ["-m" "cljfmt.main" "fix" "src" "yield_runtime_src" "test"]}
 
    :fmt/check
    {:mvn/repos {"clojars" {:url "https://repo.clojars.org/"}}
     :extra-deps {dev.weavejester/cljfmt {:mvn/version "0.16.4"}}
-    :main-opts ["-m" "cljfmt.main" "check" "src" "test"]}
+   :main-opts ["-m" "cljfmt.main" "check" "src" "yield_runtime_src" "test"]}
 
    :run
    {:main-opts ["-m" "resolver-sim.core"]}
@@ -357,7 +366,7 @@
            org.slf4j/slf4j-simple            {:mvn/version "1.7.36"}
            org.clojure/tools.cli             {:mvn/version "1.0.219"}
            org.clojure/data.json             {:mvn/version "2.4.0"}}
-    :paths ["src" "resources" "scenarios"]}
+    :paths ["src" "yield_runtime_src" "resources" "scenarios"]}
 
    ;; Intentionally not path-grouped: base-replacing runner classpath.
    ;; See #NNN for normalization constraints.
@@ -372,7 +381,7 @@
            com.github.seancorfield/next.jdbc {:mvn/version "1.3.939"}
            org.postgresql/postgresql         {:mvn/version "42.7.2"}
            metosin/malli                     {:mvn/version "0.17.0"}}
-    :paths ["src" "protocols_src" "resources" "scenarios"]}
+    :paths ["src" "yield_runtime_src" "protocols_src" "resources" "scenarios"]}
 
    :speds-comparator-shadow
    {:extra-paths [:paths/scripts]

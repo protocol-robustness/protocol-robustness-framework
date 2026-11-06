@@ -1,6 +1,7 @@
 (ns resolver-sim.research.ratification-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.researcher-force-authorisation :as decisions]
+            [resolver-sim.benchmark.review.three-member-certificate :as certificate]
             [resolver-sim.research.ratification :as ratification]))
 
 (def ^:private private-key "test/fixtures/signing-keys/test-researcher-signing-key")
@@ -62,6 +63,29 @@
     (is (= :ratified (:ratification/status result)))
     (is (false? (:ratification/operational-authority? result)))
     (is (:valid? (ratification/validate-ratification result inputs)))))
+
+(deftest favorable-descriptive-consensus-does-not-satisfy-policy-quorum
+  (let [{:keys [target policy]} (fixture)
+        descriptive-consensus
+        (certificate/per-item-consensus
+         :claim/x :conclusion
+         [{:researcher/id "panel-a" :status :supported}
+          {:researcher/id "panel-b" :status :supported}]
+         ["panel-a" "panel-b" "panel-c"])
+        one-approval (contribution target "researcher-a" :principal/a :approve :approve)
+        result (ratification/reconstruct-ratification
+                {:target target :policy policy :contributions [one-approval]
+                 :key-bindings key-bindings})]
+    (is (= :unanimous (:status descriptive-consensus)))
+    (is (= 2 (:assessed-count descriptive-consensus)))
+    (is (= 3 (:member-count descriptive-consensus)))
+    ;; Even assessed-member unanimity is deliberately not an input to
+    ;; ratification. It uses its own eligible panel and threshold.
+    (is (= 2 (:policy/threshold policy)))
+    (is (= 4 (count (:policy/eligible-principals policy))))
+    (is (= 1 (:ratification/approval-count result)))
+    (is (= :contested-unresolved (:ratification/status result)))
+    (is (false? (:ratification/operational-authority? result)))))
 
 (deftest dissent-and-challenge-remain-explicit
   (let [{:keys [target policy]} (fixture)

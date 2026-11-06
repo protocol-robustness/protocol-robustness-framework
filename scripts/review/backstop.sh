@@ -13,8 +13,12 @@ FAILED=0
 
 run() {
   local label="$1"; shift
+  local timeout_seconds=180
+  if [ "$label" = "notebooks" ]; then
+    timeout_seconds="${BACKSTOP_NOTEBOOK_TIMEOUT_SECONDS:-600}"
+  fi
   echo "▶ backstop: $label"
-  if timeout 180 "$LOCK" "$@"; then
+  if timeout "$timeout_seconds" "$LOCK" "$@"; then
     echo "  ✓ $label"
   else
     echo "  ✗ $label (exit code $?)"

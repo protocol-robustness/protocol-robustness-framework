@@ -1,0 +1,462 @@
+{:mapping-set/protocol :protocol/sew-v1,
+ :mapping-set/version 1,
+ :mappings
+ [{:concept/id :allocation/deferred-class,
+   :mapping/category :concept/actions,
+   :mapping/id :derive-deferred-class,
+   :mapping/values
+   {:maps-to [:protocol.action/classify-deferred-position]}}
+  {:concept/id :allocation/deferred-class,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-deferred-class,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/verify-allocation
+     :protocol.action/check-invariant]}}
+  {:concept/id :allocation/deferred-class,
+   :mapping/category :concept/entities,
+   :mapping/id :class-version,
+   :mapping/values
+   {:maps-to [:protocol.entity/classification-version]}}
+  {:concept/id :allocation/deferred-class,
+   :mapping/category :concept/entities,
+   :mapping/id :deferred-class,
+   :mapping/values {:maps-to [:protocol.entity/classification]}}
+  {:concept/id :allocation/deferred-class,
+   :mapping/category :concept/entities,
+   :mapping/id :lineage-root,
+   :mapping/values {:maps-to [:protocol.entity/lineage-root]}}
+  {:concept/id :allocation/deferred-class,
+   :mapping/category :concept/entities,
+   :mapping/id :lineage-round,
+   :mapping/values {:maps-to [:protocol.entity/lineage-round]}}
+  {:concept/id :allocation/deferred-class,
+   :mapping/category :concept/entities,
+   :mapping/id :predecessor-hash,
+   :mapping/values {:maps-to [:protocol.entity/predecessor-hash]}}
+  {:concept/id :allocation/deferred-class,
+   :mapping/category :concept/outcomes,
+   :mapping/id :class-derived,
+   :mapping/values {:maps-to [:protocol.outcome/classified]}}
+  {:concept/id :allocation/deferred-class,
+   :mapping/category :concept/outcomes,
+   :mapping/id :class-legacy-unclassified,
+   :mapping/values {:maps-to [:protocol.outcome/diagnostic]}}
+  {:concept/id :allocation/deferred-class,
+   :mapping/category :concept/outcomes,
+   :mapping/id :class-unsupported,
+   :mapping/values {:maps-to [:protocol.outcome/rejected]}}
+  {:concept/id :allocation/deferred-class,
+   :mapping/category :concept/roles,
+   :mapping/id :allocation-engine,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :allocation/deferred-class,
+   :mapping/category :concept/roles,
+   :mapping/id :auditor,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :allocation/deferred-class,
+   :mapping/category :concept/roles,
+   :mapping/id :claimant,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/actions,
+   :mapping/id :allocate-pro-rata,
+   :mapping/values
+   {:maps-to [:protocol.action/calculate-pro-rata-allocation]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/actions,
+   :mapping/id :apply-caps,
+   :mapping/values {:maps-to [:protocol.action/cap-allocation]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/actions,
+   :mapping/id :assess-slash-obligation,
+   :mapping/values {:maps-to [:protocol.action/calculate-shortfall]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/actions,
+   :mapping/id :record-unmet,
+   :mapping/values {:maps-to [:protocol.action/record-shortfall]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-allocation,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/verify-allocation
+     :protocol.action/check-invariant]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/entities,
+   :mapping/id :allocation-table,
+   :mapping/values {:maps-to [:protocol.entity/allocation]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/entities,
+   :mapping/id :cap-limit,
+   :mapping/values {:maps-to [:protocol.entity/cap]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/entities,
+   :mapping/id :liable-party-set,
+   :mapping/values {:maps-to [:protocol.entity/participant-set]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/entities,
+   :mapping/id :slash-obligation,
+   :mapping/values {:maps-to [:protocol.entity/obligation]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/entities,
+   :mapping/id :unmet-remainder,
+   :mapping/values {:maps-to [:protocol.entity/unmet-remainder]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/entities,
+   :mapping/id :weight-basis,
+   :mapping/values {:maps-to [:protocol.entity/weight-basis]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :allocation-incorrect,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :obligation-fully-recovered,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :obligation-partially-recovered,
+   :mapping/values {:maps-to [:protocol.outcome/deferred]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :obligation-unrecovered,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/roles,
+   :mapping/id :allocation-engine,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/roles,
+   :mapping/id :liable-party,
+   :mapping/values {:maps-to [:protocol.actor/resolver]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/roles,
+   :mapping/id :resolution-module,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :allocation/slash-obligation,
+   :mapping/category :concept/roles,
+   :mapping/id :verifier,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :concept/confidence,
+   :mapping/category :concept/actions,
+   :mapping/id :action/attest-result,
+   :mapping/values {:maps-to [:protocol.action/attest]}}
+  {:concept/id :concept/confidence,
+   :mapping/category :concept/actions,
+   :mapping/id :action/evaluate-claim,
+   :mapping/values {:maps-to [:protocol.action/evaluate-claim]}}
+  {:concept/id :concept/confidence,
+   :mapping/category :concept/actions,
+   :mapping/id :action/test-scenario,
+   :mapping/values {:maps-to [:protocol.action/run-scenario]}}
+  {:concept/id :concept/confidence,
+   :mapping/category :concept/entities,
+   :mapping/id :entity/benchmark-run,
+   :mapping/values {:maps-to [:protocol.entity/benchmark-run]}}
+  {:concept/id :concept/confidence,
+   :mapping/category :concept/entities,
+   :mapping/id :entity/claim-result,
+   :mapping/values {:maps-to [:protocol.entity/claim-result]}}
+  {:concept/id :concept/confidence,
+   :mapping/category :concept/entities,
+   :mapping/id :entity/evidence-artifact,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :concept/confidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :outcome/high-confidence,
+   :mapping/values {:maps-to [:protocol.outcome/pass]}}
+  {:concept/id :concept/confidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :outcome/low-confidence,
+   :mapping/values {:maps-to [:protocol.outcome/warn]}}
+  {:concept/id :concept/confidence,
+   :mapping/category :concept/outcomes,
+   :mapping/id :outcome/medium-confidence,
+   :mapping/values {:maps-to [:protocol.outcome/warn]}}
+  {:concept/id :concept/confidence,
+   :mapping/category :concept/roles,
+   :mapping/id :role/protocol-designer,
+   :mapping/values {:maps-to []}}
+  {:concept/id :concept/confidence,
+   :mapping/category :concept/roles,
+   :mapping/id :role/researcher,
+   :mapping/values {:maps-to []}}
+  {:concept/id :concept/confidence,
+   :mapping/category :concept/roles,
+   :mapping/id :role/reviewer,
+   :mapping/values {:maps-to []}}
+  {:concept/id :concept/configuration,
+   :mapping/category :concept/actions,
+   :mapping/id :action/detect-drift,
+   :mapping/values
+   {:maps-to [:protocol.action/compare-configurations]}}
+  {:concept/id :concept/configuration,
+   :mapping/category :concept/actions,
+   :mapping/id :action/hash-configuration,
+   :mapping/values {:maps-to [:protocol.action/hash-configuration]}}
+  {:concept/id :concept/configuration,
+   :mapping/category :concept/actions,
+   :mapping/id :action/parameterise,
+   :mapping/values {:maps-to [:protocol.action/parameterise]}}
+  {:concept/id :concept/configuration,
+   :mapping/category :concept/entities,
+   :mapping/id :entity/benchmark-pack,
+   :mapping/values {:maps-to [:protocol.entity/benchmark-pack]}}
+  {:concept/id :concept/configuration,
+   :mapping/category :concept/entities,
+   :mapping/id :entity/execution-replay,
+   :mapping/values {:maps-to [:protocol.entity/replay]}}
+  {:concept/id :concept/configuration,
+   :mapping/category :concept/entities,
+   :mapping/id :entity/scenario-definition,
+   :mapping/values {:maps-to [:protocol.entity/scenario]}}
+  {:concept/id :concept/configuration,
+   :mapping/category :concept/outcomes,
+   :mapping/id :outcome/configuration-drift,
+   :mapping/values {:maps-to [:protocol.outcome/fail]}}
+  {:concept/id :concept/configuration,
+   :mapping/category :concept/outcomes,
+   :mapping/id :outcome/configuration-gap,
+   :mapping/values {:maps-to [:protocol.outcome/fail]}}
+  {:concept/id :concept/configuration,
+   :mapping/category :concept/outcomes,
+   :mapping/id :outcome/configuration-known,
+   :mapping/values {:maps-to [:protocol.outcome/pass]}}
+  {:concept/id :concept/configuration,
+   :mapping/category :concept/roles,
+   :mapping/id :role/protocol-designer,
+   :mapping/values {:maps-to []}}
+  {:concept/id :concept/configuration,
+   :mapping/category :concept/roles,
+   :mapping/id :role/researcher,
+   :mapping/values {:maps-to []}}
+  {:concept/id :concept/configuration,
+   :mapping/category :concept/roles,
+   :mapping/id :role/reviewer,
+   :mapping/values {:maps-to []}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/actions,
+   :mapping/id :action/allocate,
+   :mapping/values {:maps-to [:protocol.action/allocate]}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/actions,
+   :mapping/id :action/cancel,
+   :mapping/values {:maps-to [:protocol.action/cancel]}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/actions,
+   :mapping/id :action/release,
+   :mapping/values {:maps-to [:protocol.action/release]}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/actions,
+   :mapping/id :action/slash,
+   :mapping/values {:maps-to [:protocol.action/slash]}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/entities,
+   :mapping/id :entity/claim,
+   :mapping/values {:maps-to [:protocol.entity/claim]}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/entities,
+   :mapping/id :entity/escrow,
+   :mapping/values {:maps-to [:protocol.entity/escrow]}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/entities,
+   :mapping/id :entity/stake,
+   :mapping/values {:maps-to [:protocol.entity/stake]}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/entities,
+   :mapping/id :entity/token,
+   :mapping/values {:maps-to [:protocol.entity/token]}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :outcome/accounted,
+   :mapping/values {:maps-to [:protocol.outcome/pass]}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :outcome/residual,
+   :mapping/values {:maps-to [:protocol.outcome/warn]}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/outcomes,
+   :mapping/id :outcome/unaccounted,
+   :mapping/values {:maps-to [:protocol.outcome/fail]}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/roles,
+   :mapping/id :role/protocol-designer,
+   :mapping/values {:maps-to []}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/roles,
+   :mapping/id :role/researcher,
+   :mapping/values {:maps-to []}}
+  {:concept/id :concept/conservation,
+   :mapping/category :concept/roles,
+   :mapping/id :role/reviewer,
+   :mapping/values {:maps-to []}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/actions,
+   :mapping/id :classify-solvency,
+   :mapping/values {:maps-to [:protocol.action/classify-solvency]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/actions,
+   :mapping/id :compute-commitment,
+   :mapping/values {:maps-to [:protocol.action/compute-commitment]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/actions,
+   :mapping/id :detect-insolvency,
+   :mapping/values {:maps-to [:protocol.action/calculate-shortfall]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-proof,
+   :mapping/values
+   {:maps-to
+    [:protocol.action/verify-allocation
+     :protocol.action/check-invariant]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/entities,
+   :mapping/id :commitment-root,
+   :mapping/values {:maps-to [:protocol.entity/commitment-root]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/entities,
+   :mapping/id :liability-set,
+   :mapping/values {:maps-to [:protocol.entity/claimable]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/entities,
+   :mapping/id :prev-commitment,
+   :mapping/values {:maps-to [:protocol.entity/prev-commitment]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/entities,
+   :mapping/id :solvency-ratio,
+   :mapping/values {:maps-to [:protocol.entity/solvency-ratio]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/entities,
+   :mapping/id :solvency-status,
+   :mapping/values {:maps-to [:protocol.entity/solvency-status]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/outcomes,
+   :mapping/id :insolvent,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/outcomes,
+   :mapping/id :proof-invalid,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/outcomes,
+   :mapping/id :proof-state-mismatch,
+   :mapping/values {:maps-to [:protocol.outcome/stuck]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/outcomes,
+   :mapping/id :solvent,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/outcomes,
+   :mapping/id :unproven,
+   :mapping/values {:maps-to [:protocol.outcome/deferred]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/roles,
+   :mapping/id :claimant,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/roles,
+   :mapping/id :protocol-classifier,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/roles,
+   :mapping/id :state-committer,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :decision-quality/solvency-status,
+   :mapping/category :concept/roles,
+   :mapping/id :verifier,
+   :mapping/values {:maps-to [:protocol.actor/verifier]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/actions,
+   :mapping/id :accrue-yield,
+   :mapping/values {:maps-to [:protocol.action/accrue-yield]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/actions,
+   :mapping/id :check-aggregate,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/actions,
+   :mapping/id :check-aggregate-shortfall,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/actions,
+   :mapping/id :check-aggregate-shortfall-cap,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/actions,
+   :mapping/id :check-exposure,
+   :mapping/values {:maps-to [:protocol.action/check-invariant]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/actions,
+   :mapping/id :detect-shortfall,
+   :mapping/values {:maps-to [:protocol.action/calculate-shortfall]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/actions,
+   :mapping/id :resolve-shortfall,
+   :mapping/values
+   {:maps-to [:protocol.action/settle :protocol.action/partial-fill]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/entities,
+   :mapping/id :principal,
+   :mapping/values {:maps-to [:protocol.entity/principal]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/entities,
+   :mapping/id :realized-yield,
+   :mapping/values {:maps-to [:protocol.entity/realized-yield]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/entities,
+   :mapping/id :shortfall-model,
+   :mapping/values {:maps-to [:protocol.entity/shortfall-model]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/entities,
+   :mapping/id :unrealized-yield,
+   :mapping/values {:maps-to [:protocol.entity/unrealized-yield]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/entities,
+   :mapping/id :yield-position,
+   :mapping/values {:maps-to [:protocol.entity/yield-position]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/entities,
+   :mapping/id :yield-rate,
+   :mapping/values {:maps-to [:protocol.entity/yield-rate]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/outcomes,
+   :mapping/id :principal-loss,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/outcomes,
+   :mapping/id :yield-leakage,
+   :mapping/values
+   {:maps-to [:protocol.outcome/adversarial-resolution]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/outcomes,
+   :mapping/id :yield-preserved,
+   :mapping/values {:maps-to [:protocol.outcome/released]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/outcomes,
+   :mapping/id :yield-shortfall,
+   :mapping/values {:maps-to [:protocol.outcome/deferred]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/roles,
+   :mapping/id :position-holder,
+   :mapping/values
+   {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/roles,
+   :mapping/id :shortfall-detector,
+   :mapping/values {:maps-to [:protocol.actor/resolution-module]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/roles,
+   :mapping/id :yield-module,
+   :mapping/values {:maps-to [:protocol.actor/yield-module]}}
+  {:concept/id :yield/yield-bearing,
+   :mapping/category :concept/roles,
+   :mapping/id :yield-provider,
+   :mapping/values {:maps-to [:protocol.actor/recipient]}}]}

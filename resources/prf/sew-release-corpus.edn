@@ -18,6 +18,9 @@
    :root "data/concepts"
    :extensions [".edn" ".json"]}
   {:kind "data"
+   :root "data/concept-mappings"
+   :extensions [".edn"]}
+  {:kind "data"
    :root "data/params"
    :extensions [".edn" ".json"]}
   {:kind "data"

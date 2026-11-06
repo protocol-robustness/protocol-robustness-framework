@@ -31,6 +31,8 @@ assessment.
 
 The OpenAPI draft is
 [`../../schemas/research-ratification-demo-api.v1.json`](../../schemas/research-ratification-demo-api.v1.json).
+The empty demo workspace response captured from the running service is
+[`../../examples/research-ratification-demo-workspace.golden.json`](../../examples/research-ratification-demo-workspace.golden.json).
 Read endpoints are public on loopback; contribution endpoints require the
 fixture bearer token. For example:
 
@@ -45,6 +47,19 @@ curl -X POST "http://127.0.0.1:8787/v1/targets/$TARGET_ROOT/contribution-intents
   -H 'Content-Type: application/json' \
   -d '{"kind":"approve"}'
 ```
+
+An independent Python standard-library client can smoke-check the read and
+intent endpoints without loading PRF or its Clojure implementation:
+
+```sh
+python3 scripts/researcher_ratification_smoke.py \
+  --target-root "$TARGET_ROOT" \
+  --token demo-researcher-token
+```
+
+This checks the documented wire fields and authority boundaries. It does not
+sign or submit a contribution and does not independently reconstruct PRF
+hashes or ratification.
 
 The interaction sequence is:
 
@@ -79,5 +94,7 @@ The Research Resolution notebook in the pinned `prf/notebooks` dependency now
 has an optional live workspace and intent preview. It displays claim status,
 method verification, ratification, policy approval, and operational authority
 as separate fields. A stable external integration still needs a golden JSON
-fixture, independent client reconstruction, policy approval, and an actual
-method-verification path.
+fixture, independent client reconstruction of the ratification/hash rules,
+policy approval, and an actual method-verification path. The smoke client above
+checks transport and response binding only; it is not that independent
+reconstruction.

@@ -286,8 +286,9 @@
    core namespace prefix. Advisory in P0 (becomes a gate in P1). Returns a map
    of file → non-empty offender vector for files that have any."
   [manifest]
-  (let [root "src/resolver_sim"
-        files (for [file (file-seq (io/file root))
+  (let [roots ["src/resolver_sim" "yield_runtime_src/resolver_sim"]
+        files (for [root roots
+                    file (file-seq (io/file root))
                     :when (and (.isFile file) (str/ends-with? (.getName file) ".clj"))]
                 file)]
     (into (sorted-map)

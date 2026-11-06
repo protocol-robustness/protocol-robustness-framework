@@ -201,7 +201,7 @@ and `:total-held`. Principal is always fully recoverable.
 ## Reference
 
 - Yield-general invariants: `docs/yield/YIELD_INVARIANTS.md`
-- Invariant catalog: `src/resolver_sim/yield/invariant_catalog.clj`
+- Invariant catalog: `yield_runtime_src/resolver_sim/yield/invariant_catalog.clj`
 - Sew invariants: `src/resolver_sim/protocols/sew/invariants.clj`
 - Yield scenarios: `scenarios/S113_principal-loss-haircut.json`, `scenarios/S115_historical-index-replay.json`
 - Classification helper: planned for `src/resolver_sim/scenario/yield_classification.clj`

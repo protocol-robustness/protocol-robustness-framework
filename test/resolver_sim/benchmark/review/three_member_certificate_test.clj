@@ -77,6 +77,25 @@
   (tmc/build-certificate
    {:review-round default-round :reports reports :positions positions}))
 
+(deftest certificate-inputs-must-match-the-entire-frozen-panel
+  (let [canonical-indices (ci/build-canonical-indices default-round)
+        missing-member (tmc/pre-certificate-checks
+                        {:review-round default-round
+                         :canonical-indices canonical-indices
+                         :reports reports-exact
+                         :positions [(make-pos "a") (make-pos "b")]})
+        ineligible-member (tmc/pre-certificate-checks
+                           {:review-round default-round
+                            :canonical-indices canonical-indices
+                            :reports reports-exact
+                            :positions [(make-pos "a") (make-pos "b") (make-pos "outside")]})]
+    (is (not (:pre-certificate-valid? missing-member)))
+    (is (some #(re-find #"positions must contain exactly one artifact per distinct member" %)
+              (:errors missing-member)))
+    (is (not (:pre-certificate-valid? ineligible-member)))
+    (is (some #(re-find #"positions researcher IDs must exactly match review-round members" %)
+              (:errors ineligible-member)))))
+
 ;; ── Replication type ──────────────────────────────────────────────────────
 
 (deftest replication-type-exact
@@ -100,6 +119,8 @@
            [(make-pos "a") (make-pos "b") (make-pos "c")]
            :model-state)]
     (is (= :unanimous (:status c)))
+    (is (= 3 (:assessed-count c)))
+    (is (= 3 (:member-count c)))
     (is (= 3 (count (:supporting-members c))))
     (is (empty? (:dissenting-members c)))))
 
@@ -117,6 +138,10 @@
            [(make-pos "a") (make-pos "b") (make-pos-absent "c")]
            :model-authority)]
     (is (= :unanimous (:status c)))
+    (is (= 2 (:assessed-count c))
+        "unanimous means unanimous among the two assessed members")
+    (is (= 3 (:member-count c))
+        "the denominator remains the complete frozen panel")
     (is (= 1 (count (:absent-members c))))))
 
 (deftest per-dimension-not-reviewed-member
@@ -159,7 +184,40 @@
     (is (= ["a" "b"] (:supporting-members c)))
     (is (= ["c"] (:qualifying-members c))
         "qualification is classified separately from dissent")
+    (is (= 3 (:assessed-count c)))
+    (is (= 3 (:member-count c)))
     (is (empty? (:dissenting-members c)))))
+
+(deftest descriptive-labels-keep-assessed-and-panel-counts-distinct
+  (let [panel ["a" "b" "c"]
+        single (tmc/per-item-consensus
+                :claim/x :conclusion
+                [{:researcher/id "a" :status :supported}] panel)
+        qualified-majority (tmc/per-item-consensus
+                            :claim/x :conclusion
+                            [{:researcher/id "a" :status :supported}
+                             {:researcher/id "b" :status :supported}
+                             {:researcher/id "c" :status :qualified}]
+                            panel)
+        full-unanimity (tmc/per-item-consensus
+                        :claim/x :conclusion
+                        (mapv #(hash-map :researcher/id % :status :supported) panel)
+                        panel)]
+    (testing "1/3 assessment is descriptive single-assessment"
+      (is (= :single-assessment (:status single)))
+      (is (= 1 (:assessed-count single)))
+      (is (= 3 (:member-count single)))
+      (is (= ["b" "c"] (:absent-members single))))
+    (testing "two supporters and one qualified position remain a descriptive 2/3 result"
+      (is (= :qualified-majority (:status qualified-majority)))
+      (is (= 3 (:assessed-count qualified-majority)))
+      (is (= 3 (:member-count qualified-majority)))
+      (is (= ["a" "b"] (:supporting-members qualified-majority)))
+      (is (= ["c"] (:qualifying-members qualified-majority))))
+    (testing "unanimity across the complete assessed panel is explicitly 3/3"
+      (is (= :unanimous (:status full-unanimity)))
+      (is (= 3 (:assessed-count full-unanimity)))
+      (is (= 3 (:member-count full-unanimity))))))
 
 (deftest per-item-qualified-target-is-qualifying-not-dissenting
   (let [consensus (tmc/per-item-consensus
@@ -993,6 +1051,17 @@
         tampered (assoc-in cert [:other-consensus :publication :status] :contested)
         self-hashed (tmc/finalise-certificate! tampered)]
     (is (not (:valid? (tmc/validate-certificate self-hashed))))))
+
+(deftest loaded-validation-rejects-substituted-panel-denominator
+  (let [{:keys [review-round canonical-indices reports positions]} (valid-inputs)
+        cert (tmc/build-certificate {:review-round review-round :canonical-indices canonical-indices
+                                     :reports reports :positions positions})
+        tampered (assoc-in cert [:other-consensus :publication :member-count] 2)
+        self-hashed (tmc/finalise-certificate! tampered)
+        validation (tmc/validate-certificate self-hashed)]
+    (is (not (:valid? validation)))
+    (is (some #(re-find #"certificate consensus or source bindings do not recompute" %)
+              (:errors validation)))))
 
 ;; ── P0: dimension-support divergence semantics ──────────────────────────────
 

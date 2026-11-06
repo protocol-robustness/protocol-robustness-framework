@@ -115,12 +115,34 @@
   [vector]
   (project-derived (build-all-active-context vector)))
 
+(defn- resolve-aggregate-state-before [state-before quantity-root]
+  (when-not (and (map? state-before)
+                 (contains? state-before :quantity/root)
+                 (every? (fn [[root amount]]
+                           (and (or (= root :quantity/root)
+                                    (and (string? root)
+                                         (re-matches #"(?:sha256:)?[0-9a-f]{64}" root)))
+                                (integer? amount)
+                                (not (neg? amount))))
+                         state-before))
+    (throw (ex-info "invalid aggregate state-before input"
+                    {:state-before state-before})))
+  (let [resolved (into {}
+                       (map (fn [[root amount]]
+                              [(if (= root :quantity/root) quantity-root root) amount]))
+                       state-before)]
+    (when-not (= (count state-before) (count resolved))
+      (throw (ex-info "aggregate state-before root placeholder collides with a declared root"
+                      {:state-before state-before :quantity/root quantity-root})))
+    resolved))
+
 (defn build-aggregate-stage-a
   "Build only aggregate-specific inputs through V3 compilation."
   [{:keys [inputs]}]
   (let [allocation (allocation/allocate (:allocation/request inputs))
         aggregate-quantity (quantity/build-identity (:aggregate-quantity/input inputs))
         quantity-root (:quantity/root aggregate-quantity)
+        state-before (resolve-aggregate-state-before (:state-before inputs) quantity-root)
         target-map (target-map/build-aggregate-target-map
                     (update-in (:target-map/input inputs) [:targets]
                                #(mapv (fn [target] (assoc target :quantity/root quantity-root)) %)))
@@ -155,7 +177,7 @@
     {:allocation allocation :target-map target-map :semantics compiler-semantics
      :validation validation :locations locations :aggregate-quantity aggregate-quantity
      :descriptor descriptor :compiled compiled
-     :state-before {quantity-root 100N}}))
+     :state-before state-before}))
 
 (defn- retained-input-bodies [{:keys [allocation target-map semantics validation locations
                                       aggregate-quantity descriptor]}]
@@ -285,7 +307,9 @@
         inputs (:retained-input-bodies context)
         binding (get-in context [:artifacts :binding])
         statement (get-in context [:artifacts :statement])]
-    (when-not (and (= artifact :statement) (contains? rehash :outer-artifacts))
+    (when-not (and (= artifact :statement)
+                   (= rehash {:outer-artifacts true})
+                   (string? replacement))
       (throw (ex-info "unsupported descendant substitution" {:substitution substitution})))
     (let [forged-base (assoc statement field replacement)
           forged (assoc forged-base :pro-rata-evm-v2/root (evm/statement-v2-root forged-base))
@@ -297,6 +321,7 @@
        :baseline {:reconstructed-roots (project-derived context)}
        :mutated {:claimed-statement forged}
        :result (if valid? :accepted :rejected)
+       :observed/failure-class (when-not valid? :derived-transition-mismatch)
        :rejection (when-not valid?
                     {:classification :semantic-verification-rejected})})))
 
@@ -306,14 +331,21 @@
    semantic bodies."
   [context {:keys [mutation rehash] :as substitution}]
   (let [{:keys [path replacement]} mutation
+        semantic-effect (:semantic-effect mutation)
         {:keys [state-before _authority]} (:reconstruction context)
         inputs (:retained-input-bodies context)
         canonical-transition (get-in context [:artifacts :canonical-transition])
         compilation (get-in context [:artifacts :compilation])]
     (when-not (and (= path [:compilation :effects/root])
-                   (:compilation rehash) (:binding rehash) (:statement rehash))
+                   (= rehash {:compilation true :binding true :statement true})
+                   (string? replacement)
+                   (= "canonical-delta-effect.v1" (:schema-version semantic-effect))
+                   (string? (:quantity/root semantic-effect))
+                   (integer? (:delta semantic-effect)))
       (throw (ex-info "unsupported effect substitution" {:substitution substitution})))
-    (let [forged-compilation-base (assoc compilation :effects/root replacement)
+    (let [forged-compilation-base (assoc compilation
+                                         :effects/root replacement
+                                         :effects [semantic-effect])
           forged-compilation (assoc forged-compilation-base :effect-compilation/root
                                     (compilation/compilation-root forged-compilation-base))
           binding-base {:effect-compilation-binding/schema compilation-binding/schema-version
@@ -336,8 +368,90 @@
                  :claimed-binding forged-binding
                  :claimed-statement forged-statement}
        :result (if valid? :accepted :rejected)
+       :observed/failure-class (when-not valid? :effect-reconstruction-mismatch)
        :rejection (when-not valid?
                     {:classification :semantic-verification-rejected})})))
+
+(defn run-retained-body-substitution
+  "Apply a declared aggregate-quantity body substitution to the retained input
+   resolver and ask the V2 reconstruction path to validate it. The package
+   vector cannot provide a replacement verifier: mutation targets are restricted
+   to this explicitly implemented profile and the original committed body root."
+  [context {:keys [mutation rehash] :as substitution}]
+  (let [path (:path mutation)
+        replacement (:replacement mutation)
+        aggregate-quantity (get-in context [:stage-a :aggregate-quantity])
+        body-root (:quantity/root aggregate-quantity)
+        inputs (:retained-input-bodies context)]
+    (when-not (and (= path [:retained-material :aggregate-quantity])
+                   (= rehash {:retained-validation true :compilation true
+                              :binding true :statement true})
+                   (map? replacement)
+                   (contains? replacement :asset/root)
+                   (contains? inputs body-root))
+      (throw (ex-info "unsupported retained-body rejection mutation"
+                      {:path path :rehash rehash})))
+    (let [mutated-body (merge aggregate-quantity replacement)
+          mutated-inputs (assoc inputs body-root mutated-body)
+          {:keys [state-before effect-compilation authority]}
+          (:reconstruction context)]
+      (try
+        (evm/reconstruct-v2
+         {:state-before state-before
+          :effect-compilation effect-compilation
+          :resolve-body #(get mutated-inputs %)
+          :configuration-root (:configuration/root authority)})
+        {:mutation/id (:case/id substitution)
+         :mutation/class :retained-body-substitution
+         :mutation/target path
+         :mutated {:claimed-retained-body mutated-body}
+         :result :accepted}
+        (catch clojure.lang.ExceptionInfo error
+          {:mutation/id (:case/id substitution)
+           :mutation/class :retained-body-substitution
+           :mutation/target path
+           :mutated {:claimed-retained-body mutated-body}
+           :result :rejected
+           :observed/failure-class :retained-material-mismatch
+           :rejection {:classification :semantic-verification-rejected
+                       :data (select-keys (ex-data error) [:missing :target :failed])}})))))
+
+(declare valid-rejection?)
+
+(defn verify-rejection-vector
+  "Execute one declared package mutation against its named positive vector.
+   Only known vector identities, mutation profiles, and rehash declarations are
+   executable; unknown declarations fail closed."
+  [rejection]
+  (try
+    (let [context (case (:basis/vector rejection)
+                    :all-active-two-claim-60-40
+                    (build-all-active-context (read-vector "vectors/all-active-60-40.edn"))
+                    :aggregate-held-credit-two-claim-60-40
+                    (build-aggregate-context
+                     (read-vector "vectors/aggregate-held-credit-60-40.edn"))
+                    (throw (ex-info "unknown rejection-vector basis"
+                                    {:basis/vector (:basis/vector rejection)})))
+          outcome (case (get-in rejection [:mutation :path])
+                    [:statement :state-after/root]
+                    (run-descendant-substitution context rejection)
+                    [:compilation :effects/root]
+                    (run-effect-substitution context rejection)
+                    [:retained-material :aggregate-quantity]
+                    (run-retained-body-substitution context rejection)
+                    (throw (ex-info "unknown rejection-vector mutation path"
+                                    {:path (get-in rejection [:mutation :path])})))
+          expected-class (get-in rejection [:expected :failure-class])]
+      (assoc outcome
+             :valid? (and (valid-rejection? rejection)
+                          (= :rejected (:result outcome))
+                          (= expected-class (:observed/failure-class outcome)))
+             :expected/failure-class expected-class))
+    (catch clojure.lang.ExceptionInfo error
+      {:mutation/id (:case/id rejection)
+       :result :invalid-declaration
+       :valid? false
+       :error (ex-data error)})))
 
 (defn compare-derived
   "Compare a derived result to an expected section. This is intentionally
@@ -362,12 +476,16 @@
        (keyword? (:case/id rejection))
        (keyword? (:basis/vector rejection))
        (map? (:mutation rejection))
-       (seq (:rehash rejection))
+       (contains? #{:effect-reconstruction-mismatch
+                    :derived-transition-mismatch
+                    :retained-material-mismatch}
+                  (get-in rejection [:expected :failure-class]))
        (= false (get-in rejection [:expected :valid?]))
        (keyword? (get-in rejection [:expected :failure-class]))))
 
 (defn verify-package
-  "Verify package membership, positive vectors, and rejection-vector shape.
+  "Verify package membership, positive vectors, and execute every declared
+   rejection mutation against its named positive vector.
    This is intentionally fail-closed on the exact declared member set."
   []
   (let [manifest (read-vector "manifest.edn")
@@ -377,15 +495,17 @@
         rejections (mapv read-vector rejection-paths)
         positive-results [(verify-all-active-vector (first positives))
                           (verify-aggregate-vector (second positives))]
+        rejection-results (mapv verify-rejection-vector rejections)
         ids (map :case/id (concat positives rejections))]
     {:valid? (and (manifest-integrity-valid? manifest)
                   (= declared expected-members)
                   (= (count ids) (count (distinct ids)))
                   (every? :valid? positive-results)
-                  (every? valid-rejection? rejections))
+                  (every? :valid? rejection-results))
      :manifest-integrity? (manifest-integrity-valid? manifest)
      :members? (= declared expected-members)
      :unique-case-ids? (= (count ids) (count (distinct ids)))
-     :rejections-valid? (every? valid-rejection? rejections)
+     :rejections-valid? (every? :valid? rejection-results)
+     :rejection-results rejection-results
      :positive-results positive-results
      :rejection-count (count rejections)}))
