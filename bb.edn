@@ -3,6 +3,10 @@
   {:doc "Print the resolved component closure for a named profile. Usage: bb profile:describe <profile-name>"
    :task (apply shell "bb" "scripts/profile_view.clj" "describe" *command-line-args*)}
 
+  concepts:validate
+  {:doc "Validate the canonical stakeholder concept registry, concept files, protocol mappings, and cross references."
+   :task (shell "clojure" "-M" "scripts/concepts_validate.clj")}
+
   profile:diff
   {:doc "Compare resolved component/source closures. Usage: bb profile:diff <left-profile> <right-profile>"
    :task (apply shell "bb" "scripts/profile_view.clj" "diff" *command-line-args*)}
@@ -623,7 +627,7 @@ test:quick
    :task (shell "clojure" "-M:test" "-m" "scripts.scenarios.check-direct-writes")}
 
    validate {:doc "Structural validation pipeline: lint + notebook + SPEDS."
-             :task (shell "clojure" "-M:cli/sew" "validate")}
+             :task (clojure "-M:cli/sew" "validate")}
 
    doctor
    {:doc "Report the PRF research environment: toolchain, project revision, working tree, researcher paths, and whether canonical classpaths resolve."
@@ -1137,7 +1141,7 @@ test:integration:postgres {:doc "Run PostgreSQL resubmission admission and durab
              "yield-scenarios")
 
       (println "▶ backstop: CLI default gate")
-      (shell "clojure" "-M:cli/sew" "backstop"))}
+      (clojure "-M:cli/sew" "backstop"))}
 
    backstop:fast
    {:doc "Run the fast registered edit-loop review gate."

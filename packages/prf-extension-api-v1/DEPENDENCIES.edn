@@ -1,0 +1,78 @@
+{:manifest/schema "prf-package-dependency-manifest.v1"
+ :package/id :prf-extension-api-v1
+ :package/status :in-tree-source-candidate
+ :package/version "0.1.0-dev"
+ :public-api
+ {:namespace resolver-sim.extensions.api.v1
+  :source "src/resolver_sim/extensions/api/v1.clj"
+  :api-version 1}
+ :consumer-packages [:force-authorisation :held-custody]
+ :direct-source-dependencies
+ [resolver-sim.assurance.force-authorisation
+  resolver-sim.assurance.held-admission
+  resolver-sim.configuration-head
+  resolver-sim.evidence.artifact
+  resolver-sim.hash.canonical
+  resolver-sim.hash.reference
+  resolver-sim.hash.sequence
+  resolver-sim.sensitivity.sentinel]
+ :source-closure
+ [resolver-sim.accounting.held-adjustment
+  resolver-sim.assurance.canonical-force-authorisation
+  resolver-sim.assurance.force-authorisation
+  resolver-sim.assurance.held-admission
+  resolver-sim.assurance.parameter-attribution
+  resolver-sim.config.defaults
+  resolver-sim.configuration-head
+  resolver-sim.economics.effects
+  resolver-sim.economics.schemas
+  resolver-sim.evidence.artifact
+  resolver-sim.extensions.api.v1
+  resolver-sim.extensions.core
+  resolver-sim.extensions.execution
+  resolver-sim.extensions.manifest
+  resolver-sim.extensions.registry
+  resolver-sim.extensions.resolution
+  resolver-sim.genesis
+  resolver-sim.hash.algorithm
+  resolver-sim.hash.canonical
+  resolver-sim.hash.framing-view
+  resolver-sim.hash.reference
+  resolver-sim.hash.sequence
+  resolver-sim.sensitivity.sentinel
+  resolver-sim.transaction.ordering
+  resolver-sim.transaction.protocol]
+ :external-dependencies
+ {:clojure {:lib org.clojure/clojure :version "1.12.0"}
+  :prf-canonical
+  {:lib prf/canonical
+   :git/url "https://github.com/protocol-robustness/prf-canonical.git"
+   :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
+   :deps/root "clj"}
+  :test-check {:lib org.clojure/test.check :version "1.1.1"}}
+ :qualification
+ {:command "bash scripts/qualify_extension_core_api_v1.sh"
+  :isolated-source-closure
+  {:source-content-set "sha256:ed63122aa5dd54274926dde94f8657fbcef04d825ffaa95aff0dd6ca70d30cf2"
+   :tests 105
+    :assertions 603
+   :result :passed}
+  :test-namespaces
+  [prf.extensions.force-authorisation.manifest-test
+   prf.extensions.force-authorisation.scope-verification-test
+   prf.extensions.held-custody.authoritative-gate-test
+   prf.extensions.held-custody.authorisation-classification-test
+   prf.extensions.held-custody.core-seam-test
+   prf.extensions.held-custody.golden-vectors-test
+   prf.extensions.held-custody.historical-read-conformance-test
+   prf.extensions.held-custody.legacy-add-held-test
+   prf.extensions.held-custody.manifest-test
+   prf.extensions.held-custody.mutation-test
+   prf.extensions.held-custody.semantic-admission-test
+   prf.extensions.held-custody.aggregate-test]}
+ :source-layout
+ {:independent-source-closure? true
+  :independently-released? false
+  :reason :core-artifact-unpublished}
+ :publication {:status :unpublished
+               :dependency-coordinate nil}}

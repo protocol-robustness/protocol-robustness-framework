@@ -2092,6 +2092,46 @@
    :mapping/id :scope-beneficiary,
    :mapping/values
    {:maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+  {:concept/id :framework/currency,
+   :mapping/category :concept/actions,
+   :mapping/id :denominate-amount,
+   :mapping/values {:maps-to [:protocol.action/account]}}
+  {:concept/id :framework/currency,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-currency-representation,
+   :mapping/values {:maps-to [:protocol.action/verify]}}
+  {:concept/id :framework/currency,
+   :mapping/category :concept/entities,
+   :mapping/id :currency-denomination,
+   :mapping/values {:maps-to [:protocol.entity/asset]}}
+  {:concept/id :framework/currency,
+   :mapping/category :concept/entities,
+   :mapping/id :currency-asset-representation,
+   :mapping/values {:maps-to [:protocol.entity/asset]}}
+  {:concept/id :framework/currency,
+   :mapping/category :concept/outcomes,
+   :mapping/id :currency-identified,
+   :mapping/values {:maps-to [:protocol.outcome/verified]}}
+  {:concept/id :framework/currency,
+   :mapping/category :concept/outcomes,
+   :mapping/id :representation-claimed,
+   :mapping/values {:maps-to [:protocol.outcome/proposed]}}
+  {:concept/id :framework/currency,
+   :mapping/category :concept/outcomes,
+   :mapping/id :representation-verified-within-scope,
+   :mapping/values {:maps-to [:protocol.outcome/verified]}}
+  {:concept/id :framework/currency,
+   :mapping/category :concept/roles,
+   :mapping/id :currency-definer,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :framework/currency,
+   :mapping/category :concept/roles,
+   :mapping/id :asset-issuer,
+   :mapping/values {:maps-to [:protocol.actor/issuer]}}
+  {:concept/id :framework/currency,
+   :mapping/category :concept/roles,
+   :mapping/id :currency-verifier,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
   {:concept/id :verifiable-assurance/forensic-confidence,
    :mapping/category :concept/actions,
    :mapping/id :check-invariant,

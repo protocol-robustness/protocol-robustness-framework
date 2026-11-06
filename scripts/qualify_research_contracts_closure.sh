@@ -45,6 +45,10 @@ printf 'isolated-source-content-set=sha256:%s\n' "$content_hash"
 cd "$probe_dir"
 clojure -Srepro -Sdeps '{:paths ["src" "test" "resources"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        org.clojure/tools.logging {:mvn/version "1.2.4"}
+        org.clojure/data.json {:mvn/version "2.4.0"}
+        org.slf4j/slf4j-api {:mvn/version "1.7.36"}
+        buddy/buddy-core {:mvn/version "1.12.0-430"}
         prf/canonical {:git/url "https://github.com/protocol-robustness/prf-canonical.git"
                        :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
                        :deps/root "clj"}}}' -M -e '
