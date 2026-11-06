@@ -1,0 +1,30 @@
+{
+  "schema": "prf-evm-deployables-local-build-evidence.v1",
+  "qualification": "local-review-fixture-not-published-release-not-approved",
+  "packageName": "@protocol-robustness/prf-evm-deployables",
+  "bundleVersion": "0.4.2",
+  "bundleRoot": "5b9da0dfc6b1a2864d0ae174faef3ddf0095dab21b4a158de25aef677235b7ba",
+  "manifestSha256": "2ecd59e9963fa4ae745b15a7b03c7f263806083717b2750bd689e562021425de",
+  "source": {
+    "repository": "protocol-robustness/prf-evm",
+    "jjRevision": "8ba7628bdfa46c1673aa15ba6205443ac1750ea9",
+    "candidateSourceTreeSha256": "1ce2108ce7c2cda3e1ff7cdcfea351b4b2f5a689622aae0fa05b3a950f429523",
+    "sourceLock": "etc/deployments/baselines/bounded-configuration-release-sources.current.v5.json"
+  },
+  "build": {
+    "cleanCommand": "forge clean && npm run compile",
+    "foundry": "1.7.1",
+    "solc": "0.8.33+commit.64118f21",
+    "profile": "default",
+    "evmVersion": "osaka",
+    "optimizerRuns": 200,
+    "viaIR": true
+  },
+  "artifacts": 30,
+  "reproduction": {
+    "exports": 3,
+    "allBundleRootsEqual": true,
+    "cleanBuildExportMatchesPriorExportsByteForByte": true,
+    "consumerValidation": "protocol-deployments BundleConsumer loaded manifest and core genesis, admission and authority artifacts"
+  }
+}

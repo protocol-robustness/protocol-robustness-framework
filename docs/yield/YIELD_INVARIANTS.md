@@ -37,8 +37,8 @@ Simulated time advances only via each event's `:time` field (no separate time-ad
 | `yield/withdrawal-budget-provenance` | L1: committed liquidity budget recomputes from committed source custody + available-ratio (content-addressed roots) |
 | `yield/withdrawal-ledger-conservation` | Every recorded withdrawal is a valid fixed-point certificate bound to its execution world and withdrawal subject: recomputed roots (run, params, state cutpoint, request-set, request-order, allocation-policy, basis) reconcile; per-principal uniqueness and exact bijection; per-row and aggregate economic conservation; FCFS prefix pool bound; `filled ≥ 0`. Catches run/execution/state transplants, same-run withdrawal substitution, row-value substitution, duplicate owners, and fabricated totals |
 
-Implementation: `src/resolver_sim/yield/invariants.clj`  
-Catalog metadata: `src/resolver_sim/yield/invariant_catalog.clj`  
+Implementation: `yield_runtime_src/resolver_sim/yield/invariants.clj`  
+Catalog metadata: `yield_runtime_src/resolver_sim/yield/invariant_catalog.clj`  
 EDN mirror: `data/yield/invariant-catalog.edn`
 
 ## Transition (each successful step)
@@ -47,7 +47,7 @@ EDN mirror: `data/yield/invariant-catalog.edn`
 |----|--------|
 | `yield/index-monotone` | `:yield/indices` non-decreasing on accrue; non-increasing under `:negative-yield` |
 
-Implementation: `src/resolver_sim/yield/invariants_transition.clj` (via `protocols/yield` `check-invariants-transition`).
+Implementation: `yield_runtime_src/resolver_sim/yield/invariants_transition.clj` (via `protocols/yield` `check-invariants-transition`).
 
 ## Offline properties (tests only)
 

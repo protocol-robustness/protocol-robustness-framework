@@ -1,0 +1,403 @@
+# Base Sepolia testnet preparation checklist
+
+**Scope: isolated public-testnet demonstration only. This is not a pre-mainnet
+release, production readiness, or full PRO-95 qualification.** Testnet
+transactions are public and persistent. Use a dedicated test-only wallet and
+Circle Base Sepolia testnet USDC only; never use production keys, customer
+funds, mainnet USDC, or other real assets.
+
+This checklist records the exact inputs and evidence required before a Base
+Sepolia transaction is prepared or submitted. Items marked **Owner decision**
+must be supplied or approved by the project owner; the repository does not
+infer them from placeholders, locally generated demo keys, or a passing local
+test.
+
+## Owner decisions recorded; actions still needed
+
+The owner approved the test-only recipient map, fixture amounts,
+deployer-relayed withdrawals, and bounded receipt-inclusion evidence class on
+2026-10-23. On 2026-10-25 the owner selected Circle Base Sepolia testnet USDC
+at `0x036CbD53842c5426634e7929541eC2318f3dCF7e`, the same token address used
+in the existing SEW Aave Base Sepolia integration references. This PRO-95 flow
+does not use Aave. See [`owner-decisions-20261023.edn`](./owner-decisions-20261023.edn).
+That record reflects conversation approval; it is not a cryptographic owner
+signature or independent authority attestation. The wallets remain pseudonymous
+test recipients.
+
+1. **Bind the approved recipient map into a Base-specific package.** Approved
+   fixture recipients are
+   listed in [`demo-recipient-wallets.json`](./demo-recipient-wallets.json):
+   Alice `0x8bDd01C7DEad0AbE3e855b458B820D9d727bCCBF`, Bob `0x867Caab852f942Ff80B6409109F1DB76D4ecB36B`, and Carol
+   `0xA57F019D83d1fbbc48500047bA27d21523fE55A8`. These addresses are backed by locally generated
+   encrypted test keys (owner-only directory mode 0700, key files mode 0600),
+   but establish no real-world claimant identity. The
+   retained V3 proof and roots bind the fixture placeholder addresses and local
+   chain ID `31337`; replacing them with these Base Sepolia addresses requires
+   deriving new roots and regenerating the source witness/proof. Do not edit the
+   old proof or substitute the addresses after proof generation.
+2. **Use the approved relayer model.** The V3 allocator's `withdraw`
+   entry point verifies the committed beneficiary opening and transfers to that
+   beneficiary; it does not require `msg.sender` to be the beneficiary. A
+   deployer will submit all three claims. Beneficiary gas funding is not
+   planned. The recipient wallets returned zero native ETH in single-provider
+   unpinned `latest` queries on 2026-10-23, retained in
+   [`rpc-preflight-20261023.json`](./rpc-preflight-20261023.json). The later,
+   block-pinned 2026-10-25 preflight queried the deployer only; it did not
+   recheck recipient balances. Neither observation establishes current funding.
+3. **Use the approved USDC demo profile.** It specifies requests of 50/30/20
+   USDC (100 USDC total); an 80 USDC deposit; 10 USDC restricted and refundable
+   to Carol; 70 USDC allocatable and paid 35/21/14; and 30 USDC of unmet
+   requests, which remain neither funded entitlements nor recognized
+   liabilities. Values are bound as six-decimal base units. Use Circle Base
+   Sepolia testnet USDC at `0x036CbD53842c5426634e7929541eC2318f3dCF7e`; do not
+   deploy, mint, or substitute another token. Its previously retained source
+   parity observation is historical and partial; recheck the proxy pointer,
+   code, metadata, and transfer behavior at the selected run block.
+   The owner approved one dedicated test-only EOA for deployer, funder, configuration
+   authority, and relayer roles. This is a deliberately centralized demo setup,
+   not independent or production authority separation. The retained local
+   fixture's `address(this)` authority is not an external authority approval.
+4. **Approve the transaction and gas caps, then fund the deployer.** Deployer
+   `0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4` had zero Base Sepolia ETH at
+   block `50204763`; its current balance is unknown. No safe exact amount can
+   be set yet: there is no Base Sepolia deployment
+   runner or dry-run transaction plan from which to estimate gas. I will produce
+   the plan and maximum spend before any send. After that, obtain only the
+   owner-approved amount of Base Sepolia ETH from a faucet or other approved
+   testnet source and record its funding transaction. The separate USDC payer
+   must also have at least 80 USDC and an exact allowance for the reserve; do
+   not approve an unlimited allowance. The token balance and allowance must be
+   captured at a recorded block. The Coinbase Developer Platform currently lists Base Sepolia among supported faucet networks
+   ([faucet](https://www.coinbase.com/developer-platform/products/faucet)).
+   The approved relayer model means the beneficiary wallets do not need gas.
+5. **Review selected header observations and policy.** The approved bounded
+   future claim is `receipt_inclusion_verified_under_external_header_pin`,
+   with Base safe/finalized status explicitly unclaimed. The latest retained
+   token/source observation (not the latest chain head) is block `50091313`, hash
+   `0x6f025c552b5df58108ae1bd753a511d3f87c0804005abcf948a2e0541816334c`.
+   The later balance preflight is block `50204763`, hash
+   `0x0472d6d8d50c6e5b6f9370340ec2c0a197c154df69165a0238a97bd387e2d4c8`;
+   both queried endpoints reported zero deployer ETH, zero payer USDC, and
+   nonce zero at that block, while allowance was not observed. Its raw
+   artifact is retained in `protocol-deployments` at
+   `config/pro-95-base-sepolia-demo/observations/usdc-funding-preflight-20261025-50204763.json`
+   (SHA-256
+   `b9889d3d187a9a0d09d0a358261d76089138e698d0e611b1a4b76d1e825b90fc`);
+   both records are referenced in `stage-c-evidence-status.edn`. The matching
+   responses are not independently reviewed and neither block is a selected
+   trust anchor. Before making
+   even the bounded receipt-inclusion claim, an independent reviewer must
+   select/assess the pin source, source independence, ancestry policy,
+   freshness window, reorg response and disagreement stop conditions. The
+   receipt verifier does not establish genesis identity or consensus finality.
+   Base safe/finalized claims require a separately qualified L2-to-Ethereum
+   Sepolia-L1 derivation/finality path; L1 withdrawal-output finalization is a
+   further distinct claim. See
+   [`FINALITY_QUALIFICATION.md`](./FINALITY_QUALIFICATION.md) for the evidence
+   classes and gates.
+6. **Implement and review within the approved boundary.** The retained V3 run is a local
+   Foundry test whose harness sets chain ID `31337` and uses test-only addresses.
+   The related `prf-evm/script/DeployGateEEntitlementOptionA.s.sol` is explicitly
+   local-only and uses a different fixed proof identity. Its program VKey/ELF
+   constants do not match the V3 settlement manifest identity. No Base Sepolia V3
+   deployment/operation runner exists in the inspected `prf-evm` snapshot
+   (`0dad4c2790a60ecca9a41c5d518f99522eab94ce`). A separate, reviewed runner
+   and Base Sepolia-bound proof package must be prepared; the local runner and
+   proof cannot be broadcast unchanged.
+
+   **Artifact update (2026-10-25):** a 32-artifact `prf-evm` 0.4.3 candidate
+   now includes `OnchainShortfallReserveV3`. It is retained at
+   `protocol-deployments/fixtures/releases/0.4.3/` with bundle root
+   `d416816527400fcc7bc7455a1486c1bc20cb94ed556473d0c695a83ea09e2dba`.
+   Its source revision `f23fcfc2d0f58e2be5732c0c37ddb179c323d513` was pinned
+   with `GIT_SHA` from a local JJ workspace; the manifest records
+   `commitSource: env` and `commitOverride: true`. The normal non-local bundle
+   gate rejects it. This closes the missing V3 bytecode-artifact gap for review
+   only; a published clean Git source revision and clean-checkout rebuild are
+   still required before non-local deployment.
+
+The approved profile does not yet set a transaction plan, maximum transaction
+count, or numeric ETH spend cap. No public transaction has been signed or
+broadcast. These limits will be calculated from the reviewed dry-run plan.
+
+## 1. Remaining configuration and qualification inputs
+
+### Actions needed from the project owner
+
+The previously approved profile and recipient decisions are recorded, but they
+do not approve a transaction plan or attest the derived package roots. Before
+any transaction is signed, the owner will need to:
+
+1. Review and approve the exact Base-specific deployment composition and its
+   package digest after the runner and proof package are implemented. The
+   current 0.4.3 bundle root is a local candidate, not an approved clean
+   release. The derived configuration root is a candidate; its empty escrow
+   template list and disabled cross-domain behavior must be checked against
+   the selected demo contracts.
+2. Review the dry-run transaction plan and approve a maximum transaction
+   count and numeric ETH spend cap. The zero-balance deployer should only be
+   funded after this amount is known. No request for testnet ETH should be
+   acted on before the cap is approved.
+3. After the deployment dry-run and spend limits are approved, arrange the
+   approved amount of Base Sepolia ETH for the dedicated deployer and provide
+   or identify the funding transaction so its receipt can be retained. Also
+   arrange at least 80 Circle Base Sepolia testnet USDC for the approved payer
+   (the amount is 80,000,000 six-decimal base units). Identify its source and
+   funding transaction; the live balance must be observed at a pinned block.
+   The exact reserve allowance must be separately planned, reviewed, and
+   observed at that block. No beneficiary gas is needed under the approved
+   relayer model. Do not send ETH or USDC, or set an allowance, until the
+   reviewed transaction plan and numeric caps are approved.
+4. Assign an independent reviewer to select/assess the header observation
+   sources and freshness/reorg policy. A matching RPC and Blockscout hash is
+   not itself an independent trust decision.
+
+No additional owner decision is currently needed for the Circle test-USDC
+asset selection, recipients, one-deployer authority model, or bounded
+receipt-inclusion claim with no finality claim. Test-USDC funding and allowance
+are not yet observed or supplied. The package-level deployment digest, spend cap,
+testnet balance, and independent header policy remain open as stated below.
+
+Record these in an approved, versioned demo run plan:
+
+| Decision | Required value / acceptance | Current state |
+|---|---|---|
+| Demonstration identity | Name, purpose, exact operation scenario, and explicit label `demonstration-only-not-pre-mainnet-release`. | Scope and demo-only label are approved; exact owner-reviewed deployment composition and package digest are not yet fixed. |
+| Source revision | PRF, PRF-EVM, coprocessor/prover, dependencies, Solidity compiler, optimizer and `via_ir` settings; clean/dirty state and content inventories. | Local candidate revisions exist; no testnet run source-state package exists. |
+| Contract composition | Exact contracts to deploy and their constructor/configuration values: reserve, allocator, controller, assurance, ratification/admission, verifier adapter, verifier implementation, external USDC address and any protected execution target. Mark omitted components and resulting claim limits. | No approved deployment composition. |
+| Proof identity | Proof system, program ID, VKey, ELF digest, public-values schema and length, real verifier address/runtime identity, and a retained proof fixture. Do not substitute an accepting/mock verifier while claiming proof verification. | The retained controlled-entitlement identity is recorded in `configuration-root-derivation.json`; it is not yet admitted to a Base verifier registry, and a fresh Base-bound proof must be generated. The production Base configuration template remains unchanged with TBD fields. |
+| Demo asset | Exact Base Sepolia testnet ERC-20, chain/address, decimals, historical source/code evidence, current proxy implementation, transfer behavior, funding and allowance. Never use mainnet tokens. | Circle testnet USDC at `0x036CbD53842c5426634e7929541eC2318f3dCF7e`, 6 decimals, is owner-selected. The address matches the token used by the existing SEW Aave Base Sepolia integration references. The token/source observation records matching proxy/implementation and metadata responses at block `50091313`, hash `0x6f025c552b5df58108ae1bd753a511d3f87c0804005abcf948a2e0541816334c`; `transfer` behavior was not tested and source authentication was not performed. A separate block-pinned preflight at block `50204763`, hash `0x0472d6d8d50c6e5b6f9370340ec2c0a197c154df69165a0238a97bd387e2d4c8`, observed zero payer USDC and did not query allowance. This is not a run-block observation. |
+| Demo policy and requests | Owner-approved requests, allocation rule/version, cutoff, expected allocation, restricted reserve, funding amount, unmet-request meaning, and refund rule, in exact token base units. | 50/30/20 USDC requests, 35/21/14 USDC allocations, 80 USDC deposit and separate 10 USDC restricted refund are recorded in six-decimal units. They are not yet bound to a Base Sepolia deployment. |
+| Beneficiaries | Test-only pseudonyms and controlled recipient addresses, with a dedicated way to sign/observe claims. The existing `0x111…`, `0x222…`, `0x333…` placeholders are not controlled recipients and must not receive funds. | Recipient map approved in `owner-decisions-20261023.edn`; addresses are not yet bound into a Base Sepolia witness/proof. |
+| Authorities | Record each test-only public key/role/status and custody boundary; do not imply independent authority separation. Bind run approvals to exact package digests. | One dedicated test-only EOA is approved for deployment, funding, configuration authority, and relayed withdrawals. Existing bundled Stage B Ed25519 keys are ephemeral demonstration keys and are not independent authorities. |
+| Deployer and funder | Public address, role, custody type, testnet ETH budget, USDC payer balance/allowance, maximum number of transactions, and maximum gas/ETH spend approved for this run. Use a dedicated test-only signer. | Generated encrypted test-only signer: `0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4`; approved for deployer, funder, configuration-authority, and relayer roles. ETH and USDC payer balance were zero at block `50204763`; allowance was not observed. Current funding status is unknown and must be rechecked. No spend budget is set. Keystore is outside the repository; passphrase is in the local system keyring. |
+| Network trust | Base Sepolia chain ID `84532`; selected RPC endpoint(s); independent source for chain/header checks; exact freshness and reorg policy; selected L2 safe/finalized interpretation and corresponding Ethereum Sepolia L1 evidence requirements. | Owner approved receipt-inclusion verification with no finality claim. Matching read-only responses from Base RPC and PublicNode reported block `50204763`, hash `0x0472d6d8d50c6e5b6f9370340ec2c0a197c154df69165a0238a97bd387e2d4c8`; see the retained observation path in `stage-c-evidence-status.edn`. Provider independence, ancestry policy, and freshness/reorg policy have not been independently reviewed; this is not a trust pin. At that block, the deployer ETH and USDC payer balances were 0, nonce was 0, and allowance was not observed. Base safe/finalized status remains unverified. The selected block was below the endpoint heads at capture and is a pinned snapshot only. |
+| Release boundary | Approved page/report wording for the demonstrated claims and explicit exclusions. | Approved scope remains testnet demonstration only; not a pre-mainnet release. |
+
+Base documentation lists Base Sepolia as chain ID `84532` (`0x14a34`). The
+documented public RPC candidate is `https://sepolia.base.org`; a response from
+that endpoint is an observation source, not an independent trust anchor. See
+[Base `eth_chainId` documentation](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_chainId).
+
+## 2. Replace the owner-approval-required configuration templates
+
+Do not deploy using the current files unchanged:
+
+- `etc/deployments/prf-base-sepolia/initial-configuration-package.edn`
+- `etc/deployments/prf-base-sepolia/authority-state-package.edn`
+
+They intentionally contain TBD fields, a placeholder principal, and
+candidate-owner-approval-required status. For this demonstration, use a
+separate owner-approved test-only configuration; do not copy the templates'
+production genesis-root or authority-profile comments. The templates remain
+unchanged. Demo-specific candidate packages are now in this directory:
+`initial-configuration-package.edn` and `authority-state-package.edn`. Their
+roots were recomputed with `scripts/deployment/genesis_roots.clj` and are
+recorded as `derived-only-not-approved`; the chain-instance root still needs
+actual deployment identities. A testnet preparation is not ready until the
+remaining configuration and evidence below are reviewed and fixed:
+
+1. Initial configuration: newly derived demo-only protocol genesis root; module registry
+   profile/capabilities; evidence policy with actual proof ID, VKey, ELF
+   digest, public-values schema/length and real verifier requirement; exact
+   escrow template registry; external USDC token policy and entitlement descriptor roots;
+   chain ID `84532`; governance and interoperability policies. Keep
+   cross-domain/bridge behavior disabled unless explicitly in scope.
+2. Authority state: the same newly derived demo-only protocol genesis root; chain ID
+   `84532`; named test-only authority profile; actual owner-approved public
+   principal address; initial epoch and decisions. Replace the placeholder
+   principal.
+3. Candidate package-set review: derive the full package set, record source
+   revision/tool versions and content digests, and obtain an approval record
+   whose subject is the exact derived manifest digest. A derived root alone is
+   not approval.
+4. Chain-instance genesis: after deployment addresses and runtime code hashes
+   are known, derive the chain-instance identity from the actual chain ID,
+   contract addresses/code hashes, approved authority-state root and
+   configuration root. Validate the candidate with the existing canonical
+   implementation; do not enter hand-chosen roots.
+5. Deployment manifest: bind every contract address, runtime code hash,
+   constructor/configuration value, deployer, chain ID, deployment transaction
+   and receipt to the approved package set.
+
+The current Base Sepolia templates do not define an approved production
+protocol, authority, verifier or token configuration. Do not promote their
+derived candidate roots to approved deployment identities.
+
+## 3. Prepare keys, RPC and testnet funds locally
+
+Before any signing or write request:
+
+1. Configure the selected Base Sepolia RPC URL in a local ignored environment
+   file or shell session, for example `BASE_SEPOLIA_RPC`. Never commit an RPC
+   credential or secret. A public endpoint may require its own rate-limit
+   policy; document the exact endpoint and provider used.
+2. Create/import a dedicated test-only deployer/funder into an encrypted
+   Foundry keystore. Do not put a private key in the repository, shell history,
+   Linear, a report, or an agent prompt. Record only its public address and
+   signer method. The project's local Gate E script has an Anvil private-key
+   default and local-only roots; it must not be used unchanged for Base
+   Sepolia.
+3. Create dedicated controlled test recipient wallets. Keep their secrets
+   outside the repository and record only pseudonyms and public addresses in
+   the approved beneficiary authorization. Do not reuse placeholder addresses
+   from the synthetic adapter package.
+4. Obtain Base Sepolia ETH through a suitable testnet faucet or other owner
+   approved source. The Coinbase Developer Platform currently lists Base
+   Sepolia as a faucet network
+   ([faucet](https://www.coinbase.com/developer-platform/products/faucet)).
+   Record source, receiving address, observed amount and transaction hash. Set a numeric upper bound for total ETH spend and per-
+   transaction gas before use. Testnet ETH is not production value, but
+   broadcasts still create public persistent records.
+5. Run read-only preflight calls and retain the RPC results and UTC time:
+
+   ```sh
+   cast chain-id --rpc-url "$BASE_SEPOLIA_RPC"
+   cast block-number --rpc-url "$BASE_SEPOLIA_RPC"
+   cast balance "$DEPLOYER_ADDRESS" --rpc-url "$BASE_SEPOLIA_RPC"
+   ```
+
+   Confirm the chain ID is `84532`. Record RPC client/version and compare
+   chain/header identity using the independently selected source. Stop if
+   endpoints disagree, the signer address is unexpected, or the spend budget
+   is not sufficient and approved. The initial read-only observation is
+   retained in `rpc-preflight-20261023.json`; it records Foundry result strings,
+   not raw HTTP envelopes. These checks are preflight only; they do not qualify
+   chain consensus or finality.
+
+## 4. Build and simulate without broadcasting
+
+Before creating a transaction:
+
+1. Build from the exact reviewed PRF-EVM source and lockfiles. Retain compiler,
+   Forge, Rust/prover and dependency versions, build logs, source tree IDs,
+   dirty/untracked status and SHA-256 inventories.
+2. Run the existing offline tests and local real-proof qualification. Keep the
+   synthetic Stage B signed-input fixture separate from the Base Sepolia USDC
+   balance/funding evidence and deployment-bound source/proof package.
+3. Create a dedicated Base Sepolia deployment script/configuration with no
+   Anvil default private key, no localhost RPC fallback, no placeholder
+   roots, no mock verifier, and no implicit `--broadcast`. Require explicit
+   network, signer, approved package digests, and spend cap; default to
+   simulation/dry-run.
+4. Simulate the exact deployment and operation transactions against the
+   selected network fork or RPC simulation path. Retain the unsigned/signed
+   transaction plans, calldata, predicted addresses/nonces, estimated gas,
+   expected events/state changes and dry-run output. A simulation is not a
+   mined execution.
+5. Have an operator review the final transaction plan and confirm the
+   approved demo addresses, amount caps, target chain ID, code identity,
+   proof identity, and recovery plan. Only then may the separately approved
+   transaction set be submitted.
+
+Do not run `examples/assured-operations/pro-rata-conformance/run-real-v2-sp1.sh`
+for a public testnet deployment. That script currently defaults to a local
+Anvil RPC and Anvil private key and exports synthetic roots. A separate,
+reviewed testnet runner is required.
+
+## 5. Public testnet demonstration transactions and evidence
+
+The exact transaction sequence depends on the owner-approved contract
+composition. At minimum, retain separate transaction evidence for each
+performed action, as applicable:
+
+1. Deploy all selected PRF/EVM contracts/verifier modules. Do not deploy or mint a token; use only the approved external Circle Base Sepolia USDC contract.
+2. Initialize the approved configuration/authority state and register the
+   required proof verifier/program identity.
+3. Transfer only the approved 80 USDC testnet amount into the reserve after recording the payer balance and exact allowance. No minting by the demo is permitted.
+4. Submit and admit the source-bound proof/statement. Record which source,
+   policy, operation and reserve roots are directly encoded in its public
+   values, and bind any other roots through their explicit signed or package
+   links. Do not claim a direct binding where the schema does not encode one.
+5. Ratify/fund and activate the operation through the selected protected
+   route.
+6. Submit each controlled beneficiary withdrawal; record any separately
+   restricted-capital refund as a distinct action.
+7. Exercise only approved negative cases (for example wrong proof, stale
+   reserve, duplicate claim or wrong recipient), with expected revert/failure
+   and no state/capital transition. Negative cases submitted onchain still
+   consume testnet gas.
+8. Read final balances, operation state and liabilities at a common recorded
+   block; independently reconcile source units, restricted reserve, funded
+   entitlements, payments, refunds, remaining liabilities and custody.
+
+For every submitted action retain: raw signed transaction bytes; transaction
+hash; sender; chain ID; nonce; target and calldata; receipt bytes/JSON and
+status; transaction index; raw logs with emitter/topics/data/index; block
+header RLP, hash, number and parent; pre/post relevant contract state and token
+balances; deployed runtime bytecode and code hash; exact source, policy,
+beneficiary, funding and proof/public-values roots; provider identity/version;
+UTC capture time; and any failure/retry linkage. Preserve both failed
+attempts and permitted retries. Do not rely on a Forge broadcast file alone
+when actual RPC transaction/receipt linkage disagrees.
+
+For the existing receipt inclusion verifier, each case must provide the exact
+v1 case fields (`receipt`, `transactionRaw`, `transactionIndex`, transaction
+and receipt MPT proof nodes, `blockHeaderRlp`, bounded `headerAncestry`, and
+`expectedSender`) under
+`prf-ethereum-receipt-inclusion-case.v1`. The trust context is v2 and its exact
+SHA-256 must be pinned outside the case bundle. An ordinary RPC receipt is not
+itself an inclusion proof; independently construct and check both transaction
+and receipt trie paths against the header roots.
+
+The current verifier proves inclusion and ancestry to the supplied pinned
+header only. It does **not** authenticate the pin through Base consensus,
+prove ancestry from genesis, or establish safe/finalized status.
+
+## 6. Base L2 finality evidence and qualification boundary
+
+Base's protocol documentation distinguishes unsafe, safe and finalized L2
+heads. Safe L2 blocks are derived from the currently canonical L1 chain;
+finalized L2 blocks are derived from finalized L1 data. A Base RPC label or
+single provider response is not independent verification of either claim.
+See the [Base derivation specification](https://docs.base.org/specifications/base-protocol/consensus/derivation).
+
+For a testnet demonstration, choose and state one of these result classes:
+
+- **Receipt observed:** provider returned a receipt; no independent inclusion
+  or finality claim.
+- **Receipt inclusion under external header pin:** existing verifier confirms
+  the transaction and receipt MPT paths and ancestry to the pinned L2 header;
+  still no consensus/finality claim.
+- **Base safe/finalized status independently checked:** requires a separate
+  Base L2-to-Ethereum-Sepolia-L1 evidence path, independently selected L1 and
+  L2 trust sources, appropriate ancestry/derivation checks, a freshness/reorg
+  policy, and an implementation specifically qualified for Base finality.
+
+The current PRF receipt verifier implements only the second class's bounded
+inclusion/ancestry check, and only against a supplied external header pin. It
+does not implement Base safe/finalized verification. Do not label a Base
+testnet transaction finalized or describe PRO-95 Stage C as qualified until
+the specific claim's evidence path has been independently reviewed and
+exercised. The current Base Sepolia observation does not qualify the pin or
+the receipt claim. A testnet demonstration result, even with receipt
+inclusion, does not establish pre-mainnet readiness or mainnet assurance. See
+[`FINALITY_QUALIFICATION.md`](./FINALITY_QUALIFICATION.md) for the qualification
+matrix and stop conditions.
+
+## 7. Completion checklist and handoff
+
+Before marking the Base Sepolia demonstration run complete, the evidence bundle
+must contain:
+
+- owner-approved demo plan and transaction/ETH/token caps;
+- approved initial configuration, authority state, package-set approval and
+  chain-instance identity, all with recomputed roots and source identities;
+- exact source/prover/proof/verifier/build identities and signed demo input
+  package bound to the deployed chain instance and code hashes;
+- encrypted local test signer and controlled recipient addresses (public
+  addresses only in evidence);
+- read-only RPC preflight, independent network/header source selection, and
+  exact trust-context digest;
+- dry-run plan, operator check, then individual raw transaction/receipt/log/
+  header evidence for every deployment and operation;
+- fresh-process receipt inclusion and accounting reconstruction, including
+  failures/retries and final liabilities/refund conservation;
+- explicit result classification, claim-by-claim scope, evidence links,
+  verifier revisions, UTC times, source inventories, and open limitations;
+- a visible statement: **“Base Sepolia demonstration only. Not a pre-mainnet
+  release, production deployment, audit, or guarantee of safety.”**
+
+If any item is missing, leave the corresponding result `unverified` or
+`not-run`; do not fill it with an illustrative value or elevate the run's
+qualification status.

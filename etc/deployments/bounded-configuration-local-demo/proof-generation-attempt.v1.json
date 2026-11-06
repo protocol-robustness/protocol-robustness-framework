@@ -1,0 +1,30 @@
+{
+  "schema": "prf-local-demo-proof-generation-attempt.v1",
+  "scope": {
+    "chainId": 31337,
+    "deploymentScope": "localOnly",
+    "profileId": "prf-bounded-configuration-local-demo.v1"
+  },
+  "manifestDigest": "sha256:9f36ec95067410645352edfd41aaf8cbfba5860c316a038ae39fa897ecf6d8f8",
+  "manifestFileSha256": "8ce553e706017df7c9dc391501eb35a72f74ed6030aa15c7ccc33314f9897349",
+  "witnessSha256": "sha256:6a90c13ba2e40568728ca382af813d8b7e1968b03d88d67b03ffa308ef21238e",
+  "operationId": "0xb3bb86300947cece5c2d30ecf93b73bde6559cce5595a095bc568e61852e09a1",
+  "program": {
+    "id": "source-bound-entitlement-sp1-program.v1",
+    "vkey": "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9",
+    "elfSha256": "0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8"
+  },
+  "proofSystem": "groth16",
+  "outcome": "not-produced",
+  "nativeDerivation": "accepted",
+  "reason": "The local CPU prover exhausted safe workstation memory headroom during Groth16 proving. The attempt was stopped before an artifact was produced.",
+  "finalAttempt": {
+    "rayonThreads": 1,
+    "shardSize": 262144,
+    "memoryLimitBytes": 8589934592,
+    "peakObservedResidentBytesApprox": 16000000000,
+    "swapRemainingBytesApproxAtStop": 160000000
+  },
+  "proofArtifactCreated": false,
+  "transactionsBroadcast": false
+}

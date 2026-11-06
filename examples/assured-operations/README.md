@@ -286,6 +286,10 @@ execution-engine/L2 decision deferred.
 
 Run the fresh real V2/SP1 AO substitution from the repository root:
 
+For prerequisites, the standalone proof-only command, full runner behavior,
+retained outputs and the prior OOM boundary, see
+[`pro-rata-conformance/PROVING_RUNBOOK.md`](pro-rata-conformance/PROVING_RUNBOOK.md).
+
 ```sh
 bash examples/assured-operations/pro-rata-conformance/run-real-v2-sp1.sh
 ```
@@ -312,7 +316,9 @@ cases and the post-run consistency checks gate the AO result. The prover binary
 can be built with:
 
 ```sh
-cargo build --release --manifest-path coprocessor/Cargo.toml \
+make setup-coprocessor
+coprocessor_root="$(./scripts/resolve-prf-coprocessor.sh)"
+cargo build --locked --release --manifest-path "$coprocessor_root/Cargo.toml" \
   -p allocation-sp1-script --bin source-bound-v2-prove
 ```
 

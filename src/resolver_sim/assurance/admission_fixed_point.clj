@@ -13,6 +13,7 @@
   Together they prove that canonicalization faithfully preserves ALL input,
   including tampering, allowing a verifier to deterministically reject."
   (:require [resolver-sim.assurance.custody :as custody]
+            [resolver-sim.evidence.artifact :as artifact]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.round-trip :as rt]))
 
@@ -112,18 +113,22 @@
 ;;     ▼
 ;;   decision₁ == decision₂
 ;;
-;; Two properties:
+;; Three properties:
 ;; 1. Canonical artifact fixed-point: bytes₁ == bytes₂ (serialization stable)
 ;; 2. Verification fixed-point: same decision projection after decode
+;; 3. Content-hash fixed-point: decoded artifacts' :artifact/hash re-derives
 
 (defn admission-fixed-point
   "Verify custody admission decision survives canonical round-trip.
 
-  Two properties are tested:
+  Three properties are tested:
   1. Canonical artifact fixed-point — the artifacts' canonical bytes are
      identical after encode→decode→encode.
   2. Verification fixed-point — re-verifying the decoded artifacts produces
      the exact same decision projection.
+  3. Content-hash fixed-point — every decoded artifact's :artifact/hash
+     re-derives from its body, proving the round-trip preserved content
+     integrity (not just structural shape).
 
   This proves that canonicalization preserves everything faithfully:
   a tampered artifact is still a fixed point of serialization, but its
@@ -137,6 +142,7 @@
   Returns:
   {:canonical-fixed-point? boolean
    :verification-fixed-point? boolean
+   :content-hash-fixed-point? boolean
    :decision-root-consistent? boolean
    :holds? boolean
    :original map
@@ -156,12 +162,22 @@
                             (hc/canonical-bytes decoded-artifacts)))
         projection-match? (when (and canonical-ok? decoded-proj)
                             (= (dissoc original-proj :checks :decision-root)
-                               (dissoc decoded-proj :checks :decision-root)))]
+                               (dissoc decoded-proj :checks :decision-root)))
+        content-hash-ok? (when decoded-artifacts
+                           (every? artifact/content-hash-valid? decoded-artifacts))
+        content-hash-failures (when (and decoded-artifacts (not content-hash-ok?))
+                                (vec (keep-indexed
+                                      (fn [idx art]
+                                        (when-not (artifact/content-hash-valid? art)
+                                          {:index idx
+                                           :artifact-hash (:artifact/hash art)}))
+                                      decoded-artifacts)))]
     {:canonical-fixed-point? (and canonical-ok? bytes-identical?)
      :verification-fixed-point? (boolean projection-match?)
+     :content-hash-fixed-point? (boolean content-hash-ok?)
      :decision-root-consistent? (= (:decision-root original-proj)
                                    (when decoded-proj (:decision-root decoded-proj)))
-     :holds? (and canonical-ok? bytes-identical? projection-match?)
+     :holds? (and canonical-ok? bytes-identical? projection-match? content-hash-ok?)
      :original original-proj
      :decoded decoded-proj
      :violations (vec (cond-> []
@@ -173,7 +189,10 @@
                         (and canonical-ok? (not projection-match?))
                         (conj {:kind ::projection-mismatch
                                :original (dissoc original-proj :checks)
-                               :decoded (when decoded-proj (dissoc decoded-proj :checks))})))}))
+                               :decoded (when decoded-proj (dissoc decoded-proj :checks))})
+                        (and decoded-artifacts (not content-hash-ok?))
+                        (conj {:kind ::content-hash-mismatch
+                               :failures content-hash-failures})))}))
 
 (defn decision-stability-report
   "Build a presentation-ready report for the notebook showing the full

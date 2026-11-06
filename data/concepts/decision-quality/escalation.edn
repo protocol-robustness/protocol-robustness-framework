@@ -17,55 +17,55 @@
  :concept/roles
  {:escalation-initiator
   {:description "Party that triggers the escalation."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+   }
   :escalation-decider
   {:description "Entity that rules on the escalated dispute."
-   :maps-to [:protocol.actor/resolver :protocol.actor/resolution-module]}
+   }
   :escalation-gatekeeper
   {:description "Entity that controls whether escalation is available."
-   :maps-to [:protocol.actor/governance]}}
+   }}
 
  :concept/entities
  {:appeal
   {:description "Request for a higher authority to review a decision."
-   :maps-to [:protocol.entity/appeal]}
+   }
   :escalation-bond
   {:description "Economic stake required to initiate escalation."
-   :maps-to [:protocol.entity/bond]}
+   }
   :escalation-deadline
   {:description "Time window within which escalation must be initiated."
-   :maps-to [:protocol.entity/deadline]}}
+   }}
 
  :concept/actions
  {:initiate-escalation
   {:description "File an appeal or challenge against a decision."
-   :maps-to [:protocol.action/appeal :protocol.action/escalate :protocol.action/challenge-resolution]}
+   }
   :post-bond
   {:description "Deposit economic stake required for escalation."
-   :maps-to [:protocol.action/post-bond]}
+   }
   :rule-on-escalation
   {:description "Issue a decision on the escalated dispute."
-   :maps-to [:protocol.action/resolve-appeal :protocol.action/settle]}
+   }
   :waive-escalation
   {:description "Choose not to escalate within the available window."
-   :maps-to [:protocol.action/timeout :protocol.action/accept-split]}}
+   }}
 
  :concept/outcomes
  {:escalation-processed
   {:description "Escalation was initiated and a higher authority ruled."
-   :maps-to [:protocol.outcome/appealed]}
+   }
   :escalation-unavailable
   {:description "No escalation path existed or was configured."
-   :maps-to [:protocol.outcome/resolved]}
+   }
   :escalation-economically-inaccessible
   {:description "Escalation existed but bond cost made it impractical."
-   :maps-to [:protocol.outcome/stuck]}
+   }
   :escalation-expired
   {:description "Escalation window closed without action."
-   :maps-to [:protocol.outcome/timeout]}
+   }
   :escalation-rejected
   {:description "Escalation was filed but rejected as invalid or untimely."
-   :maps-to [:protocol.outcome/rejected]}}
+   }}
 
  :concept/failure-modes
  [{:failure/id :escalation-unconfigured

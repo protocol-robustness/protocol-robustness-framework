@@ -90,6 +90,31 @@
   (let [{:keys [p verifier]} (setup :allocation)]
     (is (thrown? Exception (d/verify-subject p verifier (a/statement @evidence :realized))))))
 
+(deftest allocation-statement-cannot-substitute-for-realized-settlement
+  (let [{:keys [p verifier]} (setup :realized)]
+    (is (thrown? Exception
+                 (d/verify-subject p verifier (a/statement @evidence :allocation))))))
+
+(deftest incomplete-realized-settlement-cannot-be-accepted-or-ratified
+  (let [realized (a/statement @evidence :realized)
+        incomplete (-> realized
+                       (update-in [:settlement :withdrawals 0 :paid] dec)
+                       (assoc :artifact/root nil))
+        incomplete (assoc incomplete :artifact/root (d/artifact-root incomplete))
+        {:keys [p verifier] :as f} (setup :realized)
+        f (assoc f :subject incomplete
+                 :subjects {(:artifact/root incomplete) incomplete})
+        accept (helpers/request f [] :accept)
+        reject (helpers/request f [] :reject)]
+    (is (false? (:verified? (a/verify-statement @evidence incomplete))))
+    (is (thrown? Exception (d/reconstruct p verifier (:subjects f) [accept])))
+    (is (= :reject
+           (get-in (d/reconstruct p verifier (:subjects f) [reject])
+                   [:decisions (:artifact/root incomplete) :decision])))
+    (is (thrown? Exception
+                 (d/reconstruct p verifier (:subjects f)
+                                [reject (helpers/request f [reject] :ratify)])))))
+
 (deftest cross-history-consistency-requires-shared-operation-and-evidence
   ;; P2: the allocation and realized-settlement statements share no signed link;
   ;; an independent check requires them to name the same operation/evidence/policy.

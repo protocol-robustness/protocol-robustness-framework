@@ -3,6 +3,10 @@
   {:doc "Print the resolved component closure for a named profile. Usage: bb profile:describe <profile-name>"
    :task (apply shell "bb" "scripts/profile_view.clj" "describe" *command-line-args*)}
 
+  concepts:validate
+  {:doc "Validate the canonical stakeholder concept registry, concept files, protocol mappings, and cross references."
+   :task (shell "clojure" "-M" "scripts/concepts_validate.clj")}
+
   profile:diff
   {:doc "Compare resolved component/source closures. Usage: bb profile:diff <left-profile> <right-profile>"
    :task (apply shell "bb" "scripts/profile_view.clj" "diff" *command-line-args*)}
@@ -281,8 +285,40 @@ check:ownership
                    "-M" "-m" "resolver-sim.validation.scenario-registry")}
 
   canonical-artifacts:validate
-   {:doc "Validate the proposed canonical artifact baseline. Usage: bb canonical-artifacts:validate <manifest.edn> <prf-root> <prf-evm-root> <pinned-prf-canonical-root> <pinned-prf-pro-rata-allocation-root>"
+   {:doc "Validate the adopted non-runtime canonical artifact baseline. Usage: bb canonical-artifacts:validate <manifest.edn> <prf-root> <prf-evm-root> <pinned-prf-canonical-root> <pinned-prf-pro-rata-allocation-root> <pinned-prf-coprocessor-root>"
     :task (apply shell "bb" "scripts/validate/canonical_artifacts.clj" *command-line-args*)}
+
+  pro-rata-vectors:check
+   {:doc "Compare PRF frozen pro-rata EDN vectors and package mirrors with Rust test results. Usage: bb pro-rata-vectors:check --prf-root PATH --allocation-root PATH --transition-root PATH"
+    :task (apply shell "clojure" "-M:test" "-m" "scripts.conformance.pro-rata-vector-drift" *command-line-args*)}
+
+  canonical-artifacts
+  {:doc "Inspect, derive, bundle, compose or narrowly verify supported canonical artifacts. Usage: bb canonical-artifacts show | derive pro-rata-allocation-request.v1 --input FILE [--output FILE] | bundle --input FILE [--output FILE] | compose realized-allocation-statement.v1 --input FILE [--output FILE] | verify <profile> --input FILE [--output FILE]"
+   :task (apply shell "clojure" "-M" "-m" "resolver-sim.commands.canonical-artifacts" *command-line-args*)}
+
+  canonical-artifacts:derive
+  {:doc "Derive a supported canonical artifact commitment. Usage: bb canonical-artifacts:derive pro-rata-allocation-request.v1 --input FILE [--output FILE]"
+   :task (apply shell "clojure" "-M" "-m" "resolver-sim.commands.canonical-artifacts" "derive" *command-line-args*)}
+
+  canonical-artifacts:bundle
+  {:doc "Create a structural artifact-bundle.v1 commitment. Usage: bb canonical-artifacts:bundle --input FILE [--output FILE]"
+   :task (apply shell "clojure" "-M" "-m" "resolver-sim.commands.canonical-artifacts" "bundle" *command-line-args*)}
+
+  canonical-artifacts:compose
+  {:doc "Compose a supported semantic artifact. Usage: bb canonical-artifacts:compose realized-allocation-statement.v1 --input FILE [--output FILE]"
+   :task (apply shell "clojure" "-M" "-m" "resolver-sim.commands.canonical-artifacts" "compose" *command-line-args*)}
+
+  canonical-artifacts:verify
+  {:doc "Recompute a supported commitment or classify an opaque commitment. Usage: bb canonical-artifacts:verify <profile> --input FILE [--expected-root HEX] [--output FILE]"
+   :task (apply shell "clojure" "-M" "-m" "resolver-sim.commands.canonical-artifacts" "verify" *command-line-args*)}
+
+  yield:generate
+  {:doc "Generate deterministic, committed yield scenarios. Usage: bb yield:generate --seed N --count N --out NEW-DIRECTORY [--profile PROFILE|--preset PRESET]"
+   :task (apply shell "clojure" "-M:test" "-m" "scripts.scenarios.gen-yield" "generate" *command-line-args*)}
+
+  yield:verify
+  {:doc "Read-only recomputation of generated yield scenario and provenance roots. Usage: bb yield:verify --input DIRECTORY|manifest.edn"
+   :task (apply shell "clojure" "-M:test" "-m" "scripts.scenarios.gen-yield" "verify" *command-line-args*)}
 
   assurance:verify-checkpoint
   {:doc "Verify a hash-bound assurance checkpoint from its bound historical revisions"
@@ -416,7 +452,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                 :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "triage")}
 
    test:notebooks {:doc "Load every notebook namespace to verify it compiles"
-                    :task (shell "clojure" "-M:notebooks:with-sew" "-m" "scripts.test-notebooks")}
+                    :task (shell "clojure" "-M:notebooks:with-sew" "-m" "resolver-sim.notebook-support.host-load-check")}
 
 
    demo:reorder-chain
@@ -464,7 +500,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                        "notebooks/resubmission_chain.clj"
                        "notebooks/pro_rata_allocation_result.clj"])
                 build-args (mapcat (fn [nb] ["--nb" nb]) nbs)]
-            (apply clojure "-M:notebooks:with-sew" "-m" "scripts.build-notebooks"
+            (apply clojure "-M:notebooks:with-sew" "-m" "prf.notebooks.build"
                    "--out" out build-args))}
 
    test:quick-sew
@@ -843,7 +879,7 @@ test:community {:doc "Run community participation tests"
                      :task (apply shell "python3" "scripts/evidence/snapshot_evidence.py" *command-line-args*)}
 
   clerk-build {:doc "Build static Clerk notebooks"
-               :task (clojure "-M:notebooks:with-sew" "-m" "scripts.build-notebooks" "--nb" "notebooks/report.clj")}
+               :task (clojure "-M:notebooks:with-sew" "-m" "prf.notebooks.build" "--nb" "notebooks/report.clj")}
   clerk-watch {:doc "Start Clerk with the extracted notebook tree watched"
                :task (shell "bb notebook")}
 
@@ -1010,12 +1046,12 @@ test:integration:postgres {:doc "Run PostgreSQL resubmission admission and durab
    :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:notebooks:with-sew" "-e" "(require (quote [resolver-sim.notebook-support.checks])) (require (quote [notebooks.report])) (println (str \"Notebook namespaces loaded. Shape checks passed.\")) (shutdown-agents)")}
 
   notebook:lint
-  {:doc "Lint notebook and notebook support code with clj-kondo"
-   :task (clojure {:dir "."} "-M:notebooks:test:lint/notebooks" "-m" "scripts.lint-notebooks")}
+  {:doc "Lint the pinned notebook package sources with clj-kondo"
+   :task (clojure {:dir "."} "-M:notebooks:test:lint/notebooks" "-m" "prf.notebooks.lint")}
 
   notebook:visibility
-  {:doc "Enforce collapsed-by-default visibility policy across notebooks/*.clj"
-   :task (clojure {:dir "."} "-M:notebooks" "-m" "scripts.check-notebook-visibility")}
+  {:doc "Enforce the notebook package collapsed-by-default visibility policy"
+   :task (clojure {:dir "."} "-M:notebooks" "-m" "prf.notebooks.check-visibility")}
 
   notebook:ci
   {:doc "Full notebook validation: lint + visibility policy + load/check"

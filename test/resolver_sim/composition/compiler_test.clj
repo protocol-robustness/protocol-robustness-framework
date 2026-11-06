@@ -5,6 +5,7 @@
             [resolver-sim.composition.combination :as combo]
             [resolver-sim.composition.compiler :as comp]
             [resolver-sim.composition.fixtures :as fx]
+            [resolver-sim.economics.slash-distribution :as sd]
             [resolver-sim.hash.reference :as hash-ref]))
 
 (defn- compile-it
@@ -102,6 +103,35 @@
     (is (some #(= :violation/missing-combination-expected-output (:violation/id %))
               (:violations (combo/validate-combination
                             (dissoc base :combination/expected-output)))))))
+
+(deftest missing-entrypoint-safety-rejected-for-composition
+  (let [capability (update (fx/cap :fixture/unsafe)
+                           :composition-contract
+                           dissoc :composition/execution-safety)
+        emap (fx/ext-map-with capability)
+        result (compile-it emap
+                           (two-stage emap
+                                      (fx/node :n1 [:economics/award-amount :fixture/unsafe])
+                                      (fx/node :n2 [:economics/award-amount :fixture/unsafe])))]
+    (is (= :invalid (:status result)))
+    (is (some #(and (= :violation/invalid-composition-contract (:violation/id %))
+                    (some (fn [v]
+                            (= :violation/missing-execution-safety (:violation/id v)))
+                          (get-in % [:details :contract-violations])))
+              (:violations result)))))
+
+(deftest unannotated-production-core-capabilities-are-gated
+  (let [emap (sd/core-extension-map)
+        result (compile-it emap
+                           (two-stage emap
+                                      (fx/node :n1 [:economics/award-amount :prf/rate-of-gross])
+                                      (fx/node :n2 [:economics/award-amount :prf/rate-of-gross])))]
+    (is (= :invalid (:status result)))
+    (is (some #(and (= :violation/invalid-composition-contract (:violation/id %))
+                    (some (fn [v]
+                            (= :violation/missing-execution-safety (:violation/id v)))
+                          (get-in % [:details :contract-violations])))
+              (:violations result)))))
 
 ;; ── held-custody addresses ────────────────────────────────────────────────
 
@@ -305,6 +335,20 @@
                                      :basis {:source :step/output :step-id :n99 :field :remaining}))
                  :violation/undeclared-dependency))))
 
+(deftest out-of-order-step-dependency-rejected
+  (let [emap (fx/ext-map-with)
+        result (compile-it emap
+                           (two-stage emap
+                                      (fx/node :n1 [:economics/award-amount :prf/rate-of-gross]
+                                               :basis {:source :step/output
+                                                       :step-id :n2
+                                                       :field :remaining})
+                                      (fx/node :n2 [:economics/award-amount :prf/rate-of-gross])))]
+    (is (= :invalid (:status result)))
+    (is (some #(and (= :violation/undeclared-dependency (:violation/id %))
+                    (= :n2 (get-in % [:details :references])))
+              (:violations result)))))
+
 (deftest effect-conflict-rejected
   (let [emap (fx/ext-map-with
               (fx/cap :fixture/e1 :effects #{:prf.effect/x.v1} :exclusive #{:prf.effect/x.v1})
@@ -358,7 +402,7 @@
                                                 (fx/node :n2 [:economics/award-amount :fixture/c2])))]
     (is (= :valid status))))
 
-(deftest failure-mode-conflict-rejected
+(deftest unsupported-failure-mode-rejected-before-compilation
   (let [emap (fx/ext-map-with
               (fx/cap :fixture/f1 :failure-mode :abort)
               (fx/cap :fixture/f2 :failure-mode :continue))]
@@ -366,7 +410,19 @@
                  (two-stage emap
                             (fx/node :n1 [:economics/award-amount :fixture/f1])
                             (fx/node :n2 [:economics/award-amount :fixture/f2]))
-                 :violation/failure-mode-conflict))))
+                 :violation/invalid-composition-contract))))
+
+(deftest continue-mode-rejected-until-successor-policy-exists
+  (let [emap (fx/ext-map-with (fx/cap :fixture/continue :failure-mode :continue))
+        result (compile-it emap
+                           (two-stage emap
+                                      (fx/node :n1 [:economics/award-amount :fixture/continue])
+                                      (fx/node :n2 [:economics/award-amount :fixture/continue])))]
+    (is (= :invalid (:status result)))
+    (is (some #(or (= :violation/unsupported-failure-mode (:violation/id %))
+                   (some (fn [v] (= :violation/unsupported-failure-mode (:violation/id v)))
+                         (get-in % [:details :contract-violations])))
+              (:violations result)))))
 
 (deftest same-failure-mode-compiles
   (let [emap (fx/ext-map-with

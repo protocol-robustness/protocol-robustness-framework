@@ -1,6 +1,7 @@
 (ns resolver-sim.sim.fixtures-mc-batch-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.sim.fixtures :as fixtures]
+            [resolver-sim.protocols.sew.runner-extension]
             [resolver-sim.sim.batch :as batch]
             [resolver-sim.stochastic.params :as params]
             [resolver-sim.stochastic.rng :as rng]))

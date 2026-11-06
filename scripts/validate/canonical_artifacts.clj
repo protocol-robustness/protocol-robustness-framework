@@ -1,5 +1,5 @@
 #!/usr/bin/env bb
-;; Narrow, deterministic validator for the proposed definition inventory.
+;; Narrow, deterministic validator for the adopted non-runtime definition inventory.
 ;; It does not load the manifest from application/runtime namespaces.
 (require '[clojure.edn :as edn]
          '[clojure.java.io :as io]
@@ -10,7 +10,7 @@
 (def baseline-identity-sha256
   ;; SHA-256 of the sorted [id name schema owner algorithm domain] tuples.
   ;; Change only with an explicitly reviewed registry-baseline update.
-  "0d0af1b9e7e487f334c11f6a7029a6026caa75af9383e899db03747eb4a6c71a")
+  "e0e33c5ab0f976df2be635124dbc7c0a0bea1619b31af6f3a8d787a3da3c366e")
 
 (defn fail! [issues message]
   (swap! issues conj message))
@@ -26,7 +26,8 @@
 (defn source-ref? [value]
   (and (vector? value)
        (#{2 3} (count value))
-       (#{:prf :prf-evm :prf-canonical :prf-pro-rata-allocation} (first value))))
+       (#{:prf :prf-evm :prf-canonical :prf-pro-rata-allocation :prf-coprocessor}
+        (first value))))
 
 (defn source-refs [data]
   (->> (tree-seq coll? seq data)
@@ -38,13 +39,14 @@
        (or (#{:canonical :pro-rata-allocation :capital-lifecycle :Shortfall} owner)
            (= "other" (namespace owner)))))
 
-(defn validate! [manifest prf-root evm-root canonical-root pro-rata-root]
+(defn validate! [manifest prf-root evm-root canonical-root pro-rata-root coprocessor-root]
   (let [issues (atom [])
         entries (:registry/entries manifest)
         by-id (into {} (map (juxt :artifact/id identity) entries))
         roots {:prf prf-root :prf-evm evm-root
                :prf-canonical canonical-root
-               :prf-pro-rata-allocation pro-rata-root}
+                :prf-pro-rata-allocation pro-rata-root
+                :prf-coprocessor coprocessor-root}
         identity-tuples
         (->> entries
              (sort-by (comp str :artifact/id))
@@ -110,8 +112,8 @@
         (fail! issues "shared-domain entries must match the closed v1 shape")))
     (when-not (= "canonical-artifacts.v1" (:registry/schema manifest))
       (fail! issues "registry schema must remain canonical-artifacts.v1"))
-    (when-not (= :proposed (:registry/status manifest))
-      (fail! issues "registry must remain explicitly :proposed and non-runtime"))
+    (when-not (= :adopted (:registry/status manifest))
+      (fail! issues "registry must remain explicitly :adopted and non-runtime"))
     (when-not (and (vector? entries) (seq entries))
       (fail! issues "registry entries must be a non-empty vector"))
     (when-not (= (count entries) (count by-id))
@@ -246,13 +248,14 @@
                          (count entries) (count (source-refs manifest)) identity-digest))))))
 
 (defn -main [& args]
-  (when-not (= 5 (count args))
+  (when-not (= 6 (count args))
     (binding [*out* *err*]
-      (println "Usage: bb scripts/validate/canonical_artifacts.clj <manifest.edn> <prf-root> <prf-evm-root> <prf-canonical-root> <prf-pro-rata-allocation-root>"))
+      (println "Usage: bb scripts/validate/canonical_artifacts.clj <manifest.edn> <prf-root> <prf-evm-root> <prf-canonical-root> <prf-pro-rata-allocation-root> <prf-coprocessor-root>"))
     (System/exit 2))
-  (let [[manifest-path prf-root evm-root canonical-root pro-rata-root] args]
+  (let [[manifest-path prf-root evm-root canonical-root pro-rata-root coprocessor-root] args]
     (validate! (edn/read-string (slurp manifest-path))
                (io/file prf-root) (io/file evm-root)
-               (io/file canonical-root) (io/file pro-rata-root))))
+               (io/file canonical-root) (io/file pro-rata-root)
+               (io/file coprocessor-root))))
 
 (apply -main *command-line-args*)

@@ -1,8 +1,7 @@
 # Pro-rata repository ownership map
 
-Status: first-pass inventory. This records current ownership and proposed
-follow-up work; it does not authorize moving files or changing canonical
-identities.
+Status: ownership inventory, updated 2026-10-23. It records current ownership
+and follow-up work; it does not authorize changing canonical identities.
 
 ## Ownership by area
 
@@ -47,7 +46,7 @@ dependencies in `deps.edn`:
 
 | Repository | Revision | Verification in a clean PRF checkout |
 | --- | --- | --- |
-| `protocol-robustness/prf-pro-rata-allocation` | `48e0b362748cd39d09994a8aa1496c668199aa74` | Clojure PRF compatibility: 36 tests / 382 assertions passed; allocator standalone conformance: 8 tests / 79 assertions passed; Rust: 52 tests passed |
+| `protocol-robustness/prf-pro-rata-allocation` | `e0788f911e4fba3a27544cbccbb95d59d7daf2f7` | Clojure PRF compatibility: 36 tests / 382 assertions passed; allocator standalone conformance: 8 tests / 79 assertions passed; Rust: 52 tests passed |
 | `protocol-robustness/prf-canonical` | `5e2b520feca812b049ba397b7b3681963c66a48c` | Loaded as the allocator's canonical dependency |
 
 The clean PRF checkout loaded `prf.pro-rata.api` from the pinned allocator
@@ -71,27 +70,45 @@ archives clean source checkouts of both pinned dependencies, records their
 URLs/revisions, and excludes Git metadata and build output. Historical source
 inventories and retained evidence remain unchanged.
 
-## Recommended sequence
+## Completed allocation fixture migration
 
-1. **Close the package ownership migration.** The integration workspace pins
-   the Git revisions above, PRF compatibility checks pass, source archives
-   include the exact dependencies, and the live implementation mirror is
-   removed. Keep the independent reference.
-2. **Split contract ownership on paper before moving files.** Identify which
-   vectors/spec sections define allocation V1 and which define generic effects,
-   state, and transitions. Preserve exact bytes and roots and assign one
-   authoritative home to each.
-3. **Migrate only portable allocation contract material.** Make PRF and the
-   allocation repository consume a single immutable vector/spec revision;
-   leave generic effect/transition semantics with their chosen owner.
-4. **Align PRF integration tests and profiles.** PRF-specific integration,
-   runtime controls, SEW/bounty composition, assurance, EVM, and scenario tests
-   stay in PRF. Update profile generation to resolve pinned dependencies
-   explicitly rather than exposing stale in-tree package paths.
-5. **Do a path presentation cleanup.** Rename/group directories only after
-   ownership and consumers have settled. Update build aliases, scripts,
-   notebooks, source manifests, evidence inventories, docs, and CI references;
-   prove canonical roots and frozen bytes unchanged.
+The allocator repository exposes its frozen fixture bundle at
+`prf/pro_rata/fixtures/portable-pro-rata-contract/` from immutable revision
+`e0788f911e4fba3a27544cbccbb95d59d7daf2f7`. PRF pins that revision in root
+`deps.edn`; the PRF production-versus-portable allocation parity test reads
+allocation vectors from that dependency resource. The separate historical
+contract suite still uses the combined local bundle to verify its original
+release manifest and generic transition fixtures. The
+`:pro-rata-contract/test` alias retains root dependencies while selecting its
+own source paths.
+
+Verified on 2026-10-22: allocator conformance passed 8 tests / 79 assertions;
+PRF independent contract suite passed 7 tests / 80 assertions; allocator
+adapter parity passed 1 test / 12 assertions. The old combined bundle remains
+only as frozen historical evidence for its release root and generic transition
+tests. No allocation semantics or canonical roots changed. This is source
+qualification evidence, not release promotion.
+
+## Remaining sequence
+
+1. **Path presentation cleanup (deferred).** Rename/group `pro_rata_contract_src`,
+   its test tree, and the historical `portable-pro-rata-contract` path only
+   after consumer paths and evidence inventories are enumerated. Update build
+   aliases, scripts, profile source roots, fixture lookups, conformance runners,
+   docs, and CI references. Preserve the historical mixed-bundle root and all
+   canonical bytes exactly.
+
+The ownership split is documented below and the external packages are already
+pinned. PRF integration tests and profile composition remain PRF-owned; no
+separate profile repository is warranted. The pre-active-set redistribution
+implementation has been removed from PRF runtime source. Its historical
+divergence remains as a frozen expected allocation in the PRF differential test,
+so the runtime has one active redistribution implementation: the pinned
+`prf-pro-rata-allocation` package with PRF execution adapters.
+
+The PRF consumer health gate passed on 2026-10-23: 292 pro-rata namespace tests
+(1,150 assertions), 167 downstream consumer tests (699 assertions), the
+independent contract suite (7 tests / 80 assertions), and `bb check:defs`.
 
 ## Contract bundle ownership split
 
@@ -104,7 +121,7 @@ manifest or claim the existing release root for a subset.
 
 | Contract content | Current files | Proposed owner | Split treatment |
 | --- | --- | --- | --- |
-| Allocation request/result schemas, rounding, caps, redistribution, identity, and invariants | `SPEC.md` §4; allocation schema/policies/domains in `contract.edn`; six allocation vectors under `vectors/`; five `*.allocation-result.hex` files under `canonical-bytes/` | `prf-pro-rata-allocation` for implementation and conformance fixtures; the combined PRF bundle remains a historical record | The PRF allocator implementation is pinned. All six allocation EDN vectors and five allocation-result byte fixtures in the external repo hash-match the pinned revision `48e0b362748cd39d09994a8aa1496c668199aa74`. PRF conformance tests still read the combined local bundle, so migrate those reads to the pinned fixture before removing that bundle. Do not create another allocation-contract repo or alter roots. |
+| Allocation request/result schemas, rounding, caps, redistribution, identity, and invariants | `SPEC.md` §4; allocation schema/policies/domains in `contract.edn`; six allocation vectors under `vectors/`; five `*.allocation-result.hex` files under `canonical-bytes/` | `prf-pro-rata-allocation` for implementation and conformance fixtures; the combined PRF bundle remains a historical record | The PRF allocator implementation and adapter parity vectors are pinned to `e0788f911e4fba3a27544cbccbb95d59d7daf2f7`, which exposes the frozen allocation fixtures as classpath resources. The independent historical contract suite continues to read its combined bundle for release-manifest and transition checks. Do not create another allocation-contract repo or alter roots. |
 | Canonical quantity state, effects, transition derivation, and rejection rules | `SPEC.md` §§5–7 and transition portions of §9; effect/state/transition schema and semantics in `contract.edn`; `canonical-transition-001.edn`, `negative-transition-001.edn`; `state-before.hex`, `effects.hex`, `state-after.hex`, `transition.hex` | A separately versioned effect-transition contract package (candidate name: `prf-effect-transition-contract`) | Move only after consumers can resolve and verify the new immutable identity. These are generic transition semantics, not allocation implementation. |
 | Allocation-to-effect relationship and mixed release metadata | `SPEC.md` §8; `manifest.edn`; shared release/domain declarations in `contract.edn`; `EXTRACTION_PLAN.md` | PRF integration contract during migration | Keep the bridge explicit in PRF until both contract packages are pinned. The old manifest remains a compatibility/provenance record; a new composition manifest may reference both package revisions but must receive a distinct root. |
 
@@ -117,9 +134,9 @@ both groups, so they cannot be assigned wholesale to either package.
 
 This confirms the allocator repo has matching allocation fixtures; the
 remaining physical extraction is the generic effect-transition contract. PRF
-still reads allocation vectors from the combined local bundle. Preserve that
-bundle as historical evidence, then migrate those reads to the pinned fixtures
-before removing its live test role.
+adapter parity consumes allocation vectors from the pinned package resources.
+Preserve the combined bundle for its historical release-manifest and generic
+transition tests; it is no longer the source for that parity test.
 
 Before any split, the existing independent-reference suite must continue to
 pass as a whole. On this extraction revision,
@@ -127,8 +144,8 @@ pass as a whole. On this extraction revision,
 release-manifest test verifies the recorded release root and every listed
 file digest, and its allocation-vector tests reconstruct the frozen roots.
 
-An unpublished exploratory repository now holds the effect-transition
-candidate: `prf-effect-transition-contract` at Git revision
+The exploratory repository now holds the effect-transition
+candidate: `prf-effect-transition-contract` at remote `main` revision
 `123836c296943665c08d8dc8341ec7f220750086`, with draft package root
 `53cb151f2253ba0444f2a7fdd52960b29c3a24dc928469eb808646303d351621`. Its
 contract and fixtures are exposed under a versioned classpath resource root. It
@@ -136,9 +153,9 @@ pins `prf-canonical` revision
 `5e2b520feca812b049ba397b7b3681963c66a48c` from both Clojure and Rust, and
 carries source sections 5–7, transition vectors, and canonical bytes. Clean
 checkout conformance passed in Clojure (8 tests / 91 assertions) and Rust (3
-tests), including all frozen transition mutation rejections. The repository has
-no remote and PRF does not depend on this candidate; it remains exploratory,
-unreviewed, and release-unqualified. Clojure reads the EDN vectors directly;
+tests), including all frozen transition mutation rejections. The repository
+has a remote, but PRF does not depend on this candidate; it remains
+exploratory, unreviewed, and release-unqualified. Clojure reads the EDN vectors directly;
 Rust mirrors the inputs in test literals and checks their frozen roots and byte
 resources, so automatic detection of drift between those inputs remains open.
 

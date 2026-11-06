@@ -20,30 +20,39 @@
               (.digest (java.security.MessageDigest/getInstance "SHA-256")
                        (Files/readAllBytes (.toPath (io/file path)))))))
 
-(deftest release-source-identity-digest-matches-baseline
+(deftest current-source-identity-digest-matches-candidate
   (let [root (io/file ".")
         baseline-path (io/file root "etc/deployments/baselines/bounded-configuration-release-baseline.v1.json")
         baseline (json/read-str (slurp baseline-path) :key-fn keyword)
         prf (:prf baseline)
-        tree-root (:sourceTreeSha256 prf)
-        verified-lock (source-identity/verify-source-lock
-                       {:source-root root
-                        :source-lock-path (io/file root "etc/deployments/baselines/bounded-configuration-release-baseline.v1.json")
-                        :expected-tree-sha256 tree-root
-                        :expected-parent (:jjWorkingCopyParent prf)})
+        historical-tree-root (:sourceTreeSha256 prf)
         source-identities (get-in baseline [:prf :releaseSourceIdentities])
         source-identities-path (io/file root (:path source-identities))
         sources (json/read-str (slurp source-identities-path) :key-fn keyword)
         candidate (:localCandidatePackage prf)
-        manifest (edn/read-string (slurp (io/file root (:sourceBoundManifest candidate))))]
+        historical-manifest (edn/read-string (slurp (io/file root (:sourceBoundManifest candidate))))
+        current-lock-path (io/file root "etc/deployments/baselines/bounded-configuration-release-sources.current.v2.json")
+        current-lock (json/read-str (slurp current-lock-path) :key-fn keyword)
+        current-prf (:prf current-lock)
+        current-tree-root (:sourceTreeSha256 current-prf)
+        verified-lock (source-identity/verify-source-lock
+                       {:source-root root
+                        :source-lock-path current-lock-path
+                        :expected-tree-sha256 current-tree-root
+                        :expected-parent (:jjWorkingCopyParent current-prf)})
+        current-candidate (io/file root "etc/deployments/bounded-configuration-local-candidate-v3")
+        current-manifest (edn/read-string (slurp (io/file current-candidate "review-manifest.v3.edn")))]
     (is (= (:sha256 source-identities) (sha256-file source-identities-path)))
-    (is (= tree-root (:sourceTreeSha256 candidate)))
-    (is (= tree-root (:sourceTreeSha256 source-identities)))
-    (is (= tree-root (:manifest/source-tree-sha256 manifest)))
+    (is (= historical-tree-root (:sourceTreeSha256 candidate)))
+    (is (= historical-tree-root (:sourceTreeSha256 source-identities)))
+    (is (= historical-tree-root (:manifest/source-tree-sha256 historical-manifest)))
     (is (= (:sourceFileCount prf) (count (:sourceTreeEntries prf))))
-    (is (= {:source-tree-sha256 tree-root
-            :source-parent (:jjWorkingCopyParent prf)
-            :source-file-count (:sourceFileCount prf)}
+    (is (= current-tree-root (:manifest/source-tree-sha256 current-manifest)))
+    (is (= (:jjWorkingCopyParent current-prf) (:manifest/source-revision current-manifest)))
+    (is (= (:sourceFileCount current-prf) (count (:sourceTreeEntries current-prf))))
+    (is (= {:source-tree-sha256 current-tree-root
+            :source-parent (:jjWorkingCopyParent current-prf)
+            :source-file-count (:sourceFileCount current-prf)}
            verified-lock))
     (is (= (:sourceBoundManifestSha256 candidate)
            (sha256-file (io/file root (:sourceBoundManifest candidate)))))

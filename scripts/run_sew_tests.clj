@@ -126,12 +126,16 @@
     resolver-sim.evidence.staged-capture-test
     resolver-sim.io.content-addressed-store-test
     resolver-sim.benchmark.game-theory-validation-test
+    resolver-sim.benchmark.research-conclusion-test
+    resolver-sim.research.policy-approval-test
+    resolver-sim.commands.researcher-ux-test
     resolver-sim.benchmark.force-authorisation-consumption-v2-test
     resolver-sim.benchmark.force-authorised-execution-evidence-v2-test
     resolver-sim.benchmark.sew-pre-application-test
     resolver-sim.protocols.sew.slashing-test
     resolver-sim.protocols.sew.evidence.slashing-test
     resolver-sim.pro-rata.semantic-admission-test
+    resolver-sim.pro-rata.vector-drift-test
     resolver-sim.validation.validator-descriptor-test
     resolver-sim.validation.strategic-registry-test
     resolver-sim.validation.game-theory-profile-test

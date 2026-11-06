@@ -1,0 +1,69 @@
+{
+  "schema": "prf-pro-95-base-sepolia-demo-root-derivation.v1",
+  "classification": "demonstration-only-not-pre-mainnet-release",
+  "qualification": "derived-only-not-approved",
+  "network": {
+    "name": "Base Sepolia",
+    "chainId": 84532
+  },
+  "sourceRevisions": {
+    "prf": "687644612a61611349294eaaf804873dee12c9c1",
+    "prfEvm": "fa91f060f8b286cedabaa0c758c90fbddb2fe6cd",
+    "prfCoprocessor": "501ca4a1b79a3841a21bdecd17898fda2cdc68c6"
+  },
+  "derivation": {
+    "tool": "scripts/deployment/genesis_roots.clj",
+    "allowedChainId": "PRF_DEPLOY_CHAIN_ID=84532",
+    "initialConfigurationPackage": "examples/partial-fill/pro-95-base-sepolia-demo/initial-configuration-package.edn",
+    "initialConfigurationRoot": "sha256:f36913f0fb319e80aee3a1b795bd31a94486d08d51aa27df825277050e4768cb",
+    "authorityStatePackage": "examples/partial-fill/pro-95-base-sepolia-demo/authority-state-package.edn",
+    "authorityStateRoot": "sha256:36a912294511057638de9d8a155f0a659413a3e242ca6bc76c877d5e3d6eb1a2",
+    "ownerDecisionRecord": "examples/partial-fill/pro-95-base-sepolia-demo/owner-decisions-20261023.edn"
+  },
+  "proofIdentity": {
+    "programId": "source-bound-entitlement-controlled-sp1-program.v1",
+    "vkey": "0x00691e1cff8e4252731c8fe2bc326e8725ed5f9b92a298cc30a2c5fc40962dd1",
+    "elfSha256": "0x705efd1c5b997ae1f2c19eddcf6bb66a147e94b6b3b036393d6dab041c00542d",
+    "publicValuesSchema": "prf/source-bound-entitlement-public-values.v1",
+    "publicValuesLength": 288,
+    "source": "prf-evm/test/fixtures/partial-fill-v3/identity.json",
+    "qualification": "local identity fixture; Base verifier deployment/admission and Base-bound proof not yet run"
+  },
+  "notDerived": {
+    "chainInstanceGenesisRoot": "requires predicted/deployed genesis and authority-adapter addresses plus runtime code hashes",
+    "preparedOperationRoot": "requires Base Sepolia contract addresses and approved operation parameters",
+    "reserveStateCommitment": "requires exact observed Base Sepolia reserve state",
+    "sourceWitnessAndProof": "requires chain-bound operation and reserve inputs; local proof is not reusable"
+  },
+  "limitations": [
+    "canonical roots are derived from candidate demo packages; derivation is not approval or execution evidence",
+    "the authority package records the approved test-only principal but does not cryptographically authenticate this conversation approval",
+    "no Base Sepolia contracts have been deployed and no public-chain transactions have been submitted",
+    "no Base consensus finality is claimed",
+    "Stage B remains a synthetic signed-input fixture and does not establish USDC balance, transfer, or external-source authenticity"
+  ],
+  "assetIdentity": {
+    "kind": "circle-base-sepolia-testnet-usdc",
+    "chainId": 84532,
+    "address": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "name": "USDC",
+    "symbol": "USDC",
+    "decimals": 6,
+    "mainnetRedeemable": false,
+    "demoDeploysOrMints": false,
+    "sourceParityArtifact": "protocol-deployments/config/pro-rata-v2-entitlement/circle-base-sepolia-usdc-source-parity.v1.json",
+    "historicalObservation": {
+      "blockNumber": 48021662,
+      "blockHash": "0xd75dd70e46902903f9c1ff7247ed11b17471413ba9895ff70cfa6ee64ba19c02",
+      "proxyRuntimeCodeKeccak256": "0xedc5281a85c0efecd49999a1ef668390c59b88702f2d4a07029d7f5d63059d6c",
+      "implementation": "0xd74cc5d436923b8ba2c179b4bCA2841D8A52C5B5",
+      "implementationRuntimeCodeKeccak256": "0x1254951e5483b882fd5def9452f58fe786eb3380c0bf9bb2744fa21a0a97a16c",
+      "qualification": "historical partial source/runtime parity; not a current run-block observation; recheck proxy pointer, code, metadata, and token transfer behavior"
+    },
+    "aaveReference": {
+      "source": "sew-protocol/test/foundry/modules/AaveYieldModuleForkTest.sol and scripts/testnet/phase4-yield-test-usdc.ts",
+      "pool": "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27",
+      "relation": "same token address; PRO-95 itself does not call or integrate Aave"
+    }
+  }
+}

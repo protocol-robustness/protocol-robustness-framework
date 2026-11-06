@@ -26,35 +26,35 @@
 
  :concept/roles
  {:assigner {:description "Entity that creates the research task and assigns it to a runner."
-             :maps-to [:protocol.actor/governance]}
+             }
   :assigned-runner {:description "Runner responsible for executing the assigned task."
-                    :maps-to [:protocol.actor/verifier]}
+                    }
   :assignment-verifier {:description "Entity that checks task, command, runner, and evidence consistency for an assignment."
-                        :maps-to [:protocol.role/verifier]}}
+                        }}
 
  :concept/entities
  {:research-task {:description "Content-addressed research task (research-task.v0) describing what to execute and its acceptance criteria."
-                  :maps-to [:protocol.entity/command]}
+                  }
   :task-ref {:description "Content-addressed reference to a research task (research-task:sha256:<hex>)."
-             :maps-to [:protocol.entity/canonical-hash]}
+             }
   :assignment-command-root {:description "The research-command.v1 hash that executed the assigned task, committed as :execution/command-root."
-                            :maps-to [:protocol.entity/canonical-hash]}
+                            }
   :assigned-runner-id {:description "Runner identity that carried out the assignment."
-                       :maps-to [:protocol.entity/actor]}}
+                       }}
 
  :concept/actions
  {:assign-task {:description "Bind a research task to a command artifact and runner, forming a research assignment."
-                :maps-to [:protocol.action/commit-root]}
+                }
   :verify-assignment {:description "Check that the task, command-root, runner, and produced evidence are consistent for an assignment."
-                      :maps-to [:protocol.action/verify-allocation]}
+                      }
   :attest-assignment {:description "Produce a community attestation subjecting the assigned research task to the executed result."
-                      :maps-to [:protocol.action/sign-attestation]}}
+                      }}
 
  :concept/outcomes
  {:assignment-valid {:description "Task, command-root, and runner are consistent and reference valid content roots."
-                     :maps-to [:protocol.outcome/released]}
+                     }
   :assignment-mismatch {:description "The command-root or runner does not match the declared task assignment."
-                        :maps-to [:protocol.outcome/adversarial-resolution]}}
+                        }}
 
  :concept/failure-modes
  [{:failure/id :assignment-task-command-mismatch

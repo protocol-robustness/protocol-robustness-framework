@@ -7,11 +7,12 @@
 set -euo pipefail
 
 DEMO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-BIN="${REALIZED_KERNEL_BIN:-$DEMO_ROOT/coprocessor/target/release/realized-statement-kernel}"
+COPROCESSOR_ROOT="$("$DEMO_ROOT/scripts/resolve-prf-coprocessor.sh")"
+BIN="${REALIZED_KERNEL_BIN:-$COPROCESSOR_ROOT/target/release/realized-statement-kernel}"
 PACKAGE_ROOT="$DEMO_ROOT/etc/conformance/cleanroom/realized-partial-fill-v1"
 
 if [[ ! -x "$BIN" ]]; then
-  echo "realized-conformance: kernel binary not found at $BIN (build: cargo build --release -p allocation-kernel --bin realized-statement-kernel)" >&2
+  echo "realized-conformance: kernel binary not found at $BIN (build: cargo build --locked --release --manifest-path $COPROCESSOR_ROOT/Cargo.toml -p allocation-kernel --bin realized-statement-kernel)" >&2
   exit 4
 fi
 

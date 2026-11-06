@@ -8,6 +8,7 @@ if [[ ! -d "$EVM" && -d "$(dirname "$(dirname "$ROOT")")/prf-evm" ]]; then EVM="
 [[ ! -e "$OUT" ]] || { echo 'Output directory already exists' >&2; exit 1; }
 mkdir -p "$OUT"
 cd "$ROOT"
+COPROCESSOR_ROOT="$("$ROOT/scripts/resolve-prf-coprocessor.sh")"
 export RAYON_NUM_THREADS=${RAYON_NUM_THREADS:-8}
 export GOMAXPROCS=${GOMAXPROCS:-8}
 export GOMEMLIMIT=${GOMEMLIMIT:-20GiB}
@@ -16,9 +17,9 @@ export SP1_WORKER_CORE_BUFFER_SIZE=${SP1_WORKER_CORE_BUFFER_SIZE:-1}
 export SP1_WORKER_NUM_RECURSION_PROVER_WORKERS=${SP1_WORKER_NUM_RECURSION_PROVER_WORKERS:-1}
 export SP1_WORKER_RECURSION_PROVER_BUFFER_SIZE=${SP1_WORKER_RECURSION_PROVER_BUFFER_SIZE:-1}
 export CLJ_CONFIG=${CLJ_CONFIG:-/tmp/partial-fill-clj-config}
-cargo build --offline --manifest-path coprocessor/Cargo.toml -p allocation-kernel --bin controlled-entitlement-source-replay > "$OUT/native-build.log" 2>&1
-cargo build --offline --release --manifest-path coprocessor/Cargo.toml -p allocation-sp1-script --bin controlled-entitlement-source-prove --bin controlled-entitlement-source-wrap --bin controlled-entitlement-source-resume > "$OUT/guest-build.log" 2>&1
-TARGET=${CARGO_TARGET_DIR:-"$ROOT/coprocessor/target"}
+cargo build --locked --manifest-path "$COPROCESSOR_ROOT/Cargo.toml" -p allocation-kernel --bin controlled-entitlement-source-replay > "$OUT/native-build.log" 2>&1
+cargo build --locked --release --manifest-path "$COPROCESSOR_ROOT/Cargo.toml" -p allocation-sp1-script --bin controlled-entitlement-source-prove --bin controlled-entitlement-source-wrap --bin controlled-entitlement-source-resume > "$OUT/guest-build.log" 2>&1
+TARGET=${CARGO_TARGET_DIR:-"$COPROCESSOR_ROOT/target"}
 REPLAY="$TARGET/debug/controlled-entitlement-source-replay"
 PROVER="$TARGET/release/controlled-entitlement-source-prove"
 WRAPPER="$TARGET/release/controlled-entitlement-source-wrap"

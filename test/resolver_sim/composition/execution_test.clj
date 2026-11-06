@@ -5,7 +5,36 @@
             [resolver-sim.composition.compiler :as comp]
             [resolver-sim.composition.execution :as exec]
             [resolver-sim.composition.fixtures :as fx]
+            [resolver-sim.composition.plan :as plan]
+            [resolver-sim.extensions.execution :as ext-exec]
             [resolver-sim.economics.effects :as effects]))
+
+(defn throwing-award [_]
+  (throw (ex-info "fixture invocation failure" {:fixture/failure true})))
+
+(defn nil-award [_] nil)
+
+(defn missing-amount-award [_] {:effects []})
+
+(defn scalar-award [_] 42)
+
+(defn precondition-failure-award [_]
+  {:failure {:type :precondition/failed :evidence {:observed 0 :required 1}}})
+
+(defn undeclared-effect-award [_]
+  {:amount 0 :effects [{:effect/contract :prf.effect/undeclared.v1}]})
+
+(def unsafe-invocations (atom 0))
+
+(def fixed-amount-invocations (atom 0))
+
+(defn fixed-amount-award [_]
+  (swap! fixed-amount-invocations inc)
+  {:amount 1 :effects []})
+
+(defn irreversible-award [_]
+  (swap! unsafe-invocations inc)
+  {:amount 1 :effects []})
 
 (deftest executes-valid-plan-with-value-flow
   (let [emap (fx/ext-map-with (fx/cap :fixture/a) (fx/cap :fixture/b))
@@ -25,7 +54,8 @@
 
 (deftest effects-accumulate
   (let [emap (fx/ext-map-with
-              (fx/cap :fixture/e :entrypoint 'resolver-sim.composition.fixtures/effect-award))
+              (fx/cap :fixture/e :entrypoint 'resolver-sim.composition.fixtures/effect-award
+                      :effects #{:prf.effect/x.v1 :prf.effect/y.v1}))
         combo (fx/seq-combination
                (fx/node :n1 [:economics/award-amount :fixture/e]
                         :spec {:amount 10 :effects [{:effect/contract :prf.effect/x.v1}]})
@@ -37,11 +67,85 @@
     (is (= 2 (count (:execution/effects result))))
     (is (= 985 (:execution/value result)))))
 
+(deftest replace-effects-use-last-node-output-including-empty-output
+  (let [emap (fx/ext-map-with
+              (fx/cap :fixture/e :merge :replace :effects #{:prf.effect/test}
+                      :entrypoint 'resolver-sim.composition.fixtures/effect-award))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/e]
+                        :spec {:amount 10 :effects [{:effect/contract :prf.effect/test :id :first}]})
+               (fx/node :n2 [:economics/award-amount :fixture/e]
+                        :spec {:amount 5 :effects [{:effect/contract :prf.effect/test :id :second}]}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        result (exec/execute-compiled-plan plan emap {} 100)]
+    (is (= :replace (:plan/effect-merge-strategy plan)))
+    (is (= [{:effect/contract :prf.effect/test :id :second}] (:execution/effects result))
+        "later nodes replace prior effects in declared node order")
+    (let [empty-combo (assoc-in combo [:combination/nodes 1 :spec :effects] [])
+          {:keys [plan]} (comp/compile-combination {:extensions emap} empty-combo)
+          empty-result (exec/execute-compiled-plan plan emap {} 100)]
+      (is (= [] (:execution/effects empty-result))
+          "an empty replacement clears the effect output"))))
+
+(deftest partition-effects-require-unique-explicit-keys
+  (let [emap (fx/ext-map-with
+              (fx/cap :fixture/e :merge :partition :effects #{:prf.effect/test}
+                      :entrypoint 'resolver-sim.composition.fixtures/effect-award))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/e]
+                        :spec {:amount 10 :effects [{:effect/contract :prf.effect/test :effect/partition-key :one}]})
+               (fx/node :n2 [:economics/award-amount :fixture/e]
+                        :spec {:amount 5 :effects [{:effect/contract :prf.effect/test :effect/partition-key :two}]}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        result (exec/execute-compiled-plan plan emap {} 100)
+        overlapping (assoc-in combo [:combination/nodes 1 :spec :effects]
+                              [{:effect/contract :prf.effect/test :effect/partition-key :one}])
+        missing (assoc-in combo [:combination/nodes 1 :spec :effects]
+                          [{:effect/contract :prf.effect/test :id :without-key}])
+        duplicate (assoc-in combo [:combination/nodes 0 :spec :effects]
+                            [{:effect/contract :prf.effect/test :effect/partition-key :one}
+                             {:effect/contract :prf.effect/test :effect/partition-key :one}])
+        run (fn [c]
+              (let [{:keys [plan]} (comp/compile-combination {:extensions emap} c)]
+                (exec/execute-compiled-plan plan emap {} 100)))]
+    (is (= [{:effect/contract :prf.effect/test :effect/partition-key :one} {:effect/contract :prf.effect/test :effect/partition-key :two}]
+           (:execution/effects result)))
+    (doseq [[case expected-id] [[overlapping :violation/duplicate-effect-partition-key]
+                                [missing :violation/missing-effect-partition-key]
+                                [duplicate :violation/duplicate-effect-partition-key]]]
+      (let [rejected (run case)]
+        (is (= :failed (:execution/status rejected)))
+        (is (= :execution-failure/invalid-effects
+               (get-in rejected [:execution/failure :failure/type])))
+        (is (= expected-id (get-in rejected [:execution/failure :failure/details :violation/id])))))
+    (is (= result (run combo)) "replay preserves deterministic ordering and output")))
+
+(deftest execution-rejects-tampered-or-incompatible-merge-plan
+  (let [emap (fx/ext-map-with (fx/cap :fixture/a :merge :accumulate)
+                              (fx/cap :fixture/b :merge :accumulate))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/a] :spec {:rate 0})
+               (fx/node :n2 [:economics/award-amount :fixture/b] :spec {:rate 0}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        tampered (assoc plan :plan/effect-merge-strategy :replace)
+        wrong-contract (assoc tampered :plan/root (plan/plan-root tampered))
+        result (exec/execute-compiled-plan tampered emap {} 100)
+        wrong-result (exec/execute-compiled-plan wrong-contract emap {} 100)]
+    (is (= :rejected (:execution/status result))
+        "a modified plan with a stale root must be rejected")
+    (is (= :violation/unauthenticated-plan
+           (-> result :execution/violations first :violation/id)))
+    (is (= :rejected (:execution/status wrong-result))
+        "a root-valid plan whose merge strategy contradicts node contracts must be rejected")
+    (is (= :violation/effect-merge-strategy-mismatch
+           (-> wrong-result :execution/violations first :violation/id)))))
+
 (deftest short-circuit-stops-pipeline
   (let [emap (fx/ext-map-with
-              (fx/cap :fixture/s :entrypoint 'resolver-sim.composition.fixtures/short-circuit-award))
+              (fx/cap :fixture/s :may-short-circuit? true
+                      :entrypoint 'resolver-sim.composition.fixtures/short-circuit-award))
         combo (fx/seq-combination
-               (fx/node :n1 [:economics/award-amount :fixture/s] :spec {:amount 10})
+               (fx/node :n1 [:economics/award-amount :fixture/s] :spec {:amount 0})
                (fx/node :n2 [:economics/award-amount :fixture/s] :spec {:amount 10}))
         {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
         result (exec/execute-compiled-plan plan emap {} 1000)]
@@ -49,10 +153,27 @@
     (is (= 1 (count (:execution/nodes result)))
         "later nodes do not execute after short-circuit")))
 
+(deftest undeclared-short-circuit-is-rejected
+  (let [emap (fx/ext-map-with
+              (fx/cap :fixture/s
+                      :entrypoint 'resolver-sim.composition.fixtures/short-circuit-award))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/s] :spec {:amount 10})
+               (fx/node :n2 [:economics/award-amount :fixture/s] :spec {:amount 10}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        result (exec/execute-compiled-plan plan emap {} 1000)]
+    (is (= false (get-in plan [:plan/nodes 0 :may-short-circuit?])))
+    (is (= :rejected (:execution/status result)))
+    (is (some #(= :violation/unauthorized-short-circuit (:violation/id %))
+              (:execution/violations result)))
+    (is (empty? (:execution/nodes result)))
+    (is (empty? (:execution/effects result)))))
+
 (deftest addresses-threaded-to-invocation
   (let [addresses {:owner/address "0xowner" :parameter/address "0xparameter"}
         emap (fx/ext-map-with
-              (fx/cap :fixture/a :entrypoint 'resolver-sim.composition.fixtures/address-award))
+              (fx/cap :fixture/a :entrypoint 'resolver-sim.composition.fixtures/address-award
+                      :effects #{:prf.effect/custody-held-adjustment.v2}))
         combo (assoc (fx/seq-combination
                       (fx/node :n1 [:economics/award-amount :fixture/a]
                                :spec {:amount 10 :add-held-kind :reward})
@@ -77,7 +198,8 @@
   (let [combination-addresses {:owner/address "0xdefault" :parameter/address "0xdefault-param"}
         node-addresses {:owner/address "0xnode1" :parameter/address "0xnode1-param"}
         emap (fx/ext-map-with
-              (fx/cap :fixture/a :entrypoint 'resolver-sim.composition.fixtures/address-award))
+              (fx/cap :fixture/a :entrypoint 'resolver-sim.composition.fixtures/address-award
+                      :effects #{:prf.effect/custody-held-adjustment.v2}))
         combo (assoc (fx/seq-combination
                       (fx/node :n1 [:economics/award-amount :fixture/a]
                                :spec {:amount 10} :addresses node-addresses)
@@ -100,7 +222,8 @@
                  :parameter-context/scope-id :sew.default}
         emap (fx/ext-map-with
               (fx/cap :fixture/a
-                      :entrypoint 'resolver-sim.composition.fixtures/held-adjustment-award))
+                      :entrypoint 'resolver-sim.composition.fixtures/held-adjustment-award
+                      :effects #{:prf.effect/custody-held-adjustment.v2}))
         combo (assoc (fx/seq-combination
                       (fx/node :n1 [:economics/award-amount :fixture/a]
                                :spec {:amount 10
@@ -137,6 +260,88 @@
     (is (some #(= :violation/uncompiled-combination (:violation/id %))
               (:execution/violations result)))))
 
+(deftest compiled-plan-commitment-is-verified-before-invocation
+  (let [emap (fx/ext-map-with (fx/cap :fixture/a))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/a] :spec {:rate 500})
+               (fx/node :n2 [:economics/award-amount :fixture/a] :spec {:rate 500}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        mutations [(assoc-in plan [:plan/nodes 0 :spec :rate] 10000)
+                   (assoc-in plan [:plan/nodes 0 :basis] {:basis/root "substituted"})
+                   (update plan :plan/nodes #(vec (reverse %)))
+                   (assoc-in plan [:plan/edges 0 :to] :substituted-node)
+                   (assoc-in plan [:plan/nodes 0 :terminal?] true)
+                   (assoc-in plan [:plan/nodes 0 :failure-mode] :continue)
+                   (assoc plan :plan/compiler-id :attacker/compiler)
+                   (assoc plan :plan/compiler-version 1)
+                   (assoc plan :plan/schema-version 1)
+                   (assoc plan :plan/root "malformed")
+                   (dissoc plan :plan/root)
+                   (assoc plan :plan/uncommitted-field :ignored)
+                   (assoc-in plan [:plan/nodes 0 :spec :nested] {:x :substituted})]
+        invocations (atom 0)]
+    (with-redefs [ext-exec/invoke-capability
+                  (fn [_ _] (swap! invocations inc) {:amount 1 :effects [{:effect/type :test}]})]
+      (doseq [candidate mutations]
+        (let [result (exec/execute-compiled-plan candidate emap {} 1000)]
+          (is (= :rejected (:execution/status result)) (pr-str candidate))
+          (is (empty? (:execution/nodes result)))
+          (is (empty? (:execution/effects result)))))
+      (is (zero? @invocations)))))
+
+(deftest caller-rehashed-plan-must-match-compiler-replay
+  (let [emap (fx/ext-map-with (fx/cap :fixture/a))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/a] :spec {:rate 500})
+               (fx/node :n2 [:economics/award-amount :fixture/a] :spec {:rate 500}))
+        compiled (:plan (comp/compile-combination {:extensions emap} combo))
+        forged (let [candidate (assoc-in compiled [:plan/nodes 0 :spec :rate] 10000)]
+                 (assoc candidate :plan/root (plan/plan-root candidate)))
+        invocations (atom 0)]
+    (with-redefs [ext-exec/resolve-entrypoint
+                  (fn [_] (fn [_] (swap! invocations inc) {:amount 1 :effects []}))]
+      (let [result (exec/execute-compiled-plan forged emap {} 1000)]
+        (is (= :rejected (:execution/status result)))
+        (is (some #(= :violation/compiler-replay-mismatch (:violation/id %))
+                  (:execution/violations result)))
+        (is (zero? @invocations))))))
+
+(deftest previous-compiler-version-plan-is-rejected-before-invocation
+  (let [emap (fx/ext-map-with (fx/cap :fixture/a))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/a])
+               (fx/node :n2 [:economics/award-amount :fixture/a]))
+        compiled-plan (:plan (comp/compile-combination {:extensions emap} combo))
+        legacy-plan (-> compiled-plan
+                        (assoc :plan/compiler-version 1)
+                        (assoc :plan/root (plan/plan-root
+                                           (assoc compiled-plan :plan/compiler-version 1))))
+        invocations (atom 0)]
+    (is (= 3 (:plan/compiler-version compiled-plan)))
+    (with-redefs [ext-exec/invoke-capability
+                  (fn [_ _] (swap! invocations inc) {:amount 1 :effects []})]
+      (let [result (exec/execute-compiled-plan legacy-plan emap {} 1000)]
+        (is (= :rejected (:execution/status result)))
+        (is (some #(= :violation/unauthenticated-plan (:violation/id %))
+                  (:execution/violations result)))
+        (is (zero? @invocations))))))
+
+(deftest altered-descriptor-body-rejected-before-invocation
+  (let [emap (fx/ext-map-with (fx/cap :fixture/a))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/a] :spec {:rate 500})
+               (fx/node :n2 [:economics/award-amount :fixture/a] :spec {:rate 500}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        altered (update-in emap [[:economics/award-amount :fixture/a] :capability]
+                           assoc :output-schema :attacker/schema)
+        invocations (atom 0)]
+    (with-redefs [ext-exec/invoke-capability
+                  (fn [_ _] (swap! invocations inc) {:amount 1 :effects []})]
+      (let [result (exec/execute-compiled-plan plan altered {} 1000)]
+        (is (= :rejected (:execution/status result)))
+        (is (zero? @invocations))
+        (is (empty? (:execution/effects result)))))))
+
 (deftest descriptor-root-mismatch-rejected
   (let [emap (fx/ext-map-with (fx/cap :fixture/a))
         combo (fx/seq-combination
@@ -167,3 +372,122 @@
           result (exec/execute-combination {:extensions emap} combo {} 0)]
       (is (= :rejected (:execution/status result)))
       (is (nil? (:execution/compiled-plan result))))))
+
+(deftest invocation-failures-are-typed-and-discard-all-effects
+  (doseq [[entrypoint failure-type] [['resolver-sim.composition.execution-test/throwing-award
+                                      :execution-failure/invocation-exception]
+                                     ['resolver-sim.composition.execution-test/nil-award
+                                      :execution-failure/invalid-result]
+                                     ['missing.composition.entrypoint/run
+                                      :execution-failure/missing-entrypoint]]]
+    (let [emap (fx/ext-map-with (fx/cap :fixture/fail :entrypoint entrypoint))
+          combo (fx/seq-combination
+                 (fx/node :n1 [:economics/award-amount :fixture/fail] :spec {:amount 1})
+                 (fx/node :n2 [:economics/award-amount :fixture/fail] :spec {:amount 1}))
+          {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+          result (exec/execute-compiled-plan plan emap {} 100)]
+      (is (= :failed (:execution/status result)))
+      (is (= failure-type (get-in result [:execution/failure :failure/type])))
+      (is (empty? (:execution/effects result)))
+      (is (nil? (:execution/value result)))
+      (is (empty? (:execution/observations result)) "downstream nodes do not run after first-node abort"))))
+
+(deftest legitimate-zero-is-distinct-from-failure
+  (let [emap (fx/ext-map-with (fx/cap :fixture/zero))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/zero] :spec {:rate 0})
+               (fx/node :n2 [:economics/award-amount :fixture/zero] :spec {:rate 0}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        result (exec/execute-compiled-plan plan emap {} 0)]
+    (is (= :completed (:execution/status result)))
+    (is (= 0 (:execution/value result)))
+    (is (= [0 0] (mapv :amount (:execution/nodes result))))))
+
+(deftest malformed-pipeline-input-fails-before-invocation
+  (reset! fixed-amount-invocations 0)
+  (let [emap (fx/ext-map-with
+              (fx/cap :fixture/input
+                      :entrypoint 'resolver-sim.composition.execution-test/fixed-amount-award))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/input] :spec {:amount 1})
+               (fx/node :n2 [:economics/award-amount :fixture/input] :spec {:amount 1}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        result (exec/execute-compiled-plan plan emap {} "not-a-number")]
+    (is (= :failed (:execution/status result)))
+    (is (= :execution-failure/invalid-input (get-in result [:execution/failure :failure/type])))
+    (is (= :n1 (get-in result [:execution/failure :failure/node-id])))
+    (is (= :pipeline-input-not-numeric (get-in result [:execution/failure :failure/details :reason])))
+    (is (empty? (:execution/nodes result)))
+    (is (empty? (:execution/effects result)))
+    (is (nil? (:execution/value result)))
+    (is (zero? @fixed-amount-invocations)
+        "malformed pipeline input is rejected before a valid calculation can run")))
+
+(deftest malformed-results-and-undeclared-effects-fail-closed
+  (doseq [[entrypoint failure-type]
+          [['resolver-sim.composition.execution-test/missing-amount-award
+            :execution-failure/invalid-result]
+           ['resolver-sim.composition.execution-test/precondition-failure-award
+            :execution-failure/precondition-failed]
+           ['resolver-sim.composition.execution-test/undeclared-effect-award
+            :execution-failure/undeclared-effect]]]
+    (let [emap (fx/ext-map-with (fx/cap :fixture/malformed :entrypoint entrypoint))
+          combo (fx/seq-combination
+                 (fx/node :n1 [:economics/award-amount :fixture/malformed])
+                 (fx/node :n2 [:economics/award-amount :fixture/malformed]))
+          {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+          result (exec/execute-compiled-plan plan emap {} 0)]
+      (is (= :failed (:execution/status result)))
+      (is (= failure-type (get-in result [:execution/failure :failure/type])))
+      (is (empty? (:execution/effects result)))
+      (is (nil? (:execution/value result)))))
+  (let [emap (fx/ext-map-with (fx/cap :fixture/nonmap
+                                      :entrypoint 'resolver-sim.composition.execution-test/scalar-award))
+        combo (fx/seq-combination (fx/node :n1 [:economics/award-amount :fixture/nonmap])
+                                  (fx/node :n2 [:economics/award-amount :fixture/nonmap]))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        result (exec/execute-compiled-plan plan emap {} 0)]
+    (is (= :failed (:execution/status result)))))
+
+(deftest replay-of-a-successful-plan-is-deterministic
+  (let [emap (fx/ext-map-with (fx/cap :fixture/replay))
+        combo (fx/seq-combination (fx/node :n1 [:economics/award-amount :fixture/replay]
+                                           :spec {:rate 500})
+                                  (fx/node :n2 [:economics/award-amount :fixture/replay]
+                                           :spec {:rate 250}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        first-run (exec/execute-compiled-plan plan emap {} 1000)
+        replay (exec/execute-compiled-plan plan emap {} 1000)]
+    (is (= first-run replay))))
+
+(deftest unsafe-entrypoints-are-rejected-before-invocation
+  (reset! unsafe-invocations 0)
+  (let [unsafe (fx/cap :fixture/unsafe
+                       :entrypoint 'resolver-sim.composition.execution-test/irreversible-award
+                       :entrypoint-safety :external-irreversible)
+        safe-failure (fx/cap :fixture/safe-failure
+                             :entrypoint 'resolver-sim.composition.execution-test/throwing-award)
+        emap (fx/ext-map-with unsafe safe-failure)
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/unsafe])
+               (fx/node :n2 [:economics/award-amount :fixture/safe-failure]))
+        compiled (comp/compile-combination {:extensions emap} combo)]
+    (is (= :invalid (:status compiled)))
+    (is (some #(= :violation/unsafe-entrypoint (:violation/id %))
+              (:violations compiled)))
+    (is (= 0 @unsafe-invocations))))
+
+(deftest execution-rechecks-entrypoint-safety
+  (let [emap (fx/ext-map-with (fx/cap :fixture/safe))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/safe])
+               (fx/node :n2 [:economics/award-amount :fixture/safe]))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        unsafe-plan (-> plan
+                        (assoc-in [:plan/nodes 0 :entrypoint-safety] :external-irreversible)
+                        (update :plan/root (constantly nil)))
+        unsafe-plan (assoc unsafe-plan :plan/root (plan/plan-root unsafe-plan))
+        result (exec/execute-compiled-plan unsafe-plan emap {} 10)]
+    (is (= :rejected (:execution/status result)))
+    (is (= :violation/unsafe-entrypoint
+           (get-in result [:execution/violations 0 :violation/id])))))

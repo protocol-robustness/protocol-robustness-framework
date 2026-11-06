@@ -1702,9 +1702,33 @@
    :ops map whose values are runtime functions (the module implementations)."
   [x]
   (and (map? x)
+       (some #{:module/id} (keys x))
        (some? (:module/id x))
        (map? (:ops x))
        (some fn? (vals (:ops x)))))
+
+(declare normalize-runtime-values)
+
+(defn- normalize-map-values
+  "Normalize map keys and values. Maps with non-string/non-keyword keys use a
+   tagged ordered entry-vector representation so their key types are retained."
+  [value]
+  (let [entries (mapv (fn [[key item]]
+                        [(normalize-runtime-values key)
+                         (normalize-runtime-values item)])
+                      value)
+        unsupported-keys (remove #(or (keyword? %) (string? %)) (keys value))]
+    (if (empty? unsupported-keys)
+      (into {} entries)
+      (do
+        (doseq [[key _] entries]
+          (hc/validate-canonical-value! key))
+        (when-not (= (count entries) (count (set (map first entries))))
+          (throw (ex-info "Evidence map keys collide after normalization" {})))
+        {:prf/map-encoding "entries.v1"
+         :prf/map-entries (->> entries
+                               (sort-by (comp pr-str first))
+                               vec)}))))
 
 (defn normalize-runtime-values
   "WRITER-BOUNDARY normalization: convert runtime Clojure objects into stable,
@@ -1756,7 +1780,7 @@
       (if (zero? (mod n d))
         (long (/ n d))
         x))
-    (map? x) (into {} (map (fn [[k v]] [k (normalize-runtime-values v)]) x))
+    (map? x) (normalize-map-values x)
     (coll? x) (into (empty x) (map normalize-runtime-values x))
     :else x))
 

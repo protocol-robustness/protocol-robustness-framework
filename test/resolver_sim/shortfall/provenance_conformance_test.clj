@@ -1,13 +1,14 @@
 (ns resolver-sim.shortfall.provenance-conformance-test
   (:require [clojure.data.json :as json]
             [clojure.test :refer [deftest is]]
+            [resolver-sim.coprocessor.source :as coprocessor]
             [resolver-sim.shortfall.evm-asset :as asset]
             [resolver-sim.shortfall.reserve-observation :as observation]
             [resolver-sim.shortfall.context-v2 :as context-v2]
             [resolver-sim.shortfall.reserve-binding :as binding]
             [resolver-sim.allocation.persisted-statement-admission :as persisted]))
 
-(def fixture-path "coprocessor/core/tests/fixtures/onchain-shortfall-end-to-end-v1.json")
+(def fixture-path (str (coprocessor/root) "/core/tests/fixtures/onchain-shortfall-end-to-end-v1.json"))
 
 (defn- fixture [] (json/read-str (slurp fixture-path) :key-fn keyword))
 (defn- kw [s] (keyword (if (= \: (first s)) (subs s 1) s)))

@@ -1,0 +1,8 @@
+[#:verifier{:id "0x966cc6eee5072b17efdd6a108941d21ee07fd93d63dd13120f0731f490188bb1"
+            :adapter "0xa21ddc1f17df41589bc6a5209292aed2df61cc94"
+            :program-vkey "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9"
+            :program-elf-sha256 "0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8"
+            :program-id "source-bound-entitlement-sp1-program.v1"
+            :statement-schema-version-hash "0x71fc0589dce6888fb7c2da5ddd88275753cf9f9de0aca477f307bd96de8660de"
+            :public-values-schema-hash "0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde"
+            :active true}]

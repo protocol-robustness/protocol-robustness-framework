@@ -2,9 +2,29 @@
   (:require [clojure.test :refer [deftest is]]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.contract-model.replay.frames :as frames]
+            [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.hash.reference :as ref]
             [resolver-sim.io.scenarios :as scenarios]
             [resolver-sim.protocols.sew :as sew]
+            [resolver-sim.protocols.sew.transition-assurance :as assurance]
             [resolver-sim.scenario.normalize :as normalize]))
+
+(deftest transition-assurance-commits-ratios-exactly
+  (let [before {:balance 1/3}
+        after {:balance 2/3}
+        basis (assurance/build before after {:type :ratio-transition})
+        expected-after-root
+        (ref/sha256-ref
+         (canonical/domain-hash
+          :sew-dispute-transition-state-v1
+          {:balance {:canonical/type "ratio"
+                     :canonical/numerator 2
+                     :canonical/denominator 3}}))
+        changed-basis (assurance/build before {:balance 3/4}
+                                       {:type :ratio-transition})]
+    (is (= expected-after-root (:state-after/root basis)))
+    (is (= basis (assurance/build before after {:type :ratio-transition})))
+    (is (not= (:state-after/root basis) (:state-after/root changed-basis)))))
 
 (deftest sew-appeal-replay-produces-anchored-assured-frames
   (let [scenario (-> "scenarios/edn/S-DR-030-biased-resolver-appealed.edn"

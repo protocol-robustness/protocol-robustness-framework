@@ -7,7 +7,8 @@
             [resolver-sim.pro-rata.publication :as publication]
             [resolver-sim.pro-rata.invocation-publication-binding :as binding]
             [resolver-sim.pro-rata.invocation-publication-binding-test :as fixture])
-  (:import [java.nio.file Files FileAttribute]))
+  (:import [java.nio.file Files]
+           [java.nio.file.attribute FileAttribute]))
 
 ;; ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@
             root (ref/sha256-ref (get body field))]
         (cas/put-if-absent! cas-store {:hash-reference root
                                        :artifact body
-                                       :verify #(true? %)})))
+                                       :verify map?})))
     {:head head
      :binding binding
      :resolution-fn resolution
@@ -129,7 +130,7 @@
   (let [{:keys [head resolution-fn]} (build-test-chain)
         root (:publication/head-root head)
         corrupt-resolution (fn [r]
-                             (if (= r root)
+                             (if (= r (ref/sha256-ref root))
                                (assoc head :publication/last-ordering-root
                                       "sha256:bbbb00000000000000000000000000000000000000000000000000000000bbbb")
                                (resolution-fn r)))
@@ -199,7 +200,7 @@
                  :missing-roots [] :roots {} :v2? false})]
     (is (= :unavailable (get-in result [:authority :status])))
     (is (= :missing (get-in result [:authority :reason])))
-    (is (= :nil (get-in result [:authority :root])))  ; head is nil -> root is nil
+    (is (nil? (get-in result [:authority :root])))
     (is (= :unverified (get-in result [:correspondence :status])))
     (is (= :missing (get-in result [:correspondence :reason])))
     (is (= :not-applicable (get-in result [:semantic-recompilation :status])))

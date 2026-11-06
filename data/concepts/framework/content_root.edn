@@ -12,27 +12,27 @@
 
  :concept/roles
  {:publisher {:description "Entity that publishes the content and its root."
-              :maps-to [:protocol.actor/governance]}
+              }
   :consumer {:description "Entity that uses the root to reference content."
-             :maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+             }}
 
  :concept/entities
  {:content-hash {:description "Canonical hash of the content package."
-                 :maps-to [:protocol.entity/canonical-hash]}
+                 }
   :projection-spec {:description "Specification of which fields are included in the hash."
-                    :maps-to [:protocol.entity/projection]}}
+                    }}
 
  :concept/actions
  {:publish-root {:description "Publish a content root for a package."
-                 :maps-to [:protocol.action/commit-root]}
+                 }
   :verify-content {:description "Verify content against its declared root."
-                   :maps-to [:protocol.action/verify-allocation]}}
+                   }}
 
  :concept/outcomes
  {:root-verified {:description "Content matches its declared root."
-                  :maps-to [:protocol.outcome/released]}
+                  }
   :root-failed {:description "Content does not match its declared root."
-                :maps-to [:protocol.outcome/adversarial-resolution]}}
+                }}
 
  :concept/failure-modes
  [{:failure/id :content-root-mismatch

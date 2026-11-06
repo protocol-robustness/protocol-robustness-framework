@@ -1,0 +1,59 @@
+{:package/schema "prf.initial-configuration-package.v1"
+ :package/status :candidate-owner-approval-required
+ :package/notes "PRO-95 Base Sepolia USDC demonstration only. Derived from the owner-selected Circle testnet asset, approved scenario amounts, and retained controlled-entitlement V3 SP1 identity. Candidate pending independent package review; not a production configuration."
+ :protocol/genesis-root "sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775"
+ :execution/chain-id 84532
+ :component-material
+ {:module-registry
+  {:artifact/schema "eae-demo.module-registry-candidate.v1"
+   :profile "pro-95-partial-fill-v3-base-sepolia-demo.v1"
+   :capabilities ["verifier-registry" "statement-admission"
+                  "source-bound-entitlement-assurance" "pro-rata-allocation"
+                  "beneficiary-withdrawal" "protected-capital-refund"]}
+  :evidence-policy
+  {:artifact/schema "eae-demo.evidence-policy-candidate.v1"
+   :proof-system "SP1 Groth16"
+   :program-id "source-bound-entitlement-controlled-sp1-program.v1"
+   :program-vkey "0x00691e1cff8e4252731c8fe2bc326e8725ed5f9b92a298cc30a2c5fc40962dd1"
+   :program-elf-sha256 "sha256:705efd1c5b997ae1f2c19eddcf6bb66a147e94b6b3b036393d6dab041c00542d"
+   :public-values-schema "prf/source-bound-entitlement-public-values.v1"
+   :public-values-length 288
+   :admission "real-verifier-required"}
+  :escrow-template-registry
+  {:artifact/schema "eae-demo.escrow-template-registry-candidate.v1"
+   :templates []}
+  :parameter-policy
+  {:artifact/schema "eae-demo.parameter-policy-candidate.v1"
+   :entitlement-descriptor-root "sha256:0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f"
+   :chain-id 84532
+   :token-policy
+   {:kind :external-circle-base-sepolia-testnet-usdc
+    :address "0x036cbd53842c5426634e7929541ec2318f3dcf7e"
+    :name "USDC"
+    :symbol "USDC"
+    :decimals 6
+    :deployment-by-demo false
+    :mint-by-demo false
+    :mainnet-redeemable false
+    :source "https://developers.circle.com/stablecoins/usdc-contract-addresses"
+    :source-parity-artifact "protocol-deployments/config/pro-rata-v2-entitlement/circle-base-sepolia-usdc-source-parity.v1.json"
+    :historical-observation-block 48021662
+    :historical-observation-block-hash "0xd75dd70e46902903f9c1ff7247ed11b17471413ba9895ff70cfa6ee64ba19c02"
+    :aave-integration-reference "sew-protocol/test/foundry/modules/AaveYieldModuleForkTest.sol; sew-protocol/scripts/testnet/phase4-yield-test-usdc.ts"
+    :aave-use-by-pro-95 false}
+   :scenario-base-units
+   {:unit "USDC base units (6 decimals)"
+    :requests {"claim-a" 50000000 "claim-b" 30000000 "claim-c" 20000000}
+    :deposit 80000000 :restricted-refundable 10000000 :available-for-allocation 70000000
+    :allocation {"claim-a" 35000000 "claim-b" 21000000 "claim-c" 14000000}
+    :unmet-requested 30000000}}
+  :governance-policy
+  {:artifact/schema "eae-demo.governance-policy-candidate.v1"
+   :authority-profile "pro-95-single-test-only-principal-base-sepolia.v1"
+   :initial-epoch 0
+   :transition-policy "explicit-parent-root-and-monotonic-epoch"}
+  :interoperability-policy
+  {:artifact/schema "eae-demo.interoperability-policy-candidate.v1"
+   :cross-domain-enabled false
+   :bridge-authority nil}}
+ :initial-configuration/root "sha256:f36913f0fb319e80aee3a1b795bd31a94486d08d51aa27df825277050e4768cb"}

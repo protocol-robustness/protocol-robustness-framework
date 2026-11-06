@@ -46,7 +46,7 @@
 
 (def default-config
   {:bookmark-glob "agent-*"
-   :impl-roots ["src" "test" "protocols_src"]
+   :impl-roots ["src" "yield_runtime_src" "test" "protocols_src"]
    :tmp-root "/tmp/opencode"
    :baseline "integration@origin"})
 

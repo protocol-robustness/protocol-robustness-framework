@@ -8,37 +8,37 @@
  :concept/frameworks #{:framework/prf}
  :concept/related [:consensus/finality]
  :concept/roles
- {:role/reviewer {:description "Needs to know the exact configuration under which a result was produced to assess reproducibility and applicability." :maps-to []} :role/researcher {:description "Compares results across configurations to understand how parameter choices affect protocol behaviour." :maps-to []} :role/protocol-designer {:description "Uses configuration to define the conditions under which protocol properties are expected to hold." :maps-to []}}
+ {:role/reviewer {:description "Needs to know the exact configuration under which a result was produced to assess reproducibility and applicability." } :role/researcher {:description "Compares results across configurations to understand how parameter choices affect protocol behaviour." } :role/protocol-designer {:description "Uses configuration to define the conditions under which protocol properties are expected to hold." }}
  :concept/entities
  {:entity/scenario-definition
   {:description "A complete scenario map including events, agents, protocol-params, and expectations."
-   :maps-to [:protocol.entity/scenario]}
+   }
   :entity/benchmark-pack
   {:description "A named collection of scenarios, scoring rules, claim sets, and configuration references."
-   :maps-to [:protocol.entity/benchmark-pack]}
+   }
   :entity/execution-replay
   {:description "A deterministic replay run linked to a specific configuration hash."
-   :maps-to [:protocol.entity/replay]}}
+   }}
  :concept/actions
  {:action/parameterise
   {:description "Assign a configuration value to a protocol parameter, module selection, or execution option."
-   :maps-to [:protocol.action/parameterise]}
+   }
   :action/hash-configuration
   {:description "Compute a canonical hash of the active configuration for reproducibility linking."
-   :maps-to [:protocol.action/hash-configuration]}
+   }
   :action/detect-drift
   {:description "Compare two configuration hashes to determine whether settings have changed between runs."
-   :maps-to [:protocol.action/compare-configurations]}}
+   }}
  :concept/outcomes
  {:outcome/configuration-known
   {:description "The full configuration is recorded, hashed, and available in the artifact registry."
-   :maps-to [:protocol.outcome/pass]}
+   }
   :outcome/configuration-gap
   {:description "Some configuration parameters are implicit, unrecorded, or inferred rather than explicit."
-   :maps-to [:protocol.outcome/fail]}
+   }
   :outcome/configuration-drift
   {:description "Two related runs were executed under different configurations that were assumed to be identical."
-   :maps-to [:protocol.outcome/fail]}}
+   }}
  :concept/failure-modes
  [{:failure/id :failure/configuration-drift
    :failure/name "Configuration drift"

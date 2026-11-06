@@ -46,8 +46,8 @@ The liquid-lending module already implements important parts of this contract:
 
 Relevant code and current focused tests:
 
-- `src/resolver_sim/yield/modules/liquid_lending.clj`
-- `src/resolver_sim/yield/invariants.clj`
+- `yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj`
+- `yield_runtime_src/resolver_sim/yield/invariants.clj`
 - `test/resolver_sim/yield/deferred_class_test.clj`
 - `docs/conceptual/settlement-lifecycle.md`, §3.6
 

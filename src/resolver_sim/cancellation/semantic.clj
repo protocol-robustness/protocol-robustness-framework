@@ -12,7 +12,7 @@
 (defn valid-policy? [p] (and (map? p) (= policy-schema (:policy/schema p)) (boolean? (:policy/can-cancel? p)) (boolean? (:policy/unilateral-cancel? p))))
 (defn policy-root [p] (when-not (valid-policy? p) (throw (ex-info "invalid party cancellation policy" {:policy p}))) (rooted "SEW_PARTY_CANCELLATION_POLICY_V1" p :policy/root))
 (defn policy-root-valid? [p] (and (valid-policy? p) (= (:policy/root p) (policy-root (dissoc p :policy/root)))))
-(defn valid-derived-effects? [e] (and (map? e) (= derived-effects-schema (:effects/schema e)) (contains? #{:record-party-agreement :refund-sender} (:effects/kind e)) (contains? #{:sender :recipient} (:effects/by e))))
+(defn valid-derived-effects? [e] (and (map? e) (= derived-effects-schema (:effects/schema e)) (contains? #{:record-party-agreement :refund-sender} (:effects/kind e)) (contains? #{:sender :recipient :keeper} (:effects/by e))))
 (defn derived-effects-root [e] (when-not (valid-derived-effects? e) (throw (ex-info "invalid derived effects" {:effects e}))) (rooted "SEW_PARTY_CANCELLATION_DERIVED_EFFECTS_V1" e :effects/root))
 (defn derived-effects-root-valid? [e] (and (valid-derived-effects? e) (= (:effects/root e) (derived-effects-root (dissoc e :effects/root)))))
 (defn valid-execution-effects? [e] (and (map? e) (= execution-effects-schema (:execution-effects/schema e)) (hash-ref/valid-sha256-ref? (:derived-effects/root e))))

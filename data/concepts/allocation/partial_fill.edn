@@ -26,79 +26,79 @@
  :concept/roles
  {:claimant
   {:description "Party with a valid claim against limited value."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient :protocol.actor/resolver]}
+   }
   :allocation-engine
   {:description "Protocol logic that computes recoverable amounts."
-   :maps-to [:protocol.actor/resolution-module]}
+   }
   :verifier
   {:description "Party checking that the allocation was computed correctly."
-   :maps-to [:protocol.actor/verifier]}}
+   }}
 
   :concept/entities
   {:claim
    {:description "Amount requested by a claimant."
-    :maps-to [:protocol.entity/claim]}
+    }
    :cap
    {:description "Maximum amount allocatable to a single claimant regardless of weight or proportional share."
-    :maps-to [:protocol.entity/cap]}
+    }
    :available-value
    {:description "Value available for distribution."
-    :maps-to [:protocol.entity/funds]}
+    }
    :allocation
    {:description "Computed amount assigned to each claimant."
-    :maps-to [:protocol.entity/settlement]}
+    }
    :allocation-rows
    {:description "Per-claimant breakdown of owed, weight, cap, filled, deferred, fill-ratio, and cap-hit? status."
-    :maps-to [:protocol.entity/evidence]}
+    }
    :redistribution
    {:description "Metadata recording which claimants hit their caps and how excess was redistributed to remaining claimants."
-    :maps-to [:protocol.entity/evidence]}
+    }
    :shortfall
    {:description "Difference between valid claims and available value."
-    :maps-to [:protocol.entity/shortfall]}
+    }
    :deferred-claim
    {:description "Unpaid remainder preserved for possible future recovery."
-    :maps-to [:protocol.entity/deferred-claim]}}
+    }}
 
   :concept/actions
   {:detect-shortfall
    {:description "Determine that valid claims exceed available value."
-    :maps-to [:protocol.action/calculate-shortfall]}
+    }
    :compute-pro-rata-allocation
    {:description "Allocate available value proportionally among equal-priority claimants."
-    :maps-to [:protocol.action/calculate-pro-rata-allocation]}
+    }
    :enforce-caps
    {:description "Apply per-claimant caps, limiting allocation to each claimant's maximum regardless of their proportional share."
-    :maps-to [:protocol.action/calculate-pro-rata-allocation]}
+    }
    :redistribute-capped-excess
    {:description "When a claimant hits their cap, redistribute the excess to remaining uncapped claimants proportionally."
-    :maps-to [:protocol.action/calculate-pro-rata-allocation]}
+    }
    :apply-partial-fill
    {:description "Pay the recoverable portion of each claim."
-    :maps-to [:protocol.action/settle :protocol.action/partial-fill]}
+    }
    :record-deferred-claim
    {:description "Record the unpaid remainder for future recovery."
-    :maps-to [:protocol.action/record-deferred-claim]}
+    }
    :verify-allocation
    {:description "Check conservation, proportionality, priority rules, and cap adherence."
-    :maps-to [:protocol.action/verify-allocation :protocol.action/check-invariant]}}
+    }}
 
  :concept/outcomes
  {:claims-fully-paid
   {:description "All valid claims are satisfied in full."
-   :maps-to [:protocol.outcome/released]}
+   }
   :claims-partially-filled
   {:description "Valid claims receive proportional recovery below full value."
-   :maps-to [:protocol.outcome/partially-filled]}
+   }
   :shortfall-recorded
   {:description "Unpaid value is explicitly recorded."
-   :maps-to [:protocol.outcome/deferred]}
+   }
   :allocation-rejected
   {:description "Invalid allocation is rejected before settlement."
-   :maps-to [:protocol.outcome/rejected]}
+   }
   :allocation-unfair
   {:description "Equal-priority claimants receive unequal treatment."
-   :maps-to [:protocol.outcome/adversarial-resolution]}}
+   }}
 
  :concept/failure-modes
  [{:failure/id :first-come-first-served-drain

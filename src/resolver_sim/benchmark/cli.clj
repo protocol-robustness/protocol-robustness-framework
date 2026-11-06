@@ -18,11 +18,12 @@
             [resolver-sim.settings.semantic :as semantic-setting]
             [resolver-sim.config.paths :as paths]
             [resolver-sim.io.edn :as ppedn]
+            [resolver-sim.execution.executable-distribution :as executable-distribution]
             [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.tools.cli :refer [parse-opts]]
             [resolver-sim.util.thread-quiescence :as quiesce]
-             ;; runner is required lazily in -main to avoid loading
+            ;; runner is required lazily in -main to avoid loading
             ;; Sew protocol namespaces for commands like --list
             ))
 
@@ -242,7 +243,11 @@
                                      :execution/claimant-parallelism (:execution/claimant-parallelism options)
                                      :execution/claimant-parallel-threshold (:execution/claimant-parallel-threshold options)
                                      :execution/budget (:execution/budget options)
-                                     :execution/quiescence-timeout-seconds (:execution/quiescence-timeout-seconds options)})
+                                     :execution/quiescence-timeout-seconds (:execution/quiescence-timeout-seconds options)
+                                     :benchmark/executable-artifact-root
+                                     (executable-distribution/current-runtime-artifact-root)
+                                     :benchmark/resolve-executable-distribution
+                                     executable-distribution/observe-current-runtime-distribution})
             output-path (:output options)
             final-evidence (if-let [key-path (:key options)]
                              (let [sig (signing/sign-hash (:evidence/hash evidence) key-path (:password options))
@@ -454,14 +459,14 @@
       (if errors
         (do (run! println errors) (System/exit 1))
         (case subcmd
-          "run-benchmark"          (dispatch-run-and-report arguments options)
-          "validate"               (dispatch-validate arguments options)
-          "validate-game-theory"   (dispatch-game-theory arguments options)
+          "run-benchmark" (dispatch-run-and-report arguments options)
+          "validate" (dispatch-validate arguments options)
+          "validate-game-theory" (dispatch-game-theory arguments options)
           "game-theoretic-validation" (dispatch-game-theory arguments options)
-          "list"                   (dispatch-list arguments options)
-          "explain"                (dispatch-explain arguments options)
-          "doctor"                 (dispatch-doctor arguments options)
-          "verify-portability"     (dispatch-verify-portability arguments options)
+          "list" (dispatch-list arguments options)
+          "explain" (dispatch-explain arguments options)
+          "doctor" (dispatch-doctor arguments options)
+          "verify-portability" (dispatch-verify-portability arguments options)
           ;; fallback
           (dispatch-run-and-report arguments options)))))
     ;; Flag-based dispatch: parse with global options only

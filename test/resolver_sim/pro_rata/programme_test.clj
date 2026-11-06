@@ -3,7 +3,9 @@
    and the SP-A + SP-B invariant that execution settings cannot change any
    semantic programme field."
   (:require [clojure.test :refer [deftest is testing]]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.application :as application]
+            [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation]
             [resolver-sim.pro-rata.programme :as prog]
             [resolver-sim.pro-rata.exact-verifier :as exact-verifier]
             [resolver-sim.pro-rata.progress :as progress]))
@@ -22,6 +24,87 @@
                       :cap-treatment :redistribute
                       :tie-break :input-order}}})
 
+(defn- receipt-artifacts
+  [plan result]
+  {:plan plan
+   :request (:request plan)
+   :evaluation (:evaluation result)
+   :evidence-artifact (:evidence-artifact result)})
+
+(defn- rehash-receipt
+  [receipt]
+  (assoc receipt :receipt-hash
+         (hc/domain-hash :programme-receipt-v1 (dissoc receipt :receipt-hash))))
+
+(defn- substitute-projection-source
+  "Create a self-consistently rehashed evaluation whose projection claims a
+   different source while preserving the original request and allocation."
+  [evaluation source-id]
+  (let [projection (get-in evaluation [:projection :artifact/value])
+        source (assoc (:source projection) :forensic/source-id source-id)
+        source (assoc source :source-hash
+                      (hc/hash-with-intent
+                       {:hash/intent :projection-artifact}
+                       {:intent-id (get-in projection [:intent :id])
+                        :projection-definition-id (:projection-definition-id projection)
+                        :source (dissoc source :source-hash)
+                        :projection (:projection projection)}))
+        projection (assoc projection :source source)
+        projection (assoc projection :projection-hash
+                          (hc/hash-with-intent {:hash/intent :projection-artifact}
+                                               (dissoc projection :projection-hash)))
+        evaluation (-> evaluation
+                       (assoc-in [:projection :artifact/value] projection)
+                       (assoc-in [:projection :artifact/hash] (:projection-hash projection))
+                       (assoc-in [:result :artifact/value :projection-hash]
+                                 (:projection-hash projection)))]
+    (assoc-in evaluation [:result :artifact/hash]
+              (hc/domain-hash :pro-rata-evaluation-v1
+                              (get-in evaluation [:result :artifact/value])))))
+
+(defn- rebuilt-receipt
+  "Rebuild every hash-linked wrapper around an evaluation, as an attacker
+   could, so verifier tests do not rely on stale evidence or receipt hashes."
+  [plan evaluation]
+  (let [validation (prog/programme-validation-result evaluation)
+        evidence (prog/programme-evidence-artifact
+                  {:programme/id (:programme/id plan)
+                   :request (:request plan)
+                   :evaluation evaluation
+                   :validation-status (:status validation)
+                   :validation-details (:details validation)})
+        request-root (prog/allocation-request-root (:request plan))
+        stage-ids {:allocation request-root
+                   :validation request-root
+                   :evidence (:evidence/id evidence)}
+        stages {:allocation :completed
+                :validation (:status validation)
+                :evidence :completed
+                :statement :not-requested
+                :proof :not-requested
+                :verification :not-requested
+                :admission :not-requested}
+        reconciliation (prog/reconcile-programme-ids
+                        {:planned stage-ids
+                         :executed stage-ids
+                         :recorded stage-ids})]
+    {:artifacts {:plan plan
+                 :request (:request plan)
+                 :evaluation evaluation
+                 :evidence-artifact evidence}
+     :receipt (prog/build-programme-receipt
+               {:programme/id (:programme/id plan)
+                :programme-plan-root
+                (prog/programme-plan-root (prog/canonical-programme-plan plan))
+                :request (:request plan)
+                :evaluation evaluation
+                :stages stages
+                :stage-ids stage-ids
+                :validation-status (:status validation)
+                :validation-details (:details validation)
+                :evidence-artifact evidence
+                :reconciliation reconciliation})}))
+
 ;; ---------------------------------------------------------------------------
 ;; SP-C.1 — plan identity
 ;; ---------------------------------------------------------------------------
@@ -35,6 +118,43 @@
     (is (= :requested (:validation (:stages canonical))))
     (is (= :requested (:evidence (:stages canonical))))
     (is (= :not-requested (:proof (:stages canonical))) "optional stages default not-requested")))
+
+(deftest unsupported-validation-profiles-fail-closed
+  (let [plan (assoc a-plan :validation-profile
+                    {:profile/id :profile-a :checks [:unimplemented-check]})]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"Validation profiles are not supported"
+                          (prog/canonical-programme-plan plan)))
+    (is (= :invalid (:status (prog/verify-programme-plan plan))))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"Validation profiles are not supported"
+                          (prog/run-programme plan)))))
+
+(deftest identity-mode-plan-validates-schema-and-field-shapes
+  (let [canonical (prog/canonical-programme-plan a-plan)
+        malformed [(assoc canonical :schema-version "programme-plan.v999")
+                   (assoc canonical :allocation-request-root "not-a-root")
+                   (dissoc canonical :semantic-ids)
+                   (assoc canonical :semantic-ids [:a nil])
+                   (assoc canonical :stages (dissoc (:stages canonical) :validation))
+                   (assoc canonical :unrecognized :extra-field)]]
+    (doseq [plan malformed]
+      (is (= :invalid (:status (prog/verify-programme-plan plan)))
+          (pr-str plan)))))
+
+(deftest required-stages-cannot-be-disabled
+  (doseq [stage prog/required-stage-keys]
+    (let [plan (assoc-in a-plan [:stages stage] :not-requested)]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"Required programme stage"
+                            (prog/canonical-programme-plan plan))
+          (str stage " cannot be disabled"))
+      (is (= :invalid (:status (prog/verify-programme-plan plan)))
+          (str stage " disabled makes the plan invalid"))))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                        #"Required programme stage"
+                        (prog/run-programme
+                         (assoc-in a-plan [:stages :validation] :not-requested)))))
 
 (deftest canonical-plan-excludes-operational-state
   (testing "parallelism / progress / worker pools / host / paths / cancel atom are dropped"
@@ -157,9 +277,7 @@
 (deftest tampered-receipt-fails-verification
   (let [result (prog/run-programme a-plan)
         receipt (:receipt result)
-        artifacts {:request (:request a-plan)
-                   :evaluation (:evaluation result)
-                   :evidence-artifact (:evidence-artifact result)}]
+        artifacts (receipt-artifacts a-plan result)]
     (is (= :passed (:status (prog/verify-programme-receipt artifacts receipt))))
     (doseq [field [:result-root :validation-status :evidence-root]]
       (let [tampered (assoc receipt field
@@ -168,14 +286,118 @@
         (is (= :failed (:status v)) (str field))
         (is (some #(= field (:field %)) (:mismatches v)) (str field " mismatch reported"))))))
 
+(deftest receipt-verification-binds-plan-stage-identities-and-hash
+  (let [result (prog/run-programme a-plan)
+        receipt (:receipt result)
+        artifacts (receipt-artifacts a-plan result)
+        bad-hash (assoc receipt :receipt-hash (apply str (repeat 64 "0")))
+        changed-plan-root (rehash-receipt
+                           (assoc receipt :programme-plan-root (apply str (repeat 64 "1"))))
+        changed-stage-ids (rehash-receipt
+                           (assoc-in receipt [:stage-ids :allocation] "substituted"))
+        claimed-proof (rehash-receipt
+                       (-> receipt
+                           (assoc-in [:stages :proof] :completed)
+                           (assoc-in [:stages :admission] :completed)))]
+    (is (= :passed (:status (prog/verify-programme-receipt artifacts receipt))))
+    (doseq [[candidate expected-field]
+            [[bad-hash :receipt-hash]
+             [changed-plan-root :programme-plan-root]
+             [changed-stage-ids :stage-ids]
+             [claimed-proof :stages]]]
+      (let [verification (prog/verify-programme-receipt artifacts candidate)]
+        (is (= :failed (:status verification)))
+        (is (some #(= expected-field (:field %)) (:mismatches verification)))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (prog/run-programme (assoc-in a-plan [:stages :proof] :requested)))
+        "the current runner rejects unimplemented optional stages before execution")))
+
+(deftest receipt-verification-requires-plan-request-to-match-execution-request
+  (let [result (prog/run-programme a-plan)
+        receipt (:receipt result)
+        artifacts (assoc (receipt-artifacts a-plan result)
+                         :plan (assoc-in a-plan [:request :amount] 11))
+        verification (prog/verify-programme-receipt artifacts receipt)]
+    (is (= :failed (:status verification)))
+    (is (some #(= :plan/request-root (:field %)) (:mismatches verification)))))
+
+(deftest receipt-verification-binds-evaluation-to-plan-request
+  (let [result (prog/run-programme a-plan)
+        receipt (:receipt result)
+        changed-request (assoc (:request a-plan) :amount 11)
+        changed-evaluation (pro-rata-evaluation/evaluate-pro-rata-allocation changed-request)
+        changed-verdict (prog/programme-validation-result changed-evaluation)
+        changed-evidence (prog/programme-evidence-artifact
+                          {:programme/id (:programme/id a-plan)
+                           :request (:request a-plan)
+                           :evaluation changed-evaluation
+                           :validation-status (:status changed-verdict)
+                           :validation-details (:details changed-verdict)})
+        artifacts (assoc (receipt-artifacts a-plan result)
+                         :evaluation changed-evaluation
+                         :evidence-artifact changed-evidence)
+        verification (prog/verify-programme-receipt artifacts receipt)]
+    (is (= :failed (:status verification)))
+    (is (some #(= :evaluation/request-root (:field %)) (:mismatches verification)))))
+
+(deftest receipt-verification-binds-provenance-to-plan-request
+  (let [plan (assoc-in a-plan [:request :source :forensic/source-id] "trusted-source")
+        substituted-plan (assoc-in plan [:request :source :forensic/source-id]
+                                   "different-source")
+        result (prog/run-programme substituted-plan)
+        rebuilt (rebuilt-receipt substituted-plan (:evaluation result))
+        verification (prog/verify-programme-receipt
+                      (assoc (:artifacts rebuilt) :plan plan)
+                      (:receipt rebuilt))]
+    (is (not= (prog/allocation-request-root (:request plan))
+              (prog/allocation-request-root (:request substituted-plan))))
+    (is (= :failed (:status verification)))
+    (is (some #(= :plan/request-root (:field %))
+              (:mismatches verification)))))
+
+(deftest receipt-verification-reconstructs-projection-from-original-request
+  (let [result (prog/run-programme a-plan)
+        original-evaluation (:evaluation result)
+        substituted-evaluation (substitute-projection-source
+                                original-evaluation "attacker-selected-source")
+        rebuilt (rebuilt-receipt a-plan substituted-evaluation)
+        verification (prog/verify-programme-receipt
+                      (:artifacts rebuilt) (:receipt rebuilt))
+        altered-allocation (assoc (:allocation original-evaluation)
+                                  :forensic/forged true)
+        altered-result-evaluation
+        (-> original-evaluation
+            (assoc :allocation altered-allocation)
+            (assoc-in [:result :artifact/value :allocation] altered-allocation))
+        altered-result-evaluation
+        (assoc-in altered-result-evaluation [:result :artifact/hash]
+                  (hc/domain-hash :pro-rata-evaluation-v1
+                                  (get-in altered-result-evaluation
+                                          [:result :artifact/value])))
+        altered-result (rebuilt-receipt a-plan altered-result-evaluation)
+        altered-result-verification
+        (prog/verify-programme-receipt (:artifacts altered-result)
+                                       (:receipt altered-result))]
+    (is (= :passed (:status (:verification result))) "original receipt remains valid")
+    (is (= (:allocation original-evaluation) (:allocation substituted-evaluation))
+        "the substitution does not change the independently checked allocation")
+    (is (not= (get-in original-evaluation [:projection :artifact/hash])
+              (get-in substituted-evaluation [:projection :artifact/hash]))
+        "the attacker supplies a different, internally rehashed projection")
+    (is (= :failed (:status verification))
+        "rehashed evaluation, evidence, and receipt cannot authenticate a substituted projection")
+    (is (some #(= :evaluation/projection (:field %)) (:mismatches verification)))
+    (is (= :failed (:status altered-result-verification))
+        "a rehashed result-body/allocation substitution also fails")
+    (is (some #(= :evaluation/result (:field %))
+              (:mismatches altered-result-verification)))))
+
 (deftest each-derived-aggregate-verdict-field-is-the-verifier-derives
   "The receipt's aggregate verdict is independently re-derived, so a tampered
    aggregate cannot pass even when the constituent roots are unchanged."
   (let [result (prog/run-programme a-plan)
         receipt (:receipt result)
-        artifacts {:request (:request a-plan)
-                   :evaluation (:evaluation result)
-                   :evidence-artifact (:evidence-artifact result)}]
+        artifacts (receipt-artifacts a-plan result)]
     (is (= :passed (:status (prog/verify-programme-receipt artifacts receipt)))
         "baseline receipt verifies, including all derived aggregate fields")
     (let [deltas [{:field :semantic/status :value :fail}
@@ -207,6 +429,25 @@
     (is (= 1 (:unsupported (:summary verdict))))
     (is (= :passed (:status (:reconciliation reconciliation))))
     (is (not= :pass (:semantic/status verdict)) "an unsupported verdict is not a pass")))
+
+(deftest unexecuted-optional-stages-prevent-programme-completion
+  (let [base {:allocation :completed
+              :validation :passed
+              :evidence :completed
+              :statement :not-requested
+              :proof :not-requested
+              :verification :not-requested
+              :admission :not-requested}
+        reconciliation {:status :passed}
+        requested (prog/derive-programme-verdict
+                   {:stage-statuses (assoc base :proof :requested)
+                    :reconciliation reconciliation})
+        unsubstantiated-claim (prog/derive-programme-verdict
+                               {:stage-statuses (assoc base :proof :completed)
+                                :reconciliation reconciliation})]
+    (doseq [verdict [requested unsubstantiated-claim]]
+      (is (= :incomplete (:semantic/status verdict)))
+      (is (= :executing (:programme/status verdict))))))
 
 ;; ---------------------------------------------------------------------------
 ;; The SP-C invariant: programme validation = exact verifier result, and
@@ -250,8 +491,56 @@
         atom-progress (atom (progress/initial-progress {:programme/id :prog-1}))]
     (prog/run-programme a-plan :on-progress (fn [e] (swap! events conj e))
                         :progress-atom atom-progress)
-    (is (some #(= :allocation-completed (:event %)) @events)
+    (is (some #(and (= :phase-completed (:event %))
+                    (= :allocating (:phase %))) @events)
         "typed progress events are emitted")
     (is (= :completed (:status @atom-progress))
         "the caller-owned progress atom converges to a terminal state")
     (is (= :completed (:phase @atom-progress)))))
+
+(deftest programme-progress-completes-only-after-receipt-verification
+  (let [state (progress/make-progress-atom)
+        snapshots (atom [])
+        capture (fn [event]
+                  (swap! snapshots conj
+                         (select-keys (swap! state progress/reducer event)
+                                      [:status :phase :current :total])))
+        result (prog/run-programme a-plan :on-progress capture)]
+    (is (= :passed (get-in result [:verification :status])))
+    (is (every? #(= :running (:status %)) (butlast @snapshots)))
+    (is (= {:status :completed :phase :completed :current 4 :total 4}
+           (last @snapshots)))
+    (is (apply <= (map :current @snapshots)))
+    (is (some #(and (= :validating (:phase %)) (= 1 (:current %))) @snapshots))
+    (is (some #(and (= :verifying (:phase %)) (= 3 (:current %))) @snapshots))))
+
+(deftest programme-exceptions-publish-failure-and-preserve-the-exception
+  (doseq [stage [#'prog/canonical-programme-plan
+                 #'pro-rata-evaluation/evaluate-pro-rata-allocation
+                 #'prog/programme-validation-result
+                 #'prog/programme-evidence-artifact
+                 #'prog/build-programme-receipt
+                 #'prog/verify-programme-receipt]]
+    (testing (str stage)
+      (let [state (progress/make-progress-atom)
+            events (atom [])
+            failure (ex-info "injected stage failure" {:stage (str stage)})
+            caught (try
+                     (with-redefs-fn {stage (fn [& _] (throw failure))}
+                       #(prog/run-programme a-plan :progress-atom state
+                                            :on-progress (fn [e] (swap! events conj e))))
+                     nil
+                     (catch Exception e e))]
+        (is (identical? failure caught))
+        (is (= :failed (:status @state)))
+        (is (= :failed (:status (last @events))))
+        (is (not-any? #(= :completed (:status %)) @events))))))
+
+(deftest programme-receipt-verification-failure-is-not-progress-success
+  (let [state (progress/make-progress-atom)
+        result (with-redefs [prog/verify-programme-receipt
+                             (fn [& _] {:status :failed :mismatches [:injected]})]
+                 (prog/run-programme a-plan :progress-atom state))]
+    (is (= :failed (get-in result [:verification :status])))
+    (is (= :failed (:status @state)))
+    (is (< (:current @state) (:total @state)))))

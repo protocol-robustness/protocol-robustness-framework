@@ -1,0 +1,88 @@
+{
+  "schema": "prf-pro-95-base-sepolia-demo-manifest.v1",
+  "classification": "demonstration-only-not-pre-mainnet-release",
+  "network": {
+    "name": "Base Sepolia",
+    "chainId": 84532
+  },
+  "qualification": {
+    "stageB": "synthetic-envelope-qualification-only",
+    "stageC": "not-run-public-chain-not-qualified"
+  },
+  "artifacts": {
+    "readme": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/README.md",
+      "sha256": "8b7a680f707ec508471005d4de32108a222d080b37174e3778da7937dd11907b"
+    },
+    "testnetPreparation": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/TESTNET_PREPARATION.md",
+      "sha256": "7851fc6d350faf917407f043ca2c57cebc2281e9c60539f643b28d9f00c49e0e"
+    },
+    "stageBDemoPackage": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-b-demo-package.edn",
+      "sha256": "4919eaf14531bb279648fa349bea345ad81a8843c1a8ada61e07e0ba9bb31b7e"
+    },
+    "stageBVerificationOutput": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-b-verification-output.edn",
+      "sha256": "5f2a1f399276a02dc464f83962067a18a0e7c2b668dda3adef341a8199736cf6"
+    },
+    "stageCStatus": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-c-evidence-status.edn",
+      "sha256": "1238c98c94796b2856a5e77e36fb3c2e443bfaada705eaeb43c286ec14ca0bd7"
+    },
+    "stageBVerifier": {
+      "path": "scripts/forensic/verify-pro95-base-sepolia-demo-package.clj",
+      "sha256": "30b50cee381fd798bbb5674c6ecff11bb6cb8d61962e3361cb13d531b0d6ce64"
+    },
+    "rpcPreflight": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/rpc-preflight-20261023.json",
+      "sha256": "e884a8f996631c7da50cd22f22d986f74732878e59a0551394ec40f93205190b"
+    },
+    "demoRecipients": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/demo-recipient-wallets.json",
+      "sha256": "f023cc328f93902065f55e0a45c58395008f63c0d95786d7ea8d1351ab8226b6"
+    },
+    "ownerDecisions": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/owner-decisions-20261023.edn",
+      "sha256": "f41e7feb2f38e6917a100a80c6a758fdf8dc339bcf8f967faabde6317171aaa4"
+    },
+    "initialConfigurationPackage": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/initial-configuration-package.edn",
+      "sha256": "b40b17c28d5aba21ceb3c51e197a38729663edacbe7e62ff663b7d34b4afdf52"
+    },
+    "authorityStatePackage": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/authority-state-package.edn",
+      "sha256": "e4cfde5d91109920d3183a9b4c30b4d173655fe5991a1219bf96d4903185ebe6"
+    },
+    "canonicalRootDerivation": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/configuration-root-derivation.json",
+      "sha256": "895316624eb7fc7f9470097c72ee99b742fb46b1d16b12ffffbddc10bca128ea"
+    },
+    "finalityQualification": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/FINALITY_QUALIFICATION.md",
+      "sha256": "963d978dceb9430519810ccf760c47668733029eeb7925e7135ac2460987d452"
+    }
+  },
+  "scopeLimitations": [
+    "synthetic source, reserve, policy, beneficiary, and funding data in the Stage B fixture",
+    "generated demo signing keys and bundled trust policy",
+    "Circle Base Sepolia testnet USDC is selected as the intended external asset; matching proxy/implementation metadata was observed read-only at block 50091313, but source authentication and transfer behavior were not tested",
+    "at block 50204763, the signer had zero ETH, zero USDC, and nonce zero at both queried endpoints; allowance was not observed. No public transaction, deployment, funding, or run-block state is evidenced",
+    "recipient native-ETH balances were zero only in single-provider unpinned latest queries on 2026-10-23; the 2026-10-25 block-pinned signer preflight did not recheck recipients, so current recipient balances are unknown",
+    "the signer and payer had zero ETH and USDC, respectively, at block 50204763, but current balances are unknown and require rechecking before a run; allowance was not observed",
+    "the block-pinned preflight was below both endpoint heads at capture; it is not a latest-head or trust-anchor claim",
+    "no independently reviewed header trust pin or freshness/reorg policy; no receipt inclusion result and no Base safe/finalized evidence",
+    "no L1 withdrawal-output finalization evidence; this separate claim is out of scope",
+    "not a pre-mainnet release qualification"
+  ],
+  "externalEvidence": {
+    "baseSepoliaBalancePreflight": {
+      "repository": "protocol-deployments",
+      "path": "config/pro-95-base-sepolia-demo/observations/usdc-funding-preflight-20261025-50204763.json",
+      "sha256": "b9889d3d187a9a0d09d0a358261d76089138e698d0e611b1a4b76d1e825b90fc",
+      "blockNumber": 50204763,
+      "blockHash": "0x0472d6d8d50c6e5b6f9370340ec2c0a197c154df69165a0238a97bd387e2d4c8",
+      "qualification": "matching read-only RPC observations; not independently reviewed trust or finality evidence"
+    }
+  }
+}

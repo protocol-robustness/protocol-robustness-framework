@@ -18,7 +18,7 @@
   :resolver-sim.composition.compiler/sequential-v1)
 
 (def compiler-version
-  1)
+  3)
 
 ;; ── graph helpers ─────────────────────────────────────────────────────────
 
@@ -131,7 +131,10 @@
               {:violations [{:violation/id :violation/invalid-composition-contract
                              :details {:node/id (:node/id node)
                                        :contract-violations violations}}]}
-              (let [c (contract/normalize-contract raw-contract)
+              (let [normalized-contract (contract/normalize-contract raw-contract)
+                    execution-safety (contract/execution-safety cap entry)
+                    c (cond-> normalized-contract
+                        execution-safety (assoc :composition/execution-safety execution-safety))
                     in-semantic (get-in c [:composition/input :semantic-type])
                     out-semantic (get-in c [:composition/output :semantic-type])
                     modes (:composition/modes c)
@@ -150,11 +153,19 @@
                   {:violations [{:violation/id :violation/nondeterministic-capability-forbidden
                                  :details {:node/id (:node/id node)}}]}
 
+                  (not= :pure-calculation execution-safety)
+                  {:violations [{:violation/id :violation/unsafe-entrypoint
+                                 :details {:node/id (:node/id node)
+                                           :entrypoint (:entrypoint cap)
+                                           :safety execution-safety
+                                           :required :pure-calculation}}]}
+
                   :else
                   {:node {:node/id (:node/id node)
                           :capability-key ref
                           :capability-version cap-version
                           :capability-root (:descriptor-root entry)
+                          :entrypoint-safety execution-safety
                           :contract-root (contract/composition-contract-root c)
                           :input-semantic in-semantic
                           :output-semantic out-semantic
@@ -276,14 +287,35 @@
                                                             :details {:node/id (:node/id n)
                                                                       :references (:step-id basis)}})))
                                                      plan-nodes))
-                ;; effect conflicts: an exclusive effect emitted by more than one node
-                exclusive (reduce set/union #{} (map :exclusive-effects plan-nodes))
-                emitted (into {} (map (fn [n] [(:node/id n) (:emits n)])) plan-nodes)
-                emitted-set (reduce set/union #{} (vals emitted))
-                effect-conflicts (when (seq (set/intersection exclusive emitted-set))
-                                   [{:violation/id :violation/effect-conflict
-                                     :details {:exclusive (vec exclusive)
-                                               :emitted (vec (set/intersection exclusive emitted-set))}}])
+                ;; Exclusive declarations belong to their declaring node. A
+                ;; node may emit its own exclusive effect; another node may
+                ;; not. Multiple owners are ambiguous even if no node emits
+                ;; the effect, so reject them closed.
+                exclusive-owners (reduce (fn [owners n]
+                                           (reduce #(update %1 %2 (fnil conj #{}) (:node/id n))
+                                                   owners (:exclusive-effects n)))
+                                         {} plan-nodes)
+                effect-conflicts (into []
+                                       (keep (fn [[effect owners]]
+                                               (let [owners (vec (sort-by pr-str owners))
+                                                     owner-set (set owners)
+                                                     producers (->> plan-nodes
+                                                                    (filter #(and (contains? (:emits %) effect)
+                                                                                  (not (contains? owner-set
+                                                                                                  (:node/id %)))))
+                                                                    (map :node/id)
+                                                                    (sort-by pr-str)
+                                                                    vec)]
+                                                 (when (or (> (count owners) 1)
+                                                           (seq producers))
+                                                   {:violation/id :violation/effect-conflict
+                                                    :details {:effect effect
+                                                              :owners owners
+                                                              :producers producers
+                                                              :reason (if (> (count owners) 1)
+                                                                        :multiple-exclusive-claimants
+                                                                        :cross-node-exclusive-emission)}})))
+                                             (sort-by (comp pr-str key) exclusive-owners)))
                 ;; failure-mode consensus: consecutive nodes must agree on how
                 ;; the pipeline fails; otherwise one node's :abort stops a
                 ;; :continue node before it runs, contradicting its contract
@@ -295,6 +327,16 @@
                                                                      :failure-modes
                                                                      [(:failure-mode a) (:failure-mode b)]}}]))
                                                      (partition 2 1 plan-nodes)))
+                ;; Runtime v1 is abort-only. Until a typed continuation policy
+                ;; defines which successors may run, reject :continue plans.
+                unsupported-failure-modes (into []
+                                                (keep (fn [node]
+                                                        (when (= :continue (:failure-mode node))
+                                                          {:violation/id :violation/unsupported-failure-mode
+                                                           :details {:node/id (:node/id node)
+                                                                     :failure-mode :continue
+                                                                     :supported #{:abort}}})))
+                                                plan-nodes)
                 ;; custody-affecting effect conflicts (exclusive accounts and
                 ;; opposite directions on shared custody accounts)
                 custody-conflicts (custody-conflict-violations plan-nodes)
@@ -373,6 +415,7 @@
                                              effect-conflicts
                                              custody-conflicts
                                              failure-mode-conflicts
+                                             unsupported-failure-modes
                                              merge-conflicts
                                              adapter-violations
                                              verification-conflicts
@@ -406,5 +449,14 @@
                                     :input-contract (:combination/input combination)
                                     :output-contract (:combination/expected-output combination)
                                     :effect-merge-strategy effect-merge-strategy
-                                    :verification plan-verification})]
+                                    :verification plan-verification
+                                    :compiler-inputs
+                                    {:combination (combo/combination-projection combination)
+                                     :evidence-contracts
+                                     (if evidence-ref
+                                       (select-keys evidence-contracts [evidence-ref])
+                                       {})
+                                     :obligations
+                                     (select-keys obligations-registry
+                                                  (set (map :obligation/ref source-obligations)))}})]
                 {:status :valid :plan compiled-plan}))))))))

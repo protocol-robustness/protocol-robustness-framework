@@ -37,7 +37,9 @@
                      :rows [{:row/id :a :obligation/id :a :requested 10 :weight 1}]})
         tampered (assoc allocation :allocated-total 9N)
         {:keys [resolved publication-binding store]} (prepared)
-        commitments (sut/finalization-commitments store resolved publication-binding)]
+        root-only (assoc resolved :allocation
+                         {:allocation/hash (get-in resolved [:allocation :allocation/hash])})
+        commitments (sut/finalization-commitments store root-only publication-binding)]
     (is (allocation/allocation-hash-valid? allocation))
     (is (false? (allocation/allocation-hash-valid? tampered)))
     (is (= (get-in resolved [:allocation :allocation/hash])

@@ -103,7 +103,9 @@ PARTIAL_FILL_STAGE=2 forge test --match-path test/PartialFillControlled.t.sol \
   --match-test 'test_(Qualification|Reject)' --offline -vv
 
 # In PRF:
-cargo run --manifest-path coprocessor/Cargo.toml -p allocation-kernel \
+make setup-coprocessor
+coprocessor_root="$(./scripts/resolve-prf-coprocessor.sh)"
+cargo run --locked --manifest-path "$coprocessor_root/Cargo.toml" -p allocation-kernel \
   --bin controlled-entitlement-source-replay < witness.json
 clojure -M examples/partial-fill/materialize.clj witness EVIDENCE_DIR context.json
 ```

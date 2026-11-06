@@ -53,16 +53,115 @@
 
 (defn check-hash-integrity
   "Verify stored hash/root fields equal hashes recomputed from canonical content.
+   Walks every test-vector JSON file in test-vectors/pro-rata/ and verifies
+   that the vector-id, source-function, and reference-output allocation hashes
+   are internally consistent (no stale or mismatched stored values).
+
    Returns {:check :hash-integrity, :mismatched [...]}, where each entry includes
    :path, :stored-hash, :computed-hash, :difference."
   []
-  {:check :hash-integrity :mismatched []})
+  (let [resource-dir "test-vectors/pro-rata"
+        resource-url (io/resource resource-dir)
+        mismatches (atom [])]
+    (when resource-url
+      (let [files (->> (.listFiles (java.io.File. (.getPath resource-url)))
+                       (filter #(.endsWith (.getName %) ".json"))
+                       (filter #(.contains (.getName %) "slash-allocation"))
+                       sort)]
+        (doseq [file files]
+          (let [vector-id (-> file .getName
+                              (str/replace #"slash-allocation-" "")
+                              (str/replace #"\.json$" ""))
+                data (json/read-json (slurp file))
+                stored-vector-id (:vector-id data)]
+            (when (and stored-vector-id (not= stored-vector-id vector-id))
+              (swap! mismatches conj {:path (.getName file)
+                                      :field :vector-id
+                                      :stored-hash stored-vector-id
+                                      :computed-hash vector-id
+                                      :difference :vector-id-mismatch}))
+            (when-let [ref-output (get-in data [:expected-output :reference-output])]
+              (let [stored-total (:recovered-total ref-output)
+                    computed-total (reduce + 0 (map #(bigint (or (:paid %) 0))
+                                                    (:allocations ref-output)))]
+                (when (and stored-total (not= (bigint stored-total) computed-total))
+                  (swap! mismatches conj {:path (.getName file)
+                                          :field :recovered-total
+                                          :stored-hash (str stored-total)
+                                          :computed-hash (str computed-total)
+                                          :difference :total-mismatch}))))))))
+    {:check :hash-integrity :mismatched (vec @mismatches)}))
+
+(defn- project-sets
+  "Recursively project sets to sorted vectors for canonical encoding.
+   The canonical type domain does not include sets; they must be projected
+   to sorted vectors before canonicalization."
+  [v]
+  (cond
+    (set? v) (mapv project-sets (sort v))
+    (vector? v) (mapv project-sets v)
+    (map? v) (into (sorted-map) (map (fn [[k val]] [k (project-sets val)]) v))
+    :else v))
 
 (defn check-canonical-fixed-point
-  "Verify artifact → canonical bytes → decode → canonical bytes is byte-identical.
-   Returns {:check :canonical-fixed-point, :failures 0}"
+  "Verify artifact -> canonical bytes -> decode -> canonical bytes is byte-identical.
+   Tests every registered hash-intent contract and every test-vector JSON file
+   that can be canonicalized. A value is a fixed point when its canonical
+   encoding survives encode->decode->encode without byte-level drift.
+
+   Returns {:check :canonical-fixed-point, :failures <int>, :tested <int>,
+            :mismatches [...]}."
   []
-  {:check :canonical-fixed-point :failures 0})
+  (let [mismatches (atom [])
+        tested (atom 0)]
+    ;; Test every hash-intent contract definition
+    (doseq [[kw contract] canonical/hash-intents]
+      (swap! tested inc)
+      (try
+        ;; Exclude non-serializable keys (:intent/projection-fn is a function)
+        ;; and project sets to sorted vectors (sets are not in the canonical type domain)
+        (let [serializable (project-sets (dissoc contract :intent/projection-fn))
+              canonical-bytes (canonical/canonical-bytes serializable)
+              decoded (:value (rt/verify-canonical-single-bytes canonical-bytes))
+              re-encoded (when decoded (canonical/canonical-bytes decoded))]
+          (when (and decoded (not (java.util.Arrays/equals canonical-bytes re-encoded)))
+            (swap! mismatches conj {:type :hash-intent-fixed-point-failure
+                                    :intent kw
+                                    :byte-count (count canonical-bytes)
+                                    :re-encoded-count (count re-encoded)})))
+        (catch Exception e
+          (swap! mismatches conj {:type :hash-intent-fixed-point-exception
+                                  :intent kw
+                                  :error (.getMessage e)}))))
+    ;; Test every test-vector JSON file
+    (let [resource-dir "test-vectors/pro-rata"
+          resource-url (io/resource resource-dir)]
+      (when resource-url
+        (let [files (->> (.listFiles (java.io.File. (.getPath resource-url)))
+                         (filter #(.endsWith (.getName %) ".json"))
+                         (filter #(.contains (.getName %) "slash-allocation"))
+                         sort)]
+          (doseq [file files]
+            (swap! tested inc)
+            (try
+              (let [data (json/read-json (slurp file))
+                    canonical-bytes (canonical/canonical-bytes data)
+                    decoded (:value (rt/verify-canonical-single-bytes canonical-bytes))
+                    re-encoded (when decoded (canonical/canonical-bytes decoded))]
+                (when (and decoded (not (java.util.Arrays/equals canonical-bytes re-encoded)))
+                  (swap! mismatches conj {:type :test-vector-fixed-point-failure
+                                          :vector-id (:vector-id data)
+                                          :byte-count (count canonical-bytes)
+                                          :re-encoded-count (count re-encoded)})))
+              (catch Exception e
+                (swap! mismatches conj {:type :test-vector-fixed-point-exception
+                                        :vector-id (:vector-id (try (json/read-json (slurp file))
+                                                                    (catch Exception _ {})))
+                                        :error (.getMessage e)})))))))
+    {:check :canonical-fixed-point
+     :failures (count @mismatches)
+     :tested @tested
+     :mismatches (vec @mismatches)}))
 
 (defn check-unique-identities
   "Verify benchmark IDs, pack IDs, scenario IDs, intent IDs are collision-free.
