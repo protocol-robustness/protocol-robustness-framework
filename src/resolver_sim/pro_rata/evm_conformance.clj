@@ -13,7 +13,7 @@
             [resolver-sim.pro-rata.quantity :as quantity]
             [resolver-sim.pro-rata.target-map :as target-map]))
 
-(def package-path "pro-rata-evm-v2-conformance")
+(def package-path "pro-rata/evm-v2-conformance")
 (def positive-paths ["vectors/all-active-60-40.edn"
                      "vectors/aggregate-held-credit-60-40.edn"])
 (def rejection-paths ["rejection-vectors/forged-post-state.edn"

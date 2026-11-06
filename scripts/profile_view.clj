@@ -15,7 +15,7 @@
 
 (def repo-root (fs/path (System/getProperty "user.dir")))
 (def profiles-dir (fs/path repo-root "profiles"))
-(def source-roots ["yield_runtime_src" "src" "protocols_src" "pro_rata_contract_src"
+(def source-roots ["yield_runtime_src" "src" "protocols_src" "pro-rata/contract-source"
                    "extensions/sew-core-model/src"])
 
 (defn read-edn [path] (edn/read-string (slurp (str path))))
@@ -226,7 +226,7 @@
     (spit (str (fs/path view-root "deps.edn"))
           (pr-str (assoc (select-keys base [:mvn/repos :deps])
                          :paths ["src" "yield_runtime_src" "protocols_src"
-                                 "pro_rata_contract_src" "extensions/sew-core-model/src"
+                                 "pro-rata/contract-source" "extensions/sew-core-model/src"
                                  "resources"]
                          :aliases {:profile/check {:extra-paths ["test"]}})))))
 

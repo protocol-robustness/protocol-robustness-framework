@@ -8,7 +8,7 @@
   (:import [java.security MessageDigest]))
 
 (defn- fixture [name]
-  (edn/read-string (slurp (io/file "portable-pro-rata-contract" "vectors" name))))
+  (edn/read-string (slurp (io/file "pro-rata/portable-contract" "vectors" name))))
 
 (deftest canonical-transition-vector-reconstructs
   (let [{:keys [state-before raw-effects expected]} (fixture "canonical-transition-001.edn")
@@ -21,7 +21,7 @@
             :state-after/root (:state-after/root transition)
             :transition/root (:canonical-effect-transition/root transition)}))
     (doseq [[artifact value] (:canonical-values expected)]
-      (is (= (slurp (io/file "portable-pro-rata-contract" "canonical-bytes"
+      (is (= (slurp (io/file "pro-rata/portable-contract" "canonical-bytes"
                              (str (name artifact) ".hex")))
              (str (canonical/hex (canonical/canonical-bytes value)) "\n"))))))
 
@@ -54,7 +54,7 @@
 (deftest allocation-canonical-bytes-commit-to-published-root
   (let [vector (fixture "allocation-rounding-001.edn")
         body-hex (str/trim
-                  (slurp (io/file "portable-pro-rata-contract"
+                  (slurp (io/file "pro-rata/portable-contract"
                                   (get-in vector [:expected :canonical-bytes/file]))))
         digest (MessageDigest/getInstance "SHA-256")]
     (.update digest (.getBytes ^String (:projection-artifact contract/domains) "UTF-8"))
@@ -63,7 +63,7 @@
            (canonical/hex (.digest digest))))))
 
 (deftest release-manifest-is-closed-and-rooted
-  (let [root (io/file "portable-pro-rata-contract")
+  (let [root (io/file "pro-rata/portable-contract")
         manifest (edn/read-string (slurp (io/file root "manifest.edn")))]
     (is (= (:portable-contract/release-root manifest) (contract/release-root manifest)))
     (doseq [{:keys [path sha256]} (:files manifest)]
@@ -83,7 +83,7 @@
                            (dissoc result :allocation/hash :allocation/fractional-remainder-total))
           published-bytes (decode-hex
                            (str/trim
-                            (slurp (io/file "portable-pro-rata-contract"
+                            (slurp (io/file "pro-rata/portable-contract"
                                             (:canonical-bytes/file expected)))))
           digest (MessageDigest/getInstance "SHA-256")]
       (.update digest (.getBytes ^String (:projection-artifact contract/domains) "UTF-8"))

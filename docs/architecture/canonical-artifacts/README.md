@@ -398,7 +398,7 @@ PRF checkout
 ├── src/resolver_sim/allocation/                statement, context, lifecycle,
 │                                             execution, proof, entitlement blend
 ├── src/resolver_sim/shortfall/                 scarcity and reserve/application bindings
-├── pro_rata_contract_src/                     independent aggregate contract reference
+├── pro-rata/contract-source/                     independent aggregate contract reference
 ├── prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/                         Rust codec, selection/fill/lifecycle,
 │                                             Shortfall, entitlement and execution blend
 ├── prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/*-sp1-program/                 distinct guest/profile identities

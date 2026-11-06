@@ -20,29 +20,20 @@ dependency pins are recorded in
 | `examples/`, `notebooks/`, and `docs/` | Demonstrations, research notebooks, architecture, and operator guidance. |
 | `scripts/`, `bin/`, and `bb.edn` | Build, validation, CLI, and maintenance entry points. |
 
-## Why four pro-rata directories remain at the root
+## Pro-rata package directories
 
-The four root paths are `pro_rata_contract_src/`,
-`pro_rata_contract_test/`, `portable-pro-rata-contract/`, and
-`pro-rata-evm-v2-conformance/`. They describe different contracts and evidence
-roles; merging them by name would blur their ownership. The linkage-only
-`packages/pro-rata-allocation/` directory is separate and is not one of these
-four root trees.
+Four related trees now share one parent and consistent `kebab-case` names:
 
-| Path | Current role | Safe next step |
-| --- | --- | --- |
-| `packages/pro-rata-allocation/` | Linkage to the extracted `prf-pro-rata-allocation` package; implementation and allocation fixtures are consumed from its pinned revision. | Keep the pointer and pin. |
-| `pro_rata_contract_src/` and `pro_rata_contract_test/` | Independent Clojure reference implementation and its conformance suite. This remains a second implementation used as an oracle. | Retain until the extracted packages are independently checked against the same frozen allocation and transition vectors. Then relocate as one reviewed reference-fixture unit. |
-| `portable-pro-rata-contract/` | Historical mixed allocation/effect-transition contract bundle with a manifest-bound release root. | Preserve its path and bytes while consumers still verify that historical identity. The effect-transition candidate is not yet an admitted PRF dependency. |
-| `pro-rata-evm-v2-conformance/` | EVM V2 conformance inputs and rejection vectors for the PRF/EVM assurance boundary. | Keep with that boundary; it is not part of the portable allocator package. |
+| Path | Current role |
+| --- | --- |
+| `pro-rata/contract-source/` and `pro-rata/contract-tests/` | Independent Clojure reference implementation and its conformance suite. |
+| `pro-rata/portable-contract/` | Historical mixed allocation/effect-transition contract bundle with a manifest-bound release root. |
+| `pro-rata/evm-v2-conformance/` | EVM V2 conformance inputs and rejection vectors for the PRF/EVM assurance boundary. |
 
-The remaining extraction work is specific: keep the effect-transition
-repository clearly marked as a candidate until its consumer pin and package
-qualification are settled; close the remaining cross-language fixture-drift
-check; and decide how the independent reference suite will be distributed.
-Only then consider moving the historical mixed bundle behind an explicit
-compatibility path. Do not rename canonical identities, namespaces, schemas,
-or roots as part of filesystem cleanup.
+These paths are grouped for navigation; the contents still serve distinct
+contracts and evidence roles. Keep the portable bundle's canonical bytes and
+release root stable, and keep the linkage-only `packages/pro-rata-allocation/`
+directory separate from these four trees.
 
 ## Test keys and extensions
 

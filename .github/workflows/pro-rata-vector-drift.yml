@@ -3,14 +3,14 @@ name: Pro-rata EDN ↔ Rust frozen-vector drift
 on:
   pull_request:
     paths:
-      - "portable-pro-rata-contract/**"
+      - "pro-rata/portable-contract/**"
       - "scripts/conformance/pro_rata_vector_drift.clj"
       - "test/resolver_sim/pro_rata/vector_drift_test.clj"
       - "bb.edn"
       - ".github/workflows/pro-rata-vector-drift.yml"
   push:
     paths:
-      - "portable-pro-rata-contract/**"
+      - "pro-rata/portable-contract/**"
       - "scripts/conformance/pro_rata_vector_drift.clj"
       - "test/resolver_sim/pro_rata/vector_drift_test.clj"
       - "bb.edn"
