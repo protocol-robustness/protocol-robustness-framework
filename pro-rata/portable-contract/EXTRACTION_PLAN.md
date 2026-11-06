@@ -3,7 +3,7 @@
 ## Before pro-rata-evm-v2
 
 1. Treat `SPEC.md` and `contract.edn` as normative authority.
-2. Keep portable canonical/reference code in `pro_rata_contract_src` independently loadable.
+2. Keep portable canonical/reference code in `pro-rata/contract-source` independently loadable.
 3. Make production Clojure allocation roots and canonical transitions consume portable projections.
 4. Pin shared transition bytes/roots and allocation reconstruction vectors.
 5. Require EVM V2 to consume only portable contract data plus generic hash primitives.

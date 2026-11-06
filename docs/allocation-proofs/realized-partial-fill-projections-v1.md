@@ -16,7 +16,7 @@ lowercase-hex(SHA-256(UTF8(domain-tag) || canonical-bytes(body)))
 ```
 
 The exact binary encoding and map-order rule are defined by
-`portable-pro-rata-contract/SPEC.md` §3. JSON source text is not hashed.
+`pro-rata/portable-contract/SPEC.md` §3. JSON source text is not hashed.
 
 ## Input normalization
 

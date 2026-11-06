@@ -140,15 +140,9 @@
 
 (deftest aggregate-member-key-density-still-detects-truly-non-dense-keys
   (testing "a key set missing 0..n-1 (a gap) is still rejected"
-    (let [round (rr/build-review-round
-                 {:benchmark/content-root "sha256:abc"
-                  :review-round/purpose :model-admission
-                  :review-round/members
-                  [{:review-member/key 0, :researcher/id "researcher-a" :role :model-steward}
-                   {:review-member/key 1, :researcher/id "researcher-b" :role :independent-reproducer}
-                   {:review-member/key 3, :researcher/id "researcher-c" :role :adversarial-reviewer}]
-                  :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
-                  :review-round/policy-root "sha256:policy"})
+    (let [round (update (make-keyed-round)
+                        :review-round/members
+                        #(assoc-in % [2 :review-member/key] 3))
           result (rac/check-aggregate-member-key-density round)]
       (is (not (:holds? result)))
       (is (some #(= ::rac/non-dense-member-keys (:kind %)) (:violations result))))))

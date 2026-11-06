@@ -235,7 +235,7 @@
   (let [prf-root (.getCanonicalFile (io/file prf-root))
         allocation-root (.getCanonicalFile (io/file allocation-root))
         transition-root (.getCanonicalFile (io/file transition-root))
-        reference-dir (io/file prf-root "portable-pro-rata-contract/vectors")
+        reference-dir (io/file prf-root "pro-rata/portable-contract/vectors")
         allocation-dir (io/file allocation-root "clj/test/fixtures/portable-pro-rata-contract/vectors")
         transition-provenance (io/file transition-root "provenance/portable-pro-rata-contract.v1/vectors")
         transition-resources (io/file transition-root "resources/prf/effect_transition_contract/v1/vectors")
@@ -258,8 +258,8 @@
                 :reference {:revision (revision prf-root)
                             :working-tree-content-sha256
                             (tree-fingerprint prf-root
-                                              (concat ["portable-pro-rata-contract/manifest.edn"]
-                                                      (map #(str "portable-pro-rata-contract/vectors/" %)
+                                              (concat ["pro-rata/portable-contract/manifest.edn"]
+                                                      (map #(str "pro-rata/portable-contract/vectors/" %)
                                                            (keys (files-by-name reference-dir)))) )
                             :vectors (sort (keys (files-by-name reference-dir)))}
                 :allocation {:revision (revision allocation-root)
