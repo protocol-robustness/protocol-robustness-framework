@@ -162,17 +162,17 @@
         cap (:cap row)
         effective-cap (if (some? cap) (min owed cap) owed)]
     (cond-> {:key k
-     :obligation-id (:obligation-id row)
-     :source-position-id (:source-position-id row)
-     :owed owed
-     :weight (or (:weight row) owed)
-     :cap (when cap (long cap))
-     :effective-cap (long effective-cap)
-     :filled f
-     :final-allocation f
-     :deferred d
-     :fill-ratio (if (pos? owed) (double (/ f owed)) 0.0)
-     :cap-hit? (if (some? cap) (>= f effective-cap) false)}
+             :obligation-id (:obligation-id row)
+             :source-position-id (:source-position-id row)
+             :owed owed
+             :weight (or (:weight row) owed)
+             :cap (when cap (long cap))
+             :effective-cap (long effective-cap)
+             :filled f
+             :final-allocation f
+             :deferred d
+             :fill-ratio (if (pos? owed) (double (/ f owed)) 0.0)
+             :cap-hit? (if (some? cap) (>= f effective-cap) false)}
       (not= bucket k) (assoc :bucket bucket))))
 
 (defn- residual-reason
@@ -436,6 +436,11 @@
                                                 (not (and (integer? cap) (not (neg? cap))))))) rows)
                                (not= (count rows) (count (distinct (map :key rows))))))
                       :invalid-rows
+                      (and (vector? rows)
+                           (not= :waterfall mode)
+                           (some (fn [{:keys [key bucket]}]
+                                   (and (some? bucket) (not= bucket key))) rows))
+                      :bucket-not-supported-for-mode
                       (and (vector? rows) (not= requested row-requested)) :row-request-mismatch
                       (and (vector? rows) (= :waterfall mode)
                            (not= (count (or (:fill-order policy)

@@ -7,16 +7,14 @@
    so the authorized-scope binding is independently re-derivable; :valid? and
    :verified? are deliberately separated (see check-force-auth-held-mutation).
 
-   This extension depends ONLY on approved public PRF core namespaces
-   (resolver-sim.evidence.artifact, resolver-sim.assurance.force-authorisation)
-   and never on a protocol implementation.
+   This extension depends on the versioned core contract
+   (resolver-sim.extensions.api.v1) and never on a protocol implementation.
 
    BOUNDARY GUARD — This namespace MUST NOT import or depend on:
      - resolver-sim.protocols.sew
      - any form under protocols_src/
      - any other extension namespace"
-  (:require [resolver-sim.evidence.artifact :as artifact]
-            [resolver-sim.assurance.force-authorisation :as fa]))
+  (:require [resolver-sim.extensions.api.v1 :as api]))
 
 ;; ── artifact contract ──────────────────────────────────────────────────────
 
@@ -92,7 +90,7 @@
               :owner/address (:owner/address m)
               :held/reason (:held/reason m)
               :held/workflow-id (:held/workflow-id m)}]
-    (assoc (fa/normalize-force-authorisation-scope
+    (assoc (api/normalize-force-authorisation-scope
             (cond-> base
               (some? (:held/position-id m)) (assoc :held/position-id (:held/position-id m))
               (some? (:parameter/context m)) (assoc :parameter/context (:parameter/context m))
@@ -104,7 +102,7 @@
    force-authorisation scope hashing rule. The :operation discriminator is
    excluded so this reconciles with the grant's :authorization/scope-hash."
   [projection]
-  (fa/force-authorisation-scope-hash (dissoc projection :operation)))
+  (api/force-authorisation-scope-hash (dissoc projection :operation)))
 
 (defn projection-integrity-valid?
   "True when the projection is a map and its committed projection-hash equals
@@ -191,7 +189,7 @@
               :authorization-scope/projection-hash (projection-hash projection)
               :held/consumed-at (:consumed-at adjustment)
               :held/consumed-by (:consumed-by adjustment)}]
-    (artifact/finalize-artifact body)))
+    (api/finalize-artifact body)))
 
 (defn add-held-action
   "Build an inward :add-held held-custody mutation — a direction-consistent
@@ -264,7 +262,7 @@
   (let [authorization (:authorization context)
         ;; The held-custody .v1 contract uses the strict :exact preimage policy
         ;; (decodes to body AND canonical fixed-point serialization).
-        intrinsic (artifact/valid-artifact? artifact schema-version artifact-kind
+        intrinsic (api/valid-artifact? artifact schema-version artifact-kind
                                             verifier-id :exact)
         action (normalize-action (:held/action artifact))
         direction (normalize-direction (:held/direction artifact))
