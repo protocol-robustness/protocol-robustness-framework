@@ -8,17 +8,14 @@
    intrinsically valid are excluded from flows, reported in :invalid-artifacts,
    and make the aggregate non-passing.
 
-   This extension depends ONLY on approved public PRF core namespaces
-   (resolver-sim.evidence.artifact, resolver-sim.hash.sequence,
-   resolver-sim.sensitivity.sentinel) and the sibling mutation namespace.
+   This extension depends on the versioned PRF core contract
+   (resolver-sim.extensions.api.v1) and the sibling mutation namespace.
 
    BOUNDARY GUARD — This namespace MUST NOT import or depend on:
      - resolver-sim.protocols.sew
      - any form under protocols_src/
      - resolver-sim.evidence.force-authorisation (legacy core domain)"
-  (:require [resolver-sim.evidence.artifact :as artifact]
-            [resolver-sim.hash.sequence :as seq]
-            [resolver-sim.sensitivity.sentinel :as sentinel]
+  (:require [resolver-sim.extensions.api.v1 :as api]
             [prf.extensions.held-custody.mutation :as mutation]))
 
 (declare check-held-mutation-sequence)
@@ -206,7 +203,7 @@
    and recompute share the same canonical derivation."
   [members _options]
   (admit-members! members)
-  (artifact/finalize-artifact (summary-body members)))
+  (api/finalize-artifact (summary-body members)))
 
 (defn recompute-held-mutation-summary
   "Canonical recomputation of the held-custody mutation summary artifact from a
@@ -214,7 +211,7 @@
    triage views exactly as the builder does. Byte-equal to the builder for any
    admitted (intrinsically valid) member set."
   [members _options]
-  (artifact/finalize-artifact (summary-body members)))
+  (api/finalize-artifact (summary-body members)))
 
 ;; ── aggregate checker ──────────────────────────────────────────────────────
 
@@ -316,7 +313,7 @@
                           (= summary-kind (:artifact/kind summary))
                           (= summary-verifier-id (:artifact/verifier summary))
                           ;; held-custody .v1 summary uses the strict :exact policy
-                          (artifact/valid-artifact? summary summary-schema-version
+                          (api/valid-artifact? summary summary-schema-version
                                                     summary-kind summary-verifier-id
                                                     :exact))
         {:keys [invalid valid-members]} (valid-member-summary members)
@@ -417,7 +414,7 @@
    its held action is :add-held.  Delegates to the sensitivity sentinel, the
    authoritative classifier for the remote-authority-required boundary."
   [m]
-  (sentinel/remote-authority-required-artifact? m))
+  (api/remote-authority-required-artifact? m))
 
 (defn force-auth-authorised?
   "True when every member is force-authorisation-backed — each carries a
@@ -481,13 +478,13 @@
      :add-held/amount (reduce + 0 (keep :held/amount add-held-members))
      :amount-by-action amount-by-action
      :sequence-hash (str "sha256:"
-                         (seq/sequence-hash {:purpose sequence-purpose} refs))}))
+                         (api/sequence-hash {:purpose sequence-purpose} refs))}))
 
 (defn held-mutation-sequence-bytes
   "Raw canonical bytes of the bound sequence commitment (canonical-value-
    sequence.v1) over the ordered member refs.  Framing-view compatible."
   [members]
-  (seq/canonical-sequence-bytes
+  (api/canonical-sequence-bytes
    {:purpose sequence-purpose}
    (mapv :artifact/hash (member-order members))))
 
@@ -498,13 +495,13 @@
    share the same canonical derivation."
   [members _options]
   (admit-members! members)
-  (artifact/finalize-artifact (held-mutation-sequence-body members)))
+  (api/finalize-artifact (held-mutation-sequence-body members)))
 
 (defn recompute-held-mutation-sequence
   "Canonical recomputation of the sequence artifact from a member set.
    Byte-equal to the builder for any admitted member set."
   [members _options]
-  (artifact/finalize-artifact (held-mutation-sequence-body members)))
+  (api/finalize-artifact (held-mutation-sequence-body members)))
 
 (defn check-held-mutation-sequence
   "Structured, deterministic, data-only check of a held-custody mutation
@@ -518,15 +515,15 @@
                           (= sequence-schema-version (:schema-version sequence))
                           (= sequence-kind (:artifact/kind sequence))
                           (= sequence-verifier-id (:artifact/verifier sequence))
-                          (artifact/valid-artifact? sequence sequence-schema-version
+                          (api/valid-artifact? sequence sequence-schema-version
                                                     sequence-kind sequence-verifier-id
                                                     :exact))
         {:keys [invalid]} (valid-member-summary members)
         members-valid? (zero? (count invalid))
         expected-body (held-mutation-sequence-body members)
         recomputes? (and identity-ok?
-                         (= (artifact/artifact-body expected-body)
-                            (artifact/artifact-body sequence)))
+                         (= (api/artifact-body expected-body)
+                            (api/artifact-body sequence)))
         checks {:sequence-identity-valid? identity-ok?
                 :members-valid? members-valid?
                 :sequence-recomputes? recomputes?}
@@ -536,5 +533,5 @@
      :checks checks
      :invalid-members (vec invalid)
      :mismatches (when (and identity-ok? (not recomputes?))
-                   [{:path [] :expected (artifact/artifact-body expected-body)
-                     :actual (artifact/artifact-body sequence)}])}))
+                   [{:path [] :expected (api/artifact-body expected-body)
+                     :actual (api/artifact-body sequence)}])}))

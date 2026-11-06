@@ -1,0 +1,24 @@
+{:concept/id :framework/currency
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Currency"
+ :concept/summary
+ "A unit of account with a named denomination and rules for expressing quantities. A currency is distinct from an asset that represents, tracks, or promises redemption in that denomination."
+ :concept/stakeholder-question "Which unit of account does this amount use, and what evidence connects the asset to that currency?"
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+ :concept/related [:framework/content-root :concept/configuration]
+ :concept/roles {:currency-definer {:description "Authority or standard that defines a currency denomination and its units."}
+                 :asset-issuer {:description "Issuer that defines an asset's claimed relationship to a currency."}
+                 :currency-verifier {:description "Reviewer that checks the denomination and supporting representation evidence."}}
+ :concept/entities {:currency-denomination {:description "Canonical currency identifier and denomination rules, including minor-unit precision when defined."}
+                    :currency-asset-representation {:description "A separately identified asset that claims to represent value denominated in a currency."}}
+ :concept/actions {:denominate-amount {:description "Express a quantity using a specific currency and unit convention."}
+                   :verify-currency-representation {:description "Inspect evidence for an asset's claimed relationship to a currency."}}
+ :concept/outcomes {:currency-identified {:description "The denomination and unit convention are explicit."}
+                    :representation-claimed {:description "An asset declares a currency relationship, without that declaration alone proving backing or redemption."}
+                    :representation-verified-within-scope {:description "Specified evidence supports the asset-currency relationship within a stated scope."}}
+ :concept/failure-modes [{:failure/id :currency-confused-with-asset :failure/name "Currency confused with asset" :failure/summary "A token contract or ticker is treated as the currency denomination itself." :protocol-mechanisms [:asset-identity :currency-denomination] :stakeholder-impact "Amounts and policy scopes can be applied to the wrong economic unit."}
+                         {:failure/id :currency-representation-overclaim :failure/name "Representation claim overstates evidence" :failure/summary "A declared peg or redemption promise is presented as proof of backing or redemption capacity." :protocol-mechanisms [:issuer-disclosure :verification-evidence] :stakeholder-impact "Users may infer a guarantee that was not verified."}
+                         {:failure/id :currency-unit-ambiguity :failure/name "Currency unit ambiguous" :failure/summary "Amounts omit currency identity or precision and are interpreted inconsistently." :protocol-mechanisms [:amount-denomination] :stakeholder-impact "Comparisons, accounting, or transfers use an incorrect scale."}]
+ :concept/assumptions ["Currency denomination, token asset identity, issuer identity, and backing evidence are distinct facts." "A ticker or symbol is not a globally unique currency or asset identity." "A representation claim does not prove reserve sufficiency, redemption, or legal status."]
+ :concept/out-of-scope ["Proving monetary value or reserve adequacy." "Selecting legal tender status." "Foreign exchange conversion or valuation unless an explicit conversion method and evidence are supplied."]}

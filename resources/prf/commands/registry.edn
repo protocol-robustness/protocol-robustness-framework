@@ -505,6 +505,48 @@
     :command/positional-args {:min 0 :max 0}
     :command/description "Read an EDN sensitivity-check request from stdin, make a hash-verified, signed disclosure decision, and write one EDN response to stdout."}
 
+   {:command/id :privacy-policy-inspect
+    :command/path ["privacy" "policy" "inspect"]
+    :command/title "Inspect a stablecoin privacy policy"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true :doc "EDN map containing :policy"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Validate a content-rooted privacy policy and report its authority and currentness as unverified/unknown."}
+
+   {:command/id :privacy-evaluate
+    :command/path ["privacy" "evaluate"]
+    :command/title "Evaluate an offline privacy request"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true :doc "EDN inputs: policies, request, signed classification/evidence attestations, and trust policies"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Evaluate a rooted request against pinned policies and existing sensitivity gates; output is offline and never authorizes a real operation."}
+
+   {:command/id :privacy-verify
+    :command/path ["privacy" "verify"]
+    :command/title "Reconstruct an offline privacy evaluation"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true :doc "EDN inputs used by privacy evaluate, plus :evaluation"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Recompute the privacy evaluation from supplied inputs and verify that the retained receipt matches; this does not authenticate trust configuration or currentness."}
+
    {:command/id :publish-check
     :command/path ["publish" "check"]
     :command/title "Out-of-process artifact publisher authority"
