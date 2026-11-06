@@ -258,7 +258,7 @@
 
 (defn execution-registry
   []
-  (registry-var-value 'resolver-sim.definitions.passive-registries/execution-registry))
+  ((registry-var-value 'resolver-sim.definitions.passive-registries/resolved-execution-registry)))
 
 (defn evidence-policy-registry
   []

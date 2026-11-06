@@ -40,7 +40,7 @@
             (fail! 500 "INVALID_POLICY" "Demo server must bind to a loopback address"))
         policy (ratification/build-policy (:policy config))
         target (ratification/build-target (assoc (:target config)
-                                                  :policy-root (:policy/root policy)))
+                                                 :policy-root (:policy/root policy)))
         researchers (mapv (fn [researcher]
                             (update researcher :public-key-path
                                     #(resolve-path (.getParent (io/file config-path)) %)))
@@ -133,7 +133,7 @@
         signing-key-id (:signing-key/id researcher)]
     (when-not (= (set (keys request))
                  (cond-> #{:kind} (contains? request :evidenceRoot) (conj :evidenceRoot)
-                   (contains? request :dissentReason) (conj :dissentReason)))
+                         (contains? request :dissentReason) (conj :dissentReason)))
       (fail! 422 "INVALID_INPUT" "Intent request contains missing or unknown fields"))
     (when (and (required-evidence? kind) (not (sha256-root? evidence-root)))
       (fail! 422 "INVALID_EVIDENCE_ROOT" "Challenge and reproduction require a sha256 evidence root"))
@@ -159,7 +159,7 @@
                "decision" (if (= :approve kind) "approve" "dissent")
                "dissentReasonRequired" (not= :approve kind)}
         evidence-root (assoc "evidenceRoot" evidence-root)
-        dissent-reason (assoc "dissentReason" dissent-reason))))
+        dissent-reason (assoc "dissentReason" dissent-reason)))))
 
 (defn- decision-from-json [value]
   (let [signature (:signature value)
@@ -317,7 +317,7 @@
         (let [store @store-atom
               duplicate (some #(when (= (:researcher/id decision)
                                         (get-in % [:contribution :contribution/decision :researcher/id])) %)
-                               (:contributions store))]
+                              (:contributions store))]
           (if duplicate
             (if (= (:decision/hash decision)
                    (get-in duplicate [:contribution :contribution/decision :decision/hash]))
@@ -332,7 +332,7 @@
                   (reset! store-atom next-store)
                   {:entry entry :ratification (ratification-view result) :retry? false})
                 (catch clojure.lang.ExceptionInfo error
-                  (fail! 409 "RECONSTRUCTION_FAILED" (.getMessage error))))))))))
+                  (fail! 409 "RECONSTRUCTION_FAILED" (.getMessage error)))))))))))
 
 (defn- respond! [^HttpExchange exchange status value]
   (let [bytes (.getBytes (json/write-str value :escape-unicode false) StandardCharsets/UTF_8)]
@@ -398,9 +398,10 @@
                                        "message" (.getMessage error)}))
                           (catch Exception _
                             (respond! exchange 500 {"code" "RECONSTRUCTION_FAILED"
-                                                   "message" "Request could not be reconstructed"}))))))
+                                                    "message" "Request could not be reconstructed"}))))))
     (.start server)
     {:server server :executor executor :fixture fixture
+     :host (:host fixture) :port (:port fixture)
      :stop (fn [] (.stop server 0) (.shutdown executor))}))
 
 (defn -main [& args]

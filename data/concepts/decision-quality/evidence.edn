@@ -17,57 +17,57 @@
  :concept/roles
  {:evidence-submitter
   {:description "Party that submits evidence."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+   }
   :evidence-examiner
   {:description "Entity that evaluates submitted evidence."
-   :maps-to [:protocol.actor/resolver :protocol.actor/resolution-module]}
+   }
   :evidence-keeper
    {:description "Entity that stores and provides access to evidence records."
-    :maps-to [:protocol.actor/verifier :protocol.actor/node]
-    :mapping/confidence :approximate
-    :mapping/note "Evidence keeper may be a protocol verifier or a network node"}}
+    
+    
+    }}
 
  :concept/entities
  {:evidence-submission
   {:description "A single piece of evidence submitted by a party."
-   :maps-to [:protocol.entity/evidence]}
+   }
   :evidence-deadline
   {:description "Time window within which evidence must be submitted."
-   :maps-to [:protocol.entity/deadline]}
+   }
   :evidence-registry
   {:description "Ordered collection of all evidence for a dispute."
-   :maps-to [:protocol.entity/evidence-chain]}}
+   }}
 
  :concept/actions
  {:submit-evidence
   {:description "Provide a fact or claim to support a position."
-   :maps-to [:protocol.action/submit-evidence]}
+   }
   :request-evidence
   {:description "Ask a party or third party to provide evidence."
-   :maps-to [:protocol.action/request-evidence]}
+   }
   :evaluate-evidence
   {:description "Weigh submitted evidence as part of a decision."
-   :maps-to [:protocol.action/resolve :protocol.action/settle]}
+   }
   :reject-evidence
   {:description "Decline to consider submitted evidence as untimely or irrelevant."
-   :maps-to [:protocol.action/reject-evidence]}}
+   }}
 
  :concept/outcomes
  {:evidence-sufficient
   {:description "Enough timely, non-contradictory evidence existed for an informed decision."
-   :maps-to [:protocol.outcome/resolved]}
+   }
   :evidence-missing
   {:description "Required evidence was never submitted or was unavailable."
-   :maps-to [:protocol.outcome/stuck]}
+   }
   :evidence-contradictory
   {:description "Submitted evidence conflicted and could not be reconciled."
-   :maps-to [:protocol.outcome/adversarial-resolution]}
+   }
   :evidence-late
   {:description "Evidence was submitted after the deadline and excluded."
-   :maps-to [:protocol.outcome/rejected]}
+   }
   :evidence-ignored
   {:description "Available evidence was not considered by the decider."
-   :maps-to [:protocol.outcome/adversarial-resolution]}}
+   }}
 
  :concept/failure-modes
  [{:failure/id :missing-critical-evidence

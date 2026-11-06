@@ -31,117 +31,117 @@
  :concept/vocabulary
  {:force-authorisation/request
   {:description "A request to authorise a forced settlement, specifying the workflow, action, and scope."
-   :maps-to [:protocol.entity/force-authorisation-grant]}
+   }
   :force-authorisation/policy
   {:description "The governance rules that determine whether a force-authorisation request is permissible."
-   :maps-to [:protocol.entity/governance-policy]}
+   }
   :force-authorisation/approvers
   {:description "The set of actors whose approval is required for a force-authorisation."
-   :maps-to [:protocol.actor/governance]}
+   }
   :force-authorisation/threshold
   {:description "The minimum number of approvals or the minimum authority level required."
-   :maps-to [:protocol.parameter/threshold]}
+   }
 :force-authorisation/scope
    {:description "The exact custody parameters (token, amount, direction, workflow) that the authorisation permits."
-    :maps-to [:protocol.entity/authorisation-scope]}
+    }
    :force-authorisation/scope-authorisation
    {:description "The requirement that concrete-accounting ledger mutation run only after the applicable scope has been validated — including position/account partitioning, and the force-authorisation status and scope for exceptional (force-settled) reasons. Scope-authorisation gates every low-level ledger/index write; the write is an internal implementation detail, not an independent public mutation surface. It spans both routine partitioned writes and exceptional force-settlements."
-    :maps-to [:protocol.guard/scope-enforced :protocol.guard/position-isolation]}
+    }
   :force-authorisation/expiry
   {:description "The time window within which the authorisation may be exercised."
-   :maps-to [:protocol.entity/expiry-deadline]}
+   }
   :force-authorisation/execution
   {:description "The act of executing a settlement under a force-authorisation."
-   :maps-to [:protocol.action/execute-force-settlement]}
+   }
   :force-authorisation/replay-protection
   {:description "The mechanism preventing the same authorisation from being used more than once."
-   :maps-to [:protocol.guard/single-use]}
+   }
   :force-authorisation/custody-impact
   {:description "The effect of a forced settlement on the custody ledger."
-   :maps-to [:protocol.outcome/custody-adjustment]}
+   }
   :force-authorisation/auth-id
   {:description "The shorthand identifier ('force-auth') deterministically derived from the workflow, direction (release/refund), and scope-hash prefix; it binds grant, execution, and consumption records so lifecycle ordering is verifiable."
-   :maps-to [:protocol.entity/authorisation-record]}
+   }
   :force-authorisation/lifecycle
   {:description "The strictly ordered lifecycle of a grant: grant records a force-authorisation in :active status; execute resolves the workflow while the grant stays :active; finalization consumes the grant via sub-held, moving it to :consumed. Expiry or revocation must precede execution to be valid. Violating the order (consumption without a grant, executed-after-expiry, reuse) is invalid."
-   :maps-to [:protocol.outcome/single-use-enforced :protocol.outcome/expiry-enforced]}
+   }
   :force-authorisation/lifecycle-summary
   {:description "A reviewer-facing summary of a force-authorisation execution chain with decision, execution, verification, and qualification sections (decision status, approvals/dissents, threshold, terminal consumption status, receipt hash, and provenance references)."
-   :maps-to [:protocol.action/report]}
+   }
   :force-authorisation/decision-status
   {:description "The decision outcome vocabulary of a researcher-consensus force-authorisation: :force-authorisation/approved, :force-authorisation/approved-with-dissent, or :force-authorisation/declined."
-   :maps-to [:protocol.outcome/decided]}
+   }
   :force-authorisation/approved
   {:description "The authorisation is effective and approved (plain-language gloss: 'accept')."
-   :maps-to [:protocol.outcome/decided]}
+   }
   :force-authorisation/approved-with-dissent
   {:description "The authorisation is effective and approved despite recorded dissenting positions. Dissent is a decision-process observation (consensus was not unanimous); it is recorded with a :dissent/reason but carries no executable qualification that alters the permitted action, scope, validity, or execution conditions. This is NOT 'accept with qualification'."
-   :maps-to [:protocol.outcome/decided]}
+   }
   :force-authorisation/declined
   {:description "The authorisation did not reach the required approval threshold and is not effective."
-   :maps-to [:protocol.outcome/decided]}
+   }
   :force-authorisation/qualified-acceptance
   {:description "A distinct decision form (conditional, scoped, caveated, or modified acceptance) that is currently NOT implemented. It is not a synonym for :approved-with-dissent. Introducing it would require a represented, committed, verified, and enforced qualification that changes the permitted action, scope, validity, or execution conditions."
-   :maps-to [:protocol.outcome/decided]}}
+   }}
 
  :concept/roles
  {:governance-authoriser
   {:description "Entity that grants force-authorisation."
-   :maps-to [:protocol.actor/governance]}
+   }
   :force-executor
   {:description "Entity that executes the forced settlement."
-   :maps-to [:protocol.actor/keeper :protocol.actor/governance]}
+   }
   :scope-beneficiary
   {:description "Party that receives the settlement proceeds under the authorised scope."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+   }}
 
  :concept/entities
  {:force-authorisation-grant
   {:description "A recorded grant that permits a specific settlement within a defined scope."
-   :maps-to [:protocol.entity/authorisation-record]}
+   }
   :authorisation-scope
   {:description "The immutable scope parameters committed at grant time."
-   :maps-to [:protocol.entity/scope-map]}
+   }
   :consumption-registry
   {:description "A record of which authorisations have been consumed."
-   :maps-to [:protocol.entity/consumption-registry]}}
+   }}
 
  :concept/actions
  {:grant-force-authorisation
   {:description "Record a new force-authorisation with a specific scope and expiry."
-   :maps-to [:protocol.action/grant-authorisation]}
+   }
   :execute-force-authorisation
   {:description "Settle a workflow using a previously granted force-authorisation."
-   :maps-to [:protocol.action/execute-authorised-action]}
+   }
   :revoke-force-authorisation
   {:description "Cancel a force-authorisation before it is exercised."
-   :maps-to [:protocol.action/revoke-authorisation]}
+   }
   :verify-force-authorisation-lifecycle
   {:description "Verify lifecycle order and consistency: every consumed auth has a matching grant, grants in the consumption registry report :consumed status, scope-hashes authenticate their stored scopes, and no consumption occurs without a preceding grant."
-   :maps-to [:protocol.action/check-invariant]}
+   }
   :summarise-force-authorisation-lifecycle
   {:description "Produce a concentrated reviewer-facing summary of a force-authorisation execution chain covering decision, execution, verification, and qualification."
-   :maps-to [:protocol.action/report]}}
+   }}
 
  :concept/outcomes
  {:scope-enforced
   {:description "The force-authorisation consumed only its exact grant-time scope."
-   :maps-to [:protocol.outcome/scope-enforced]}
+   }
   :scope-drifted
   {:description "The force-authorisation was used outside its grant-time scope."
-   :maps-to [:protocol.outcome/scope-violation]}
+   }
   :single-use-enforced
   {:description "The force-authorisation was consumed at most once."
-   :maps-to [:protocol.outcome/single-use-enforced]}
+   }
   :authorisation-expired
   {:description "The force-authorisation expired before being exercised."
-   :maps-to [:protocol.outcome/expiry-enforced]}
+   }
   :authorisation-revoked
   {:description "The force-authorisation was revoked before being exercised."
-   :maps-to [:protocol.outcome/revoked]}
+   }
   :lifecycle-consistent
   {:description "The grant→execute→consume ordering held: every consumption has a matching grant, consumed grants report :consumed status, and stored scope-hashes authenticate their scope maps."
-   :maps-to [:protocol.outcome/single-use-enforced :protocol.outcome/scope-enforced]}}
+   }}
 
  :concept/failure-modes
  [{:failure/id :scope-mismatch

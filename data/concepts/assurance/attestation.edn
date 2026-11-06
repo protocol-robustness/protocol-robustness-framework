@@ -27,76 +27,76 @@
  :concept/roles
  {:attestor
   {:description "Independent party that examines evidence and signs an attestation."
-   :maps-to [:protocol.role/verifier]}
+   }
   :attestation-verifier
   {:description "Party checking attestation integrity, quorum, and lifecycle state."
-   :maps-to [:protocol.role/verifier]}
+   }
   :governance
   {:description "Entity that defines quorum policies and adjudicates violation cases."
-   :maps-to [:protocol.actor/governance]}
+   }
   :subject
   {:description "Party whose claim or outcome is being attested."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+   }}
 
  :concept/entities
  {:attestation
   {:description "Signed binding between a claim outcome and a specific run and subject."
-   :maps-to [:protocol.entity/attestation]}
+   }
   :attestation-bundle
   {:description "Portable package containing attestations, verification results, and proof."
-   :maps-to [:protocol.entity/evidence]}
+   }
   :lifecycle-state
   {:description "Current state of an attestation — active, superseded, or revoked."
-   :maps-to [:protocol.entity/lifecycle-status]}
+   }
   :quorum-policy
   {:description "k-of-n rule determining how many independent attestors are required."
-   :maps-to [:protocol.entity/quorum-policy]}
+   }
   :violation-case
   {:description "Evidence-backed case opened when an attestor is suspected of misconduct."
-   :maps-to [:protocol.entity/violation-case]}
+   }
   :supersession-chain
   {:description "Linked sequence of attestations where each supersedes the prior one."
-   :maps-to [:protocol.entity/evidence-chain]}}
+   }}
 
  :concept/actions
  {:create-attestation
   {:description "Examine evidence and produce a signed attestation binding a claim outcome."
-   :maps-to [:protocol.action/sign-attestation]}
+   }
   :verify-attestation
   {:description "Check attestation hash, signature, lifecycle state, and integrity."
-   :maps-to [:protocol.action/verify-attestation]}
+   }
   :verify-quorum
   {:description "Check that enough independent attestors agree under the quorum policy."
-   :maps-to [:protocol.action/verify-quorum]}
+   }
   :supersede-attestation
   {:description "Replace an existing attestation with a newer one, linking them in a chain."
-   :maps-to [:protocol.action/supersede-attestation]}
+   }
   :revoke-attestation
   {:description "Explicitly invalidate an attestation, preventing further reliance on it."
-   :maps-to [:protocol.action/revoke-attestation]}
+   }
   :open-violation-case
   {:description "Begin an accountability case against an attestor for suspected violations."
-   :maps-to [:protocol.action/open-violation-case]}}
+   }}
 
  :concept/outcomes
  {:quorum-confirmed
   {:description "Required number of independent attestors agree on the claim outcome."
-   :maps-to [:protocol.outcome/released]}
+   }
   :quorum-rejected
   {:description "Attestors agree but the claim outcome is not as declared."
-   :maps-to [:protocol.outcome/adversarial-resolution]}
+   }
   :quorum-conflicted
   {:description "Attestors disagree on the claim outcome — conflict requires resolution."
-   :maps-to [:protocol.outcome/stuck]}
+   }
   :quorum-insufficient
   {:description "Not enough attestors participated to meet the quorum policy."
-   :maps-to [:protocol.outcome/deferred]}
+   }
   :attestation-revoked
   {:description "A previously valid attestation was explicitly revoked."
-   :maps-to [:protocol.outcome/governance-override]}
+   }
   :attestor-slashed
   {:description "An attestor was penalized for a slashable violation."
-   :maps-to [:protocol.outcome/adversarial-resolution]}}
+   }}
 
  :concept/failure-modes
  [{:failure/id :attestation-forged

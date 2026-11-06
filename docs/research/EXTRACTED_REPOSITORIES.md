@@ -7,7 +7,7 @@ qualification.
 | Repository | PRF integration pin | Role and qualification |
 |---|---|---|
 | [`prf-canonical`](https://github.com/protocol-robustness/prf-canonical) | `deps.edn`: `5e2b520feca812b049ba397b7b3681963c66a48c` | Shared canonical encodings and roots; source-compatibility qualified. |
-| [`prf-pro-rata-allocation`](https://github.com/protocol-robustness/prf-pro-rata-allocation) | `deps.edn`: `e0788f911e4fba3a27544cbccbb95d59d7daf2f7` | Portable allocation API and semantics; source-qualified, release remains unqualified. |
+| [`prf-pro-rata-allocation`](https://github.com/protocol-robustness/prf-pro-rata-allocation) | `deps.edn`: `cf38de1ea4ef03654ee3de8bead56c32ef078b10` | Portable allocation API and semantics; additive deployment-scoped claim profile remains unadopted; release qualification remains partial. |
 | [`prf-effect-transition-contract`](https://github.com/protocol-robustness/prf-effect-transition-contract) | **No PRF consumer pin**; exploratory remote `main`: `123836c296943665c08d8dc8341ec7f220750086` (`cfa399…` is a separate exploratory branch) | Effect-transition candidate. It is not an active PRF dependency, remains unreviewed, and is not release-qualified. |
 | [`prf-coprocessor`](https://github.com/protocol-robustness/prf-coprocessor) | `data/prf/external-repositories.json`: `e2e4e9b25622c52eb028fc373a66e81b3982e933` | Rust witness kernel, SP1 guests/hosts and proof scripts. Source extracted; release and SP1/Solidity proof qualification remain unqualified. |
 

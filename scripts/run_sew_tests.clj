@@ -126,6 +126,9 @@
     resolver-sim.evidence.staged-capture-test
     resolver-sim.io.content-addressed-store-test
     resolver-sim.benchmark.game-theory-validation-test
+    resolver-sim.benchmark.research-conclusion-test
+    resolver-sim.research.policy-approval-test
+    resolver-sim.commands.researcher-ux-test
     resolver-sim.benchmark.force-authorisation-consumption-v2-test
     resolver-sim.benchmark.force-authorised-execution-evidence-v2-test
     resolver-sim.benchmark.sew-pre-application-test

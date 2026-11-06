@@ -12,9 +12,9 @@ Some repository documents are derived from executable definitions. Do not hand-e
 | Core generated docs | Their registered core-doc sources | `make core-generated-docs-generate` | `make core-generated-docs-check` |
 | Semantic registry output (`docs/overview/SEMANTIC_VOCAB.md`, `docs/overview/SEMANTIC_REGISTRY.edn`) | `src/resolver_sim/definitions/registry.clj` | `make semantic-registry-generate` | `make semantic-registry-check` |
 
-Concept EDN files under `data/concepts/` are hand-edited (not generated); structural,
-registry, and mapping validation runs via `make concepts-check` (the `concepts_validate.clj`
-script).
+Concept EDN files under `data/concepts/` and protocol mapping sets under
+`data/concept-mappings/` are hand-edited (not generated); structural, registry,
+and mapping validation runs via `make concepts-check` (`concepts_validate.clj`).
 
 ## Full checks
 

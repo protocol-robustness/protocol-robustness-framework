@@ -52,7 +52,7 @@ runner that could produce externally-reliable output.
 | Source byte size | ✅ | `byte-size` in `run-overview.json` |
 | Deterministic source hash | ✅ | `source-hash` (with `code-hash` compatibility alias) over sorted `path:content-sha256` entries |
 | Hash algorithm declared | ✅ | `source-hash-algorithm` field |
-| Included source roots declared | ✅ | `source-hash-roots` field |
+| Source roots declared | ✅ | `source-hash-roots` records configured roots; `included-roots` records existing roots that were hashed |
 | Clojure-side provenance bridge | ✅ | `PRF_*` env vars, `resolver-sim.forensic.provenance` |
 | Source provenance in execution node | ✅ | Merged into `:inputs` in `with-execution-node` |
 | Source/request/node hashes in bundle root | ❌ | Not yet in Clojure `build-bundle-root` output |

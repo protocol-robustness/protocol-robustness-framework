@@ -12,27 +12,27 @@
 
  :concept/roles
  {:proposer {:description "Entity that supplies the content root."
-             :maps-to [:protocol.actor/governance]}
+             }
   :verifier {:description "Entity that checks the root against the content."
-             :maps-to [:protocol.role/verifier]}}
+             }}
 
  :concept/entities
  {:content-root {:description "Content-addressed hash of the proposed package."
-                 :maps-to [:protocol.entity/canonical-hash]}
+                 }
   :canonical-projection {:description "The set of fields included in the hash computation."
-                         :maps-to [:protocol.entity/projection]}}
+                         }}
 
  :concept/actions
  {:commit-root {:description "Record a content root for a proposed package."
-                :maps-to [:protocol.action/commit-root]}
+                }
   :verify-root {:description "Verify that content matches its declared root."
-                :maps-to [:protocol.action/verify-allocation]}}
+                }}
 
  :concept/outcomes
  {:root-committed {:description "Root was recorded and bound to the proposal."
-                   :maps-to [:protocol.outcome/released]}
+                   }
   :root-mismatch {:description "Content does not match the declared root."
-                  :maps-to [:protocol.outcome/adversarial-resolution]}}
+                  }}
 
  :concept/failure-modes
  [{:failure/id :root-content-mismatch

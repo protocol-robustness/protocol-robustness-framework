@@ -15,7 +15,8 @@
 
 (def repo-root (fs/path (System/getProperty "user.dir")))
 (def profiles-dir (fs/path repo-root "profiles"))
-(def source-roots ["src" "protocols_src" "pro_rata_contract_src"])
+(def source-roots ["yield_runtime_src" "src" "protocols_src" "pro_rata_contract_src"
+                   "extensions/sew-core-model/src"])
 
 (defn read-edn [path] (edn/read-string (slurp (str path))))
 (defn profile-files [] (fs/glob profiles-dir "*.edn"))
@@ -93,10 +94,16 @@
           source-roots)))
 
 (defn required-namespaces [path]
-  (->> (re-seq #"\[\s*(resolver-sim(?:\.[A-Za-z0-9_-]+)+)" (slurp (str path)))
+  (let [source (slurp (str path))]
+    (->> (concat
+          ;; Literal namespace vectors in :require forms.
+          (re-seq #"\[\s*(resolver-sim(?:\.[A-Za-z0-9_-]+)+)" source)
+          ;; Literal runtime namespace edges. These are still source dependencies
+          ;; even when loaded or resolved lazily to avoid eager initialization.
+          (re-seq #"\b(?:requiring-resolve|ns-resolve|resolve)\s+'(resolver-sim(?:\.[A-Za-z0-9_-]+)+)(?:/|\s)" source))
        (map second)
        (map symbol)
-       set))
+       set)))
 
 (defn clojure-closure [entry-namespaces]
   (loop [pending (vec entry-namespaces) seen #{} files #{}]
@@ -129,10 +136,39 @@
 (defn symlink! [view-root source]
   (let [source (safe-source! source)
         relative (.relativize repo-root source)
-        target (fs/path view-root relative)]
+        view-root (.normalize (.toAbsolutePath (fs/path view-root)))
+        target (.normalize (.toAbsolutePath (fs/path view-root relative)))
+        profile-root (.normalize (.toAbsolutePath (fs/path repo-root ".profile-view")))
+        real-profile-root (.toRealPath profile-root (make-array java.nio.file.LinkOption 0))
+        real-view-root (.toRealPath view-root (make-array java.nio.file.LinkOption 0))]
+    (when-not (.startsWith target view-root)
+      (throw (ex-info "Profile link destination escapes its view root"
+                      {:view-root (str view-root) :target (str target)})))
+    (when-not (.startsWith real-view-root real-profile-root)
+      (throw (ex-info "Profile link view root is outside .profile-view"
+                      {:profile-root (str real-profile-root)
+                       :view-root (str real-view-root)})))
     (fs/create-dirs (fs/parent target))
+    (let [real-target-parent (.toRealPath (fs/parent target)
+                                          (make-array java.nio.file.LinkOption 0))
+          real-target (.normalize (.resolve real-target-parent (.getFileName target)))]
+      (when-not (.startsWith real-target-parent real-view-root)
+        (throw (ex-info "Profile link destination traverses outside its view root"
+                        {:view-root (str real-view-root)
+                         :target-parent (str real-target-parent)})))
+      (when (= real-target source)
+        (throw (ex-info "Profile link destination cannot overwrite its source"
+                        {:source (str source) :target (str real-target)}))))
     (when (fs/exists? target) (fs/delete target))
     (java.nio.file.Files/createSymbolicLink target source (make-array java.nio.file.attribute.FileAttribute 0))))
+
+(defn symlink-directory-files! [view-root source]
+  (let [source (safe-source! source)]
+    (with-open [paths (java.nio.file.Files/walk source (make-array java.nio.file.FileVisitOption 0))]
+      (doseq [path (iterator-seq (.iterator paths))
+              :when (java.nio.file.Files/isRegularFile
+                     path (make-array java.nio.file.LinkOption 0))]
+        (symlink! view-root path)))))
 
 (defn external-material-source [{:keys [repository path]}]
   (when-not (= repository :prf-coprocessor)
@@ -189,8 +225,21 @@
   (let [base (read-edn (fs/path repo-root "deps.edn"))]
     (spit (str (fs/path view-root "deps.edn"))
           (pr-str (assoc (select-keys base [:mvn/repos :deps])
-                         :paths ["src" "protocols_src" "pro_rata_contract_src" "resources"]
+                         :paths ["src" "yield_runtime_src" "protocols_src"
+                                 "pro_rata_contract_src" "extensions/sew-core-model/src"
+                                 "resources"]
                          :aliases {:profile/check {:extra-paths ["test"]}})))))
+
+(defn symlink-local-dependencies! [view-root]
+  (let [deps (:deps (read-edn (fs/path repo-root "deps.edn")))]
+    (doseq [[_ dependency] deps
+            :let [local-root (:local/root dependency)]
+            :when local-root]
+      (let [source (fs/path repo-root local-root)]
+        (when-not (fs/exists? source)
+          (throw (ex-info "Local dependency declared by deps.edn is missing"
+                          {:local/root local-root})))
+        (symlink! view-root source)))))
 
 (defn resolved-profile [name]
   (let [profiles (profiles-by-id)
@@ -277,6 +326,7 @@
         runtime-profile (runtime-profile profile)]
     (clear-directory! view-root)
     (doseq [source source-files] (symlink! view-root source))
+    (symlink-local-dependencies! view-root)
     (doseq [{:keys [path kind repository] :as material} materials]
       (when-not (keyword? kind)
         (throw (ex-info "Profile material requires a kind" {:material material})))
@@ -285,7 +335,9 @@
         (let [source (fs/path repo-root path)]
           (when-not (fs/exists? source)
             (throw (ex-info "Declared profile material is missing" {:path path})))
-          (symlink! view-root source))))
+          (if (fs/directory? source)
+            (symlink-directory-files! view-root source)
+            (symlink! view-root source)))))
     (generated-deps view-root)
     (when runtime-profile
       (spit (str (fs/path view-root "runtime-options.edn")) (pr-str runtime-profile)))

@@ -6,11 +6,31 @@
             [resolver-sim.pro-rata.claims :as claims]
             [resolver-sim.pro-rata.engine :as engine]
             [resolver-sim.pro-rata.redistribution :as redistribution]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [prf.pro-rata.identity :as allocation-identity]))
 
 (def rows
   [{:row/id :row/alice :obligation/id :withdrawal/alice :requested 8 :weight 8 :cap 8}
    {:row/id :row/bob :obligation/id :withdrawal/bob :requested 7 :weight 7 :cap 7}])
+
+(deftest allocation-matches-request-recomputes-mathematical-result
+  (let [request {:schema-version "pro-rata-allocation-request.v1"
+                 :mechanism/version 1
+                 :allocation/id :evm-v2/two-claim-60-40
+                 :available 100N
+                 :rows [{:row/id :claim/alice :requested 60N :weight 60N}
+                        {:row/id :claim/bob :requested 40N :weight 40N}]}
+        result (allocation/allocate request)
+        inconsistent (-> result
+                         (assoc-in [:rows 0 :allocated] 59N)
+                         (assoc-in [:rows 1 :allocated] 40N))
+        rehashed (assoc inconsistent :allocation/hash
+                        (allocation-identity/allocation-result-root inconsistent))]
+    (is (allocation/allocation-hash-valid? rehashed)
+        "the mutation is internally rehashed")
+    (is (allocation/allocation-matches-request? request result))
+    (is (not (allocation/allocation-matches-request? request rehashed))
+        "rehashing cannot make an incorrect allocation match its request")))
 
 (deftest runtime-claimant-execution-settings-are-not-canonical-allocation-inputs
   (let [rows (mapv (fn [i]

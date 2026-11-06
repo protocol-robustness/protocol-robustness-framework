@@ -292,7 +292,7 @@ without code changes.
 
 | Variable | Default | Controls |
 |---|---|---|
-| `PRF_SOURCE_ROOTS` | `src,protocols_src` | Comma-separated source directories for content-based `source-hash` / `code-hash` alias and `byte-size` |
+| `PRF_SOURCE_ROOTS` | `src,yield_runtime_src,protocols_src` | Comma-separated source directories for content-based `source-hash` / `code-hash` alias and `byte-size` |
 | `PRF_CODE_HASH_ALGORITHM` | `source-tree-hash.v1.path-content-sha256` | Canonical source hash algorithm recorded in bundle metadata |
 | `PRF_RUNS_ROOT` | `~/prf-runs` | Base output directory for forensic runs |
 | `PRF_ARTIFACT_DIR` | `results/test-artifacts` | Clojure pipeline artifact directory (relative to repo root) |
@@ -309,7 +309,7 @@ without code changes.
 Example:
 
 ```bash
-PRF_SOURCE_ROOTS="src,protocols_src,resources" \\
+PRF_SOURCE_ROOTS="src,yield_runtime_src,protocols_src,resources" \\
 PRF_RUNS_ROOT=/mnt/evidence-archive \\
 PRF_EVIDENCE_USER=dedicated-runner \\
 PRF_EVIDENCE_WORKSPACE=/mnt/evidence-workspace \\

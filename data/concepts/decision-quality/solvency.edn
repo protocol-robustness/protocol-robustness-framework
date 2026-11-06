@@ -26,64 +26,64 @@
  :concept/roles
  {:protocol-classifier
   {:description "Protocol logic that evaluates solvency from world state."
-   :maps-to [:protocol.actor/resolution-module]}
+   }
   :state-committer
   {:description "Mechanism that produces SHA-256 commitments over solvency-relevant state."
-   :maps-to [:protocol.actor/resolution-module]}
+   }
   :verifier
   {:description "Party that checks the solvency classification and commitment chain."
-   :maps-to [:protocol.actor/verifier]}
+   }
   :claimant
   {:description "Party with a valid claim who relies on solvency for repayment."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+   }}
 
  :concept/entities
  {:solvency-status
   {:description "One of five tiers: solvent, insolvent, unproven, proof-invalid, proof-state-mismatch."
-   :maps-to [:protocol.entity/solvency-status]}
+   }
   :commitment-root
   {:description "SHA-256 hash of the current solvency-relevant state subset."
-   :maps-to [:protocol.entity/commitment-root]}
+   }
   :prev-commitment
   {:description "Hash of the prior state, enabling a chained commitment sequence."
-   :maps-to [:protocol.entity/prev-commitment]}
+   }
   :solvency-ratio
   {:description "Numeric ratio of assets to liabilities used in accounting checks."
-   :maps-to [:protocol.entity/solvency-ratio]}
+   }
   :liability-set
   {:description "All outstanding claims, bonds, and obligations at a given state."
-   :maps-to [:protocol.entity/claimable]}}
+   }}
 
  :concept/actions
  {:classify-solvency
   {:description "Determine the solvency status from world state and optional proof."
-   :maps-to [:protocol.action/classify-solvency]}
+   }
   :compute-commitment
   {:description "Produce a deterministic SHA-256 commitment over escrows, yield positions, and balances."
-   :maps-to [:protocol.action/compute-commitment]}
+   }
   :verify-proof
   {:description "Check that the stored commitment matches a recomputed hash and the chain is intact."
-   :maps-to [:protocol.action/verify-allocation :protocol.action/check-invariant]}
+   }
   :detect-insolvency
   {:description "Identify when liabilities exceed assets, triggering :insolvent status."
-   :maps-to [:protocol.action/calculate-shortfall]}}
+   }}
 
  :concept/outcomes
  {:solvent
   {:description "Assets exceed liabilities AND the cryptographic commitment chain is intact."
-   :maps-to [:protocol.outcome/released]}
+   }
   :insolvent
   {:description "Liabilities exceed assets regardless of proof status."
-   :maps-to [:protocol.outcome/adversarial-resolution]}
+   }
   :unproven
   {:description "Accounting check passes but no cryptographic proof has been produced."
-   :maps-to [:protocol.outcome/deferred]}
+   }
   :proof-invalid
   {:description "The stored commitment does not match a recomputation from current state."
-   :maps-to [:protocol.outcome/adversarial-resolution]}
+   }
   :proof-state-mismatch
   {:description "The proof references a different prior state than the current world."
-   :maps-to [:protocol.outcome/stuck]}}
+   }}
 
  :concept/failure-modes
  [{:failure/id :undetected-insolvency

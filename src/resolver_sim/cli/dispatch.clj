@@ -5,6 +5,7 @@
    Every handler must have a registry entry (validated by commands:validate)."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
+            [clojure.edn :as edn]
             [clojure.tools.cli :as cli]
 
             [resolver-sim.cli.registry :as registry]))
@@ -86,6 +87,9 @@
    :ref-file 'resolver-sim.commands.ref-file/run
    :publication-trace 'resolver-sim.commands.publication/trace-run
    :sentinel-check 'resolver-sim.commands.sentinel/run
+   :privacy-policy-inspect 'resolver-sim.commands.privacy/policy-inspect
+   :privacy-evaluate 'resolver-sim.commands.privacy/evaluate
+   :privacy-verify 'resolver-sim.commands.privacy/verify
    :publish-check 'resolver-sim.commands.publish/run
    :resubmission-issue 'resolver-sim.commands.resubmission-issue/run
    :resubmission-issue-admission-v2 'resolver-sim.commands.resubmission-issue-admission-v2/run
@@ -114,6 +118,17 @@
    :researcher-challenge-status 'resolver-sim.commands.researcher-challenge/status
    :research-reward-check 'resolver-sim.commands.research/reward-check
    :research-reward-propose 'resolver-sim.commands.research/reward-propose
+   :research-question-list 'resolver-sim.commands.researcher-ux/question-list
+   :research-question-show 'resolver-sim.commands.researcher-ux/question-show
+   :research-evidence-inspect 'resolver-sim.commands.researcher-ux/evidence-inspect
+   :research-conclusion-verify 'resolver-sim.commands.researcher-ux/conclusion-verify
+   :research-resolution-show 'resolver-sim.commands.researcher-ux/resolution-show
+   :research-review-status 'resolver-sim.commands.researcher-ux/review-status
+   :research-policy-approval-prepare 'resolver-sim.commands.researcher-ux/policy-approval-prepare
+   :research-policy-approval-sign 'resolver-sim.commands.researcher-ux/policy-approval-sign
+   :research-policy-approval-verify 'resolver-sim.commands.researcher-ux/policy-approval-verify
+   :research-compare 'resolver-sim.commands.research/diff
+   :research-export 'resolver-sim.commands.researcher-ux/export-ro-crate
    :research-reward-approve 'resolver-sim.commands.research/reward-approve
    :check-aggregate 'resolver-sim.commands.check-aggregate/run})
 
@@ -124,13 +139,37 @@
     :scenario-list :scenario-compare :scenario-pick :scenario-run-search
     :benchmark-list :suite-list :invariants-run :verify-run :assure-package})
 
+(def ^:private framework-runner-command-ids
+  ;; The compact framework runner deliberately ships only these handlers.
+  ;; Keep its advertised command surface aligned with the actual source/dependency
+  ;; closure in scripts/build.clj.
+  #{:backstop :backstop-fast :check-ownership :commands-validate :fmt-check
+    :forensic-reproduce :forensic-run :forensic-validate :forensic-verify
+    :lint :validate})
+
+(def ^:private sew-unavailable-command-ids
+  ;; These commands currently require source/dependencies outside the Sew
+  ;; release closure. They remain available in a full development classpath.
+  #{:publication-trace :run-simulation :simulation-simplified})
+
+(defn- packaged-variant
+  []
+  (when-let [resource (io/resource "META-INF/prf-runner.edn")]
+    (try
+      (:variant (edn/read-string (slurp resource)))
+      (catch Exception _ nil))))
+
 (defn sew-capable?
   "True when this distribution contains the Sew protocol implementation."
   []
   (boolean (io/resource "resolver_sim/protocols/sew.clj")))
 
 (defn command-available? [cmd-id]
-  (or (not (sew-command-ids cmd-id)) (sew-capable?)))
+  (let [variant (packaged-variant)]
+    (case variant
+      "prf-runnable" (contains? framework-runner-command-ids cmd-id)
+      "sew" (and (sew-capable?) (not (contains? sew-unavailable-command-ids cmd-id)))
+      (or (not (sew-command-ids cmd-id)) (sew-capable?)))))
 
 (defn- handler-for [cmd-id]
   (when (command-available? cmd-id)

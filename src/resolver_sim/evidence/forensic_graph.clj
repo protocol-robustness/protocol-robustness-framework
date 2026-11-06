@@ -25,7 +25,7 @@
   #{:not-observed :not-available :not-verifiable :not-applicable :conflicting})
 
 (def actor-roles
-  #{:runner :observer :executor :prover :verifier :attestor :system})
+  #{:runner :observer :executor :prover :verifier :attestor :system :worker})
 
 (defn- root? [x] (hash-ref/valid-sha256-ref? x))
 
