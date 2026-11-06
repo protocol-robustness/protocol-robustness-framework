@@ -26,7 +26,7 @@ The relationship between layers:
 
 ---
 
-## Layer 1: Closed-Form Checks (`src/resolver_sim/yield/partial_fill.clj`)
+## Layer 1: Closed-Form Checks (`yield_runtime_src/resolver_sim/yield/partial_fill.clj`)
 
 ### Entry Point
 
@@ -103,7 +103,7 @@ Recomputes the content-addressed hash (via `decision-artifact`) and compares to 
 
 ---
 
-## Layer 2: Claims Evaluators (`src/resolver_sim/yield/pro_rata_claims.clj`)
+## Layer 2: Claims Evaluators (`yield_runtime_src/resolver_sim/yield/pro_rata_claims.clj`)
 
 ### Registered Evaluators
 
@@ -144,7 +144,7 @@ This reuses the existing `pro-rata-fairness-violations` function, avoiding dupli
 
 ---
 
-## Layer 3: Yield Invariants (`src/resolver_sim/yield/invariants.clj`)
+## Layer 3: Yield Invariants (`yield_runtime_src/resolver_sim/yield/invariants.clj`)
 
 ### All 9 Invariants
 
@@ -494,13 +494,13 @@ and gate tests without the full unit suite.
 
 | File | Purpose |
 |------|---------|
-| `src/resolver_sim/yield/partial_fill.clj` | 15 closed-form checks, batch validation, artifact validation |
-| `src/resolver_sim/yield/pro_rata_claims.clj` | 9 claims evaluators including partial-fill bridge |
-| `src/resolver_sim/yield/invariants.clj` | 9 yield invariants including shortfall-detected |
-| `src/resolver_sim/yield/invariant_catalog.clj` | Invariant metadata registry |
+| `yield_runtime_src/resolver_sim/yield/partial_fill.clj` | 15 closed-form checks, batch validation, artifact validation |
+| `yield_runtime_src/resolver_sim/yield/pro_rata_claims.clj` | 9 claims evaluators including partial-fill bridge |
+| `yield_runtime_src/resolver_sim/yield/invariants.clj` | 9 yield invariants including shortfall-detected |
+| `yield_runtime_src/resolver_sim/yield/invariant_catalog.clj` | Invariant metadata registry |
 | `src/resolver_sim/economics/payoffs.clj` | Pro-rata allocator with iterative redistribution |
-| `src/resolver_sim/yield/exact_math.clj` | Largest-remainder allocator primitive |
-| `src/resolver_sim/yield/strategic_partial_fill.clj` | Bounded strategic property enumeration and validation |
+| `yield_runtime_src/resolver_sim/yield/exact_math.clj` | Largest-remainder allocator primitive |
+| `yield_runtime_src/resolver_sim/yield/strategic_partial_fill.clj` | Bounded strategic property enumeration and validation |
 | `src/resolver_sim/scenario/equilibrium.clj` | Equilibrium validators including pro-rata-fairness |
 | `src/resolver_sim/benchmark/strategic_property_results.clj` | Adapter: raw verdicts → structured evidence vocabulary → gate results |
 | `src/resolver_sim/benchmark/strategic_claim_validation.clj` | Strategic claim catalog, V2 artifact builder, closed-shape validation |

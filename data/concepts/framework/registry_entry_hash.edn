@@ -12,27 +12,27 @@
 
  :concept/roles
  {:registrant {:description "Entity that registered the entry."
-               :maps-to [:protocol.actor/governance]}
+               }
   :registry-reader {:description "Entity that reads and verifies entries."
-                    :maps-to [:protocol.role/verifier]}}
+                    }}
 
  :concept/entities
  {:entry-hash {:description "Canonical hash of the registry entry."
-               :maps-to [:protocol.entity/canonical-hash]}
+               }
   :entry-fields {:description "The canonical projection of entry fields included in the hash."
-                 :maps-to [:protocol.entity/evidence]}}
+                 }}
 
  :concept/actions
  {:compute-hash {:description "Compute the canonical hash for a registry entry."
-                 :maps-to [:protocol.action/verify-allocation]}
+                 }
   :verify-hash {:description "Verify that an entry matches its canonical hash."
-                :maps-to [:protocol.action/verify-allocation]}}
+                }}
 
  :concept/outcomes
  {:hash-verified {:description "Entry hash matches its canonical computation."
-                  :maps-to [:protocol.outcome/released]}
+                  }
   :hash-mismatch {:description "Entry hash does not match canonical computation."
-                  :maps-to [:protocol.outcome/adversarial-resolution]}}
+                  }}
 
  :concept/failure-modes
  [{:failure/id :entry-hash-collision

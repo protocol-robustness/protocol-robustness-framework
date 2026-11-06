@@ -10,6 +10,36 @@
 
 ## Unreleased
 
+- Added `allocation-matches-request?` to independently recompute a committed
+  pro-rata allocation from its canonical request. Hash integrity and
+  mathematical correctness remain separate checks; neither establishes
+  request authority or settlement admission. V3 effect compilation now rejects
+  internally rehashed allocation bodies that do not match their retained
+  canonical request.
+
+- `verify-package` now executes each declared Pro-rata EVM V2 negative mutation
+  against its named positive vector and fails closed when a mutation is
+  unsupported or no longer rejected. Added a distinct assurance concept that
+  states the V2 reconstruction, configuration-binding, and native-execution
+  boundaries.
+
+- Added a diagnostic dependency-closure report for retained local
+  pro-rata execution evidence. It reuses the existing receipt reconstruction,
+  requires an out-of-band report digest, and reports missing approval/current
+  state as unknown; it does not qualify a deployment or establish public-chain
+  finality. The CLI can also invoke the existing pinned local Groth16 verifier;
+  it binds contract addresses to validated creation receipts where available
+  and can consume the existing block-pinned terminal-state observation. Proof
+  and local state results remain distinct from admission and deployment
+  qualification.
+
+- Added `bb pro-rata-vectors:check` to compare the PRF frozen allocation and
+  transition vectors with extracted package mirrors and Rust conformance-test
+  roots and rejection outcomes. The command reports source revisions and tool
+  versions; it rejects extra transition records and fingerprints Rust source
+  and test inputs, failing closed when required fingerprint inputs are missing.
+  It does not constitute admission or deployment qualification.
+
 - Added model-only `sew-bounty-escrow-route.v1` routing metadata and a
   fail-closed check for independently reconstructed Sew withdrawal categories.
   Workflow attribution remains unqualified pending a controlled Sew contract

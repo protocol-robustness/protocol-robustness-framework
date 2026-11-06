@@ -28,6 +28,11 @@ Primary project framing and status live in the root `../README.md`.
 | Entry-point execution and assurance capabilities | `operations/ENTRY_POINT_CAPABILITY_MATRIX.md` |
 | Generated-document workflow | `reference/GENERATED_DOCUMENTS.md` |
 | Extracted repository ownership and source pins | `research/EXTRACTED_REPOSITORIES.md` |
+| PRF core extraction readiness and release gates | `research/PRF_CORE_EXTRACTION_READINESS.md` |
+| Extraction value and readiness across research capabilities | `research/EXTRACTION_CANDIDATE_ASSESSMENT.md` |
+| Shared first-party extensions repository and package qualification plan | `research/PRF_EXTENSIONS_REPOSITORY_PLAN.md` |
+| Repairability report extension candidate and qualification gates | `proposals/REPAIRABILITY_REPORT_EXTENSION.md`, `../extensions/repairability-report/README.md` |
+| Stablecoin privacy policy, sensitivity integration, and Luna implementation tasks | `proposals/STABLECOIN_PRIVACY_POLICY.md`, `proposals/STABLECOIN_PRIVACY_POLICY_TASKS.md` |
 | Registry ownership, validation, and change rules | `reference/REGISTRIES.md` |
 | Runnable and visual examples | `../examples/README.md` |
 
@@ -132,6 +137,7 @@ Primary project framing and status live in the root `../README.md`.
 | `architecture/ADR-0003-canonical-scenario-generation-boundary.md` | ADR |
 | `architecture/ADR-0004-cross-protocol-funds-ledger-extraction.md` | ADR |
 | `architecture/ADR-0005-framework-extension-packages.md` | ADR: framework extension packages and economics capabilities (Proposed) |
+| `architecture/EXTENSION_CORE_API_V1.md` | Supported versioned source API for PRF extension packages; not a published core artifact |
 | `architecture/EVIDENCE_CHAIN_ARCHITECTURE.md` | Evidence chain architecture |
 | `architecture/EVIDENCE_DAG_ARCHITECTURE.md` | Evidence DAG architecture (lifecycle, topology, validation, persistence) |
 | `architecture/REPLAY_ENGINE_ARCHITECTURE.md` | Replay engine and dual-engine architecture (deterministic replay + Monte Carlo) |
@@ -276,7 +282,9 @@ PRF pins that source under its optional `:notebooks` dependency alias. See
 
 | Document | Description |
 |---|---|
-| `research/` (6 documents) | Research notes and analyses |
+| `research/` | Research notes and analyses |
+| `research/RUNNER_TRANSPORT_MODULES.md` | Internal runner transport responsibilities and extension boundary |
+| `research/RESEARCH_MODULE_BOUNDARIES.md` | Internal research module splits and repository extraction criteria |
 | `researcher/` (2 documents) | Researcher workflow guides |
 | `prompts/` (1 document) | Agent prompts |
 | `proposals/` (1 document) | Design proposals |

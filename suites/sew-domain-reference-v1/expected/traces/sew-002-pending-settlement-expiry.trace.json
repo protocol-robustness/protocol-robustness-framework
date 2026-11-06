@@ -183,6 +183,7 @@
    "within_resolution_window":true,
    "within_settlement_window":true,
    "pending_delay_seconds":60}},
+ "generated_by":"resolver-sim\/cdrs-0.2",
  "trace_kind":
  ["dispute-resolution", "pending-settlement", "authorization"],
  "terminal_projection_hash":

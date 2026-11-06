@@ -28,73 +28,73 @@
  :concept/roles
  {:claimant
   {:description "Party with a valid claim at a given priority level."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+   }
   :allocation-engine
   {:description "Protocol logic that computes pro-rata shares."
-   :maps-to [:protocol.actor/resolution-module]}
+   }
   :priority-classifier
   {:description "Entity or rule that assigns claims to priority levels."
-   :maps-to [:protocol.actor/resolution-module]}
+   }
   :verifier
   {:description "Party checking that allocation was proportional."
-   :maps-to [:protocol.actor/verifier]}}
+   }}
 
   :concept/entities
   {:claim-group
    {:description "Set of claims at the same priority level."
-    :maps-to [:protocol.entity/claim-pool]}
+    }
    :pro-rata-share
    {:description "Fraction of available value allocated to a single claimant."
-    :maps-to [:protocol.entity/allocation]}
+    }
    :cap
    {:description "Maximum amount allocatable to a single claimant, limiting their proportional share."
-    :maps-to [:protocol.entity/cap]}
+    }
    :allocation-table
    {:description "Complete mapping from claimants to allocated amounts."
-    :maps-to [:protocol.entity/settlement]}
+    }
    :redistribution
    {:description "Metadata recording which claimants hit their caps and how capped excess was redistributed."
-    :maps-to [:protocol.entity/evidence]}
+    }
    :proportionality-proof
    {:description "Evidence that allocation was proportional and ordering-independent."
-    :maps-to [:protocol.entity/evidence]}}
+    }}
 
   :concept/actions
   {:compute-pro-rata
    {:description "Divide available value proportionally among equal-priority claimants."
-    :maps-to [:protocol.action/calculate-pro-rata-allocation]}
+    }
    :enforce-caps
    {:description "Apply per-claimant caps, limiting individual allocation below proportional share."
-    :maps-to [:protocol.action/calculate-pro-rata-allocation]}
+    }
    :redistribute-capped-excess
    {:description "When a claimant hits their cap, redistribute excess to remaining uncapped claimants."
-    :maps-to [:protocol.action/calculate-pro-rata-allocation]}
+    }
    :verify-proportionality
    {:description "Check that fill ratios are equal across same-priority claimants (or reflect intended cap constraints)."
-    :maps-to [:protocol.action/verify-allocation :protocol.action/check-invariant]}
+    }
    :detect-imbalance
    {:description "Identify when claimants at the same priority receive different fill ratios not explained by caps."
-    :maps-to [:protocol.action/verify-allocation]}
+    }
    :verify-cap-adherence
    {:description "Check that no claimant receives more than their declared cap."
-    :maps-to [:protocol.action/verify-allocation :protocol.action/check-invariant]}
+    }
    :reject-unequal-allocation
    {:description "Prevent settlement when pro-rata fairness is violated."
-    :maps-to [:protocol.action/reject-allocation]}}
+    }}
 
  :concept/outcomes
  {:allocation-proportional
   {:description "All equal-priority claimants receive the same fill ratio."
-   :maps-to [:protocol.outcome/released]}
+   }
   :allocation-unequal
   {:description "Equal-priority claimants receive different fill ratios."
-   :maps-to [:protocol.outcome/adversarial-resolution]}
+   }
   :allocation-order-dependent
   {:description "Allocation changes when claim order is permuted."
-   :maps-to [:protocol.outcome/adversarial-resolution]}
+   }
   :allocation-rejected
   {:description "Unequal allocation was detected and settlement blocked."
-   :maps-to [:protocol.outcome/rejected]}}
+   }}
 
  :concept/failure-modes
  [{:failure/id :unequal-pro-rata

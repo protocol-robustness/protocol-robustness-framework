@@ -12,27 +12,27 @@
 
  :concept/roles
  {:distribution-engine {:description "Protocol logic that computes distribution shares."
-                        :maps-to [:protocol.actor/resolution-module]}
+                        }
   :liable-party {:description "Party subject to the slash distribution."
-                 :maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+                 }}
 
  :concept/entities
  {:distribution-table {:description "Mapping from liable parties to their assigned amounts."
-                       :maps-to [:protocol.entity/allocation]}
+                       }
   :slash-obligation {:description "The total slash amount to be distributed."
-                     :maps-to [:protocol.entity/obligation]}}
+                     }}
 
  :concept/actions
  {:compute-distribution {:description "Compute distribution shares for liable parties."
-                         :maps-to [:protocol.action/calculate-pro-rata-allocation]}
+                         }
   :verify-distribution {:description "Verify distribution correctness against policy."
-                        :maps-to [:protocol.action/verify-allocation]}}
+                        }}
 
  :concept/outcomes
  {:distribution-verified {:description "Distribution matches declared policy."
-                          :maps-to [:protocol.outcome/released]}
+                          }
   :distribution-mismatch {:description "Distribution deviates from declared policy."
-                          :maps-to [:protocol.outcome/adversarial-resolution]}}
+                          }}
 
  :concept/failure-modes
  [{:failure/id :distribution-inequitable

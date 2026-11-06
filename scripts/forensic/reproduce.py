@@ -57,12 +57,11 @@ def load_json(path: Path) -> dict | None:
 
 def current_code_hash(repo_root: Path) -> tuple[str, str, list[str]]:
     try:
-        ch, included_roots = compute_source_tree_hash(repo_root, PRF_SOURCE_ROOTS)
+        ch, _ = compute_source_tree_hash(repo_root, PRF_SOURCE_ROOTS)
     except Exception as exc:
         print(f"  ⚠ Failed to compute source tree hash: {exc}", file=sys.stderr)
         ch = "unknown"
-        included_roots = []
-    return ch, SOURCE_TREE_HASH_ALGORITHM, included_roots
+    return ch, SOURCE_TREE_HASH_ALGORITHM, list(PRF_SOURCE_ROOTS)
 
 
 def classify_source_precheck(bundle_hash: str | None,

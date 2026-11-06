@@ -15,7 +15,7 @@ Status: in-tree source candidate, not independently buildable or released. It
 uses the merged, compatibility-qualified canonical source candidate through
 the in-tree package path; no external immutable coordinate is published yet.
 The research-contract dependency also remains an in-tree source candidate. No
-implementation is vendored here. Its current isolated closure contains 26
+implementation is vendored here. Its current isolated closure contains 39
 namespaces.
 
 ## Identity and dispute-context boundary

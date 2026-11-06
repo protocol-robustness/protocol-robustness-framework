@@ -225,6 +225,31 @@
       (is (> (:deferred-yield-delta decision) 0)
           "Excess yield should be classified as deferred"))))
 
+(deftest test-recoverable-liquidity-cap-coordinates-shared-snapshot
+  (testing "Positions computed from one snapshot split, rather than duplicate, shared headroom"
+    (let [second-position (assoc base-position :owner/id "user2")
+          world (-> base-world
+                    (assoc-in [:yield/held-balances "USDC"] 21000)
+                    (assoc-in [:yield/positions "user1"] base-position)
+                    (assoc-in [:yield/positions "user2"] second-position))
+          decisions [{:unrealized-yield-delta 1000
+                      :deferred-yield-delta 0
+                      :short-circuits []
+                      :evidence {}}
+                     {:unrealized-yield-delta 1000
+                      :deferred-yield-delta 0
+                      :short-circuits []
+                      :evidence {}}]
+          coordinated (accrual/coordinate-recoverable-liquidity-cap
+                       world :test-mod "USDC" decisions)]
+      ;; Net-solvent headroom is 1,000 for 2,000 of positive accrual.
+      (is (= [500 500] (mapv :unrealized-yield-delta coordinated)))
+      (is (= [500 500] (mapv :deferred-yield-delta coordinated)))
+      (is (= 1000 (reduce + (map :unrealized-yield-delta coordinated))))
+      (is (every? #(contains? (set (:short-circuits %))
+                              :recoverable-liquidity-cap)
+                  coordinated)))))
+
 (deftest test-no-recoverable-cap-when-adequate-liquidity
   (testing "No recoverable cap applied when liquidity is adequate"
     (let [world (-> (world-with-position)

@@ -27,7 +27,7 @@
       "role": "keeper"
     },
     {
-      "id": "gov",
+      "id": "governance",
       "address": "0xgov",
       "type": "governance"
     }
@@ -76,7 +76,7 @@
     {
       "seq": 3,
       "time": 1200,
-      "agent": "gov",
+      "agent": "governance",
       "action": "set_paused",
       "params": {
         "paused?": true
@@ -94,7 +94,7 @@
     {
       "seq": 5,
       "time": 1300,
-      "agent": "gov",
+      "agent": "governance",
       "action": "set_paused",
       "params": {
         "paused?": false

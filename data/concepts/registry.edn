@@ -1,7 +1,14 @@
 {:concept-registry/version 1
  :concept-registry/description
- "Registry of supported stakeholder-facing concepts. Each concept
-  maps protocol-level mechanics to a real-world use-case vocabulary."
+ "Canonical stakeholder-facing concept catalogue. Ownership identifies semantic ownership; protocol applicability identifies supported protocol contexts."
+
+ :concept-mapping-files
+ [{:mapping/protocol :shared
+   :mapping/file "data/concept-mappings/shared.edn"}
+  {:mapping/protocol :protocol/prf
+   :mapping/file "data/concept-mappings/prf.edn"}
+  {:mapping/protocol :protocol/sew-v1
+   :mapping/file "data/concept-mappings/sew-v1.edn"}]
 
  :concepts
  [{:concept/id    :verifiable-assurance/forensic-confidence
@@ -10,6 +17,7 @@
    :concept/file  "data/concepts/assurance/verifiable_assurance.edn"
    :concept/name  "Verifiable assurance — forensic confidence"
    :concept/status :draft
+   :concept/owner :shared
    :concept/protocols #{:protocol/prf :protocol/sew-v1}}
 
   {:concept/id    :consensus/authority
@@ -18,6 +26,7 @@
    :concept/file  "data/concepts/decision-quality/authority.edn"
    :concept/name  "Consensus authority"
    :concept/status :draft
+   :concept/owner :shared
    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
   {:concept/id    :consensus/evidence
@@ -26,6 +35,7 @@
    :concept/file  "data/concepts/decision-quality/evidence.edn"
    :concept/name  "Consensus evidence"
    :concept/status :draft
+   :concept/owner :shared
    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
   {:concept/id    :consensus/finality
@@ -34,6 +44,7 @@
    :concept/file  "data/concepts/decision-quality/finality.edn"
    :concept/name  "Consensus finality"
    :concept/status :draft
+   :concept/owner :shared
    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
   {:concept/id    :consensus/escalation
@@ -42,6 +53,7 @@
    :concept/file  "data/concepts/decision-quality/escalation.edn"
    :concept/name  "Consensus escalation"
    :concept/status :draft
+   :concept/owner :shared
    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
   {:concept/id    :consensus/liveness
@@ -50,6 +62,7 @@
    :concept/file  "data/concepts/decision-quality/liveness.edn"
    :concept/name  "Consensus liveness"
    :concept/status :draft
+   :concept/owner :shared
    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
   {:concept/id    :consensus/legitimacy
@@ -58,6 +71,7 @@
    :concept/file  "data/concepts/decision-quality/legitimacy.edn"
    :concept/name  "Consensus legitimacy"
    :concept/status :draft
+   :concept/owner :shared
    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
   {:concept/id    :allocation/partial-fill
@@ -66,6 +80,7 @@
    :concept/file  "data/concepts/allocation/partial_fill.edn"
    :concept/name  "Partial fill allocation"
    :concept/status :draft
+   :concept/owner :shared
    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
   {:concept/id    :allocation/shortfall
@@ -74,6 +89,7 @@
    :concept/file  "data/concepts/allocation/shortfall.edn"
    :concept/name  "Shortfall detection and recording"
    :concept/status :draft
+   :concept/owner :shared
    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
   {:concept/id    :allocation/pro-rata-fairness
@@ -82,6 +98,7 @@
    :concept/file  "data/concepts/allocation/pro_rata_fairness.edn"
    :concept/name  "Pro-rata fairness in allocation"
    :concept/status :draft
+   :concept/owner :shared
    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
   {:concept/id    :allocation/redistribution-fairness
@@ -90,6 +107,7 @@
    :concept/file  "data/concepts/allocation/redistribution_fairness.edn"
    :concept/name  "Redistribution fairness"
    :concept/status :draft
+   :concept/owner :shared
    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
   {:concept/id    :allocation/deferred-claim
@@ -98,6 +116,7 @@
    :concept/file  "data/concepts/allocation/deferred_claim.edn"
    :concept/name  "Deferred claim recovery"
    :concept/status :draft
+   :concept/owner :shared
    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
   {:concept/id    :allocation/slash-obligation
@@ -106,6 +125,7 @@
    :concept/file  "data/concepts/allocation/slash_obligation.edn"
    :concept/name  "Slash obligation allocation"
    :concept/status :draft
+   :concept/owner :protocol/sew-v1
    :concept/protocols #{:protocol/sew-v1}}
 
   {:concept/id    :decision-quality/solvency-status
@@ -114,6 +134,7 @@
    :concept/file  "data/concepts/decision-quality/solvency.edn"
    :concept/name  "Solvency status classification"
    :concept/status :draft
+   :concept/owner :protocol/sew-v1
    :concept/protocols #{:protocol/sew-v1}}
 
   {:concept/id    :yield/yield-bearing
@@ -122,6 +143,7 @@
    :concept/file  "data/concepts/yield/yield_bearing.edn"
    :concept/name  "Yield-bearing position"
    :concept/status :draft
+   :concept/owner :protocol/sew-v1
    :concept/protocols #{:protocol/sew-v1}}
 
   {:concept/id    :attestation/verification
@@ -130,7 +152,17 @@
    :concept/file  "data/concepts/assurance/attestation.edn"
    :concept/name  "Attestation verification"
    :concept/status :draft
+   :concept/owner :shared
    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+  {:concept/id    :assurance/pro-rata-evm-v2
+   :concept/type  :assurance
+   :concept/layer :framework-explanation
+   :concept/file  "data/concepts/assurance/pro_rata_evm_v2.edn"
+   :concept/name  "Pro-rata EVM V2 assurance"
+   :concept/status :draft
+   :concept/owner :protocol/prf
+   :concept/protocols #{:protocol/prf}}
 
    {:concept/id    :forensic/evidence-chain
     :concept/type  :assurance
@@ -138,6 +170,7 @@
     :concept/file  "data/concepts/assurance/evidence_chain.edn"
     :concept/name  "Forensic evidence chain"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
   {:concept/id    :concept/conservation
@@ -146,6 +179,7 @@
    :concept/file  "data/concepts/framework/conservation.edn"
    :concept/name  "Conservation"
    :concept/status :draft
+   :concept/owner :protocol/sew-v1
    :concept/protocols #{:protocol/sew-v1}}
 
   {:concept/id    :concept/confidence
@@ -154,6 +188,7 @@
    :concept/file  "data/concepts/framework/confidence.edn"
    :concept/name  "Confidence"
    :concept/status :draft
+   :concept/owner :protocol/sew-v1
    :concept/protocols #{:protocol/sew-v1}}
 
   {:concept/id    :concept/configuration
@@ -162,6 +197,7 @@
    :concept/file  "data/concepts/framework/configuration.edn"
    :concept/name  "Configuration"
    :concept/status :draft
+   :concept/owner :protocol/sew-v1
    :concept/protocols #{:protocol/sew-v1}}
 
   {:concept/id    :security/force-authorisation
@@ -170,6 +206,7 @@
     :concept/file  "data/concepts/security/force_authorisation.edn"
     :concept/name  "Force-authorisation"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :governance/proposed-content
@@ -178,6 +215,7 @@
     :concept/file  "data/concepts/decision-quality/proposed_content.edn"
     :concept/name  "Proposed content"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :governance/proposed-content-root
@@ -186,6 +224,7 @@
     :concept/file  "data/concepts/decision-quality/proposed_content_root.edn"
     :concept/name  "Proposed content root"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :framework/content-root
@@ -194,6 +233,7 @@
     :concept/file  "data/concepts/framework/content_root.edn"
     :concept/name  "Content root"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :framework/registry-entry-hash
@@ -202,6 +242,7 @@
     :concept/file  "data/concepts/framework/registry_entry_hash.edn"
     :concept/name  "Registry entry hash"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :allocation/slash-distribution
@@ -210,6 +251,7 @@
     :concept/file  "data/concepts/allocation/slash_distribution.edn"
     :concept/name  "Slash distribution"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :allocation/bounty-payable
@@ -218,6 +260,7 @@
     :concept/file  "data/concepts/allocation/bounty_payable.edn"
     :concept/name  "Bounty payable"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :allocation/bounty-payable-reserve
@@ -226,6 +269,7 @@
     :concept/file  "data/concepts/allocation/bounty_payable_reserve.edn"
     :concept/name  "Bounty payable reserve"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :allocation/deferred-class
@@ -234,6 +278,7 @@
     :concept/file  "data/concepts/allocation/deferred_class.edn"
     :concept/name  "Deferred position classification"
     :concept/status :draft
+    :concept/owner :protocol/sew-v1
     :concept/protocols #{:protocol/sew-v1}}
 
    {:concept/id    :mechanism/pro-rata-allocation
@@ -242,6 +287,7 @@
     :concept/file  "data/concepts/mechanism/pro_rata_allocation.edn"
     :concept/name  "Deterministic pro-rata allocation"
     :concept/status :draft
+    :concept/owner :protocol/sew-v1
     :concept/protocols #{:protocol/sew-v1}}
 
    {:concept/id    :allocation/fractional-remainder
@@ -250,6 +296,7 @@
     :concept/file  "data/concepts/allocation/fractional_allocation.edn"
     :concept/name  "Fractional Remainder"
     :concept/status :draft
+    :concept/owner :protocol/sew-v1
     :concept/protocols #{:protocol/sew-v1}}
 
    {:concept/id    :framework/research-command
@@ -258,6 +305,7 @@
     :concept/file  "data/concepts/framework/research_command.edn"
     :concept/name  "Research command"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :framework/outside-option
@@ -266,6 +314,7 @@
     :concept/file  "data/concepts/framework/outside_option.edn"
     :concept/name  "Outside-option"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :framework/incentive
@@ -274,6 +323,7 @@
     :concept/file  "data/concepts/framework/incentive.edn"
     :concept/name  "Incentive"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :framework/incentive-compatibility
@@ -282,6 +332,7 @@
     :concept/file  "data/concepts/framework/incentive_compatibility.edn"
     :concept/name  "Incentive compatibility"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :framework/held-custody
@@ -290,6 +341,7 @@
     :concept/file  "data/concepts/framework/held_custody.edn"
     :concept/name  "Held custody"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :framework/research-assignment
@@ -298,6 +350,7 @@
     :concept/file  "data/concepts/framework/research_assignment.edn"
     :concept/name  "Research assignment"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :framework/review-member-canonical-indices
@@ -306,6 +359,7 @@
     :concept/file  "data/concepts/framework/review_member_canonical_indices.edn"
     :concept/name  "Review-member canonical indices"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :framework/review-certificate
@@ -314,6 +368,7 @@
     :concept/file  "data/concepts/framework/review_certificate.edn"
     :concept/name  "Review certificate"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :framework/procedure-execution-witness
@@ -322,6 +377,7 @@
     :concept/file  "data/concepts/framework/procedure_execution_witness.edn"
     :concept/name  "Procedure execution witness"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :framework/protocol-extension-boundary
@@ -330,6 +386,7 @@
     :concept/file  "data/concepts/framework/core_protocol_boundary.edn"
     :concept/name  "Framework–protocol extension ownership boundary"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :framework/semantic-commitments
@@ -338,6 +395,7 @@
     :concept/file  "data/concepts/framework/semantic_commitments.edn"
     :concept/name  "Semantic commitments"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
    {:concept/id    :framework/creation-provenance
@@ -346,7 +404,44 @@
     :concept/file  "data/concepts/framework/creation_provenance.edn"
     :concept/name  "Creation provenance"
     :concept/status :draft
+     :concept/owner :shared
      :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+    {:concept/id    :framework/evidence-policy
+     :concept/type  :framework
+     :concept/layer :framework-explanation
+     :concept/file  "data/concepts/framework/evidence_policy.edn"
+     :concept/name  "Evidence policy"
+     :concept/status :draft
+     :concept/owner :shared
+     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+    {:concept/id    :framework/currency
+     :concept/type  :framework
+     :concept/layer :framework-explanation
+     :concept/file  "data/concepts/framework/currency.edn"
+     :concept/name  "Currency"
+     :concept/status :draft
+     :concept/owner :shared
+     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+    {:concept/id    :framework/privacy-policy
+     :concept/type  :framework
+     :concept/layer :framework-explanation
+     :concept/file  "data/concepts/framework/privacy_policy.edn"
+     :concept/name  "Privacy policy"
+     :concept/status :draft
+     :concept/owner :protocol/prf
+     :concept/protocols #{:protocol/prf}}
+
+    {:concept/id    :framework/current-privacy-policy
+     :concept/type  :framework
+     :concept/layer :framework-explanation
+     :concept/file  "data/concepts/framework/current_privacy_policy.edn"
+     :concept/name  "Current privacy policy"
+     :concept/status :draft
+     :concept/owner :protocol/prf
+     :concept/protocols #{:protocol/prf}}
 
     {:concept/id    :framework/source-creation
      :concept/type  :framework
@@ -354,6 +449,7 @@
      :concept/file  "data/concepts/framework/source_creation.edn"
      :concept/name  "Source creation provenance"
      :concept/status :draft
+     :concept/owner :shared
      :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
     {:concept/id    :assurance/evidence-backed-classification
@@ -362,4 +458,5 @@
     :concept/file  "data/concepts/assurance/evidence_backed_classification.edn"
     :concept/name  "Evidence-backed classification"
     :concept/status :draft
+    :concept/owner :shared
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}]}

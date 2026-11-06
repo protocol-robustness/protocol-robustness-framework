@@ -1473,3 +1473,7 @@
                   {:exit-code 1
                    :bundle-root minimal-root
                    :execution-node nil})))))))))
+
+;; Register replay execution metadata only after this namespace has defined the
+;; entrypoint referenced by the registry, avoiding a load-time validation cycle.
+(require 'resolver-sim.definitions.runner-execution-registry)

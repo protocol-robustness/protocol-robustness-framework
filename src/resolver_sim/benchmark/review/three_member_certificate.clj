@@ -20,7 +20,10 @@
      not-applicable-members
 
    This prevents absent statuses from being incorrectly folded into
-   majority disagreement.
+   majority disagreement. Consensus status and assessed/total counts are
+   descriptive evidence only; they do not establish policy quorum, eligibility,
+   approval, or operational authority. Policy consumers must independently
+   verify their eligible panel, missing-member rule, threshold, and authority.
 
    Theorem/conclusion consensus:
      Researchers submit positions against individual theorem and

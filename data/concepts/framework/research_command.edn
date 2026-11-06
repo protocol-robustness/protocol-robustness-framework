@@ -30,47 +30,47 @@
 
  :concept/roles
  {:commander {:description "Entity that constructs and commits the research command."
-              :maps-to [:protocol.actor/verifier]}
+              }
   :reproducer {:description "Entity that re-executes a command to verify reproducibility."
-               :maps-to [:protocol.actor/verifier]}}
+               }}
 
  :concept/entities
  {:command-artifact {:description "The full research-command.v2 map including id, type, argv, typed scope refs (:command/includes), and environment roots. research-command.v1 is legacy compatibility only."
-                     :maps-to [:protocol.entity/command]}
+                     }
   :command-hash {:description "Canonical SHA-256 hash of the command's complete execution context. Committed as :execution/command-root in the benchmark outcome manifest."
-                 :maps-to [:protocol.entity/canonical-hash]}
+                 }
   :command-root {:description "The :execution/command-root manifest field holding the research-command.v1 hash. When a command includes :incentive, its incentive evaluation output root is committed in combination with this command-root in the same :outcome-hashes projection. The command-root also ties a command to evidence artifacts it produced (e.g. held-custody artifacts) and to a research assignment (task + runner) via a shared reference."
-                 :maps-to [:protocol.entity/canonical-hash]}
+                 }
   :command-include {:description "Legacy v1 include directive. New commands use typed v2 :command/includes scope references for incentive and incentive-compatibility analyses."
-                    :maps-to [:protocol.entity/include-directive]}
+                    }
   :semantic-commitments {:description "The outcome manifest's :evidence/semantic-commitments section binding meaning-bearing category roots — scope, authorisation, economic application, assurance, configuration, research-execution — to the same outcome, committed alongside the command-root. The allowed categories are defined by the semantic-commitments concept; this entity does not enumerate them."
-                         :maps-to [:protocol.entity/evidence]}
+                         }
   :environment-root {:description "Content root for the execution environment."
-                     :maps-to [:protocol.entity/canonical-hash]}
+                     }
   :runner-root {:description "Content root for the runner software."
-                :maps-to [:protocol.entity/canonical-hash]}
+                }
   :input-root {:description "Content root for command inputs."
-               :maps-to [:protocol.entity/canonical-hash]}
+               }
   :output-root {:description "Content root for command outputs."
-                :maps-to [:protocol.entity/canonical-hash]}}
+                }}
 
  :concept/actions
  {:build-command {:description "Construct and hash a research command from its components."
-                  :maps-to [:protocol.action/commit-root]}
+                  }
   :validate-command {:description "Recompute the command hash and verify structural integrity."
-                     :maps-to [:protocol.action/verify-allocation]}
+                     }
   :compare-commands {:description "Compare two commands for semantic identity based on their include directives."
-                     :maps-to [:protocol.action/compare-configurations]}}
+                     }}
 
  :concept/outcomes
  {:command-valid {:description "Command structure is valid and hash matches recomputation."
-                  :maps-to [:protocol.outcome/released]}
+                  }
   :command-mismatch {:description "Command hash does not match recomputation or structure is invalid."
-                     :maps-to [:protocol.outcome/adversarial-resolution]}
+                     }
   :commands-equivalent {:description "Two commands share the same semantic include set."
-                        :maps-to [:protocol.outcome/released]}
+                        }
   :commands-divergent {:description "Two commands have different semantic include sets."
-                       :maps-to [:protocol.outcome/adversarial-resolution]}}
+                       }}
 
  :concept/failure-modes
  [{:failure/id :command-hash-mismatch

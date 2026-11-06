@@ -419,7 +419,9 @@
                     :filled {:a 2 :b 2 :c 1}
                     :deferred {:a 2 :b 2 :c 1}
                     :haircut {}
-                    :unrealized {}}]
+                    :unrealized {}
+                    :policy (:policy inp)
+                    :evidence {:available-liquidity (:available inp)}}]
       (is (= :admitted (:admission/status (verify-with-stub inp decision)))))))
 
 (deftest mismatched-rounding-policy-is-rejected
@@ -475,14 +477,16 @@
 (deftest rounding-tie-at-exact-half-is-deterministic
   (testing "reconstruction is deterministic at the rounding boundary"
     (let [inp {:available 10
-               :requested {:a 1 :b 1}
+               :requested {:a 11 :b 11}
                :policy {:mode :pro-rata :rounding-policy :largest-remainder}}
-          decision {:settlement-mode :full-fill
-                    :requested {:a 1 :b 1}
+          decision {:settlement-mode :partial-fill
+                    :requested {:a 11 :b 11}
                     :filled {:a 5 :b 5}
-                    :deferred {:a 0 :b 0}
+                    :deferred {:a 6 :b 6}
                     :haircut {}
-                    :unrealized {}}]
+                    :unrealized {}
+                    :policy (:policy inp)
+                    :evidence {:available-liquidity 10}}]
       (is (= :admitted (:admission/status (verify-with-stub inp decision)))))))
 
 (deftest mutation-rounding-tie-swap-is-rejected
@@ -527,7 +531,9 @@
                     :filled {:a 50 :b 50}
                     :deferred {:a 0 :b 0}
                     :haircut {}
-                    :unrealized {}}]
+                    :unrealized {}
+                    :policy (:policy inp)
+                    :evidence {:available-liquidity (:available inp)}}]
       (is (= :admitted (:admission/status (verify-with-stub inp decision)))))))
 
 (deftest partial-fill-decision-when-total-exceeds-available
@@ -540,7 +546,9 @@
                     :filled {:a 25 :b 25}
                     :deferred {:a 25 :b 25}
                     :haircut {}
-                    :unrealized {}}]
+                    :unrealized {}
+                    :policy (:policy inp)
+                    :evidence {:available-liquidity (:available inp)}}]
       (is (= :admitted (:admission/status (verify-with-stub inp decision)))))))
 
 (deftest wrong-settlement-mode-is-rejected
@@ -570,7 +578,9 @@
                     :filled {:a 0 :b 0}
                     :deferred {:a 10 :b 20}
                     :haircut {}
-                    :unrealized {}}]
+                    :unrealized {}
+                    :policy (:policy inp)
+                    :evidence {:available-liquidity (:available inp)}}]
       (is (= :admitted (:admission/status (verify-with-stub inp decision)))))))
 
 (deftest empty-request-is-admitted
@@ -583,7 +593,9 @@
                     :filled {}
                     :deferred {}
                     :haircut {}
-                    :unrealized {}}]
+                    :unrealized {}
+                    :policy (:policy inp)
+                    :evidence {:available-liquidity (:available inp)}}]
       (is (= :admitted (:admission/status (verify-with-stub inp decision)))))))
 
 (deftest single-claimant-is-admitted
@@ -596,7 +608,9 @@
                     :filled {:solo 100}
                     :deferred {:solo 0}
                     :haircut {}
-                    :unrealized {}}]
+                    :unrealized {}
+                    :policy (:policy inp)
+                    :evidence {:available-liquidity (:available inp)}}]
       (is (= :admitted (:admission/status (verify-with-stub inp decision)))))))
 
 ;; ---------------------------------------------------------------------------
@@ -651,10 +665,11 @@
                     :deferred {:a 20 :b 30}
                     :haircut {}
                     :unrealized {}
+                    :policy (:policy inp)
                     :evidence {:available-liquidity 100}}
           result (verify-with-stub inp decision)]
-      (is (= :admitted (:admission/status result))
-          "reconstruction uses input's available, not decision's invented field"))))
+      (is (= :rejected (:admission/status result))
+          "invented liquidity evidence is rejected even when allocation matches input"))))
 
 (deftest invented-claimant-not-in-input-is-rejected
   (testing "a claimant in the decision but not in the input is rejected"

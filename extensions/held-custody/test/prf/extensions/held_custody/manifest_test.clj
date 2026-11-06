@@ -40,7 +40,8 @@
              :usable-permits
              :classify-under-current-configuration
              :override-enabled-under-configuration
-             :semantic-operation-class :override-admission}
+             :semantic-operation-class :override-admission
+             :check-single-claim-classification :check-calculable}
            (set (keys capability-map))))
     (is (= #{:add-held :sub-held :finalize-released :refund-held}
            (set (:supported-actions capability-map))))

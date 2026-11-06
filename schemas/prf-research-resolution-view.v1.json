@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://protocol-robustness-framework/schemas/prf-research-resolution-view.v1.json",
+  "title": "PRF Research Resolution View v1",
+  "description": "Read-only projection of independently evaluated research status dimensions. It does not authorize operational action.",
+  "type": "object",
+  "required": [
+    "schema-version",
+    "resolution-view/subject-root",
+    "resolution-view/scope-root",
+    "resolution-view/method-root",
+    "resolution-view/evidence-root",
+    "resolution-view/claim-status",
+    "resolution-view/method-status",
+    "resolution-view/method-source-status",
+    "resolution-view/reproduction-status",
+    "resolution-view/ratification-status",
+    "resolution-view/operational-authority?",
+    "resolution-view/limitations",
+    "resolution-view/root"
+  ],
+  "properties": {
+    "schema-version": { "const": "prf/research-resolution-view.v1" },
+    "resolution-view/subject-root": { "$ref": "#/$defs/root" },
+    "resolution-view/scope-root": { "$ref": "#/$defs/root" },
+    "resolution-view/method-root": { "$ref": "#/$defs/root" },
+    "resolution-view/evidence-root": { "$ref": "#/$defs/root" },
+    "resolution-view/claim-status": {
+      "enum": ["supported-within-scope", "counterexample-found", "not-established", "invalid"]
+    },
+    "resolution-view/method-status": { "enum": ["verified", "unverified", "invalid"] },
+    "resolution-view/method-source-status": { "enum": ["pinned", "unverified"] },
+    "resolution-view/reproduction-status": {
+      "enum": ["independent", "same-implementation", "absent", "not-comparable"]
+    },
+    "resolution-view/ratification-status": {
+      "enum": ["ratified", "ratified-with-dissent", "contested", "rejected", "absent", "unverified"]
+    },
+    "resolution-view/operational-authority?": { "const": false },
+    "resolution-view/limitations": { "type": "array", "items": { "type": "string" } },
+    "resolution-view/root": { "$ref": "#/$defs/root" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "root": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+  }
+}

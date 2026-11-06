@@ -53,6 +53,7 @@ Classpath resource paths used for JAR portability:
 - `resource:benchmarks/scoring/*.edn` — scoring rule definitions
 - `resource:benchmarks/concepts/*.edn` — benchmark-local concepts
 - `resource:data/concepts/registry.edn` — global concept registry
+- `resource:data/concept-mappings/*.edn` — shared and protocol-specific concept mappings
 - `resource:suites/reference-validation-v1/manifest.edn` — reference validation suite
 - `resource:config/evidence.json` — evidence chain configuration
 

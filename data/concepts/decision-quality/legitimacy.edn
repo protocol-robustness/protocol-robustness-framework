@@ -17,51 +17,51 @@
  :concept/roles
  {:legitimacy-claimer
   {:description "Party asserting that the outcome should be accepted."
-   :maps-to [:protocol.actor/resolver :protocol.actor/governance]}
+   }
   :legitimacy-assessor
   {:description "Party evaluating whether the outcome is legitimate."
-   :maps-to [:protocol.actor/verifier]}
+   }
   :legitimacy-challenger
   {:description "Party rejecting the outcome as illegitimate."
-   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+   }}
 
  :concept/entities
  {:legitimacy-signal
   {:description "Evidence or marker suggesting the outcome is legitimate."
-   :maps-to [:protocol.entity/settlement :protocol.entity/evidence]}
+   }
   :illegitimacy-signal
   {:description "Evidence or marker suggesting the outcome is not legitimate."
-   :maps-to [:protocol.entity/dispute :protocol.entity/appeal]}}
+   }}
 
  :concept/actions
  {:establish-legitimacy
   {:description "Produce evidence, follow procedure, and issue a timely ruling that strengthens acceptance."
-   :maps-to [:protocol.action/resolve :protocol.action/settle :protocol.action/submit-evidence]}
+   }
   :challenge-legitimacy
   {:description "Argue that authority, evidence, process, or timeliness was flawed."
-   :maps-to [:protocol.action/dispute :protocol.action/appeal :protocol.action/challenge-resolution]}
+   }
   :assess-legitimacy
   {:description "Evaluate the strength of legitimacy signals."
-   :maps-to [:protocol.action/verify :protocol.action/audit]}
+   }
   :accept-outcome
   {:description "Consent to the outcome despite disagreement."
-   :maps-to [:protocol.action/accept-split :protocol.action/waive-appeal]}}
+   }}
 
  :concept/outcomes
  {:legitimacy-strong
   {:description "All dimensions (authority, evidence, finality, escalation, liveness) are satisfactory."
-   :maps-to [:protocol.outcome/resolved]}
+   }
   :legitimacy-weak
   {:description "At least one dimension was compromised but outcome was still reached."
-   :maps-to [:protocol.outcome/adversarial-resolution]}
+   }
   :legitimacy-failed
    {:description "Multiple dimensions compromised; outcome is unlikely to be accepted."
-    :maps-to [:protocol.outcome/stuck :protocol.outcome/disputed]
-    :mapping/confidence :approximate
-    :mapping/note "Legitimacy failure may leave funds stuck or the outcome actively disputed"}
+    
+    
+    }
    :legitimacy-contested
   {:description "Legitimacy was formally challenged and a decision is pending."
-   :maps-to [:protocol.outcome/appealed]}}
+   }}
 
  :concept/failure-modes
  [{:failure/id :authority-deficit

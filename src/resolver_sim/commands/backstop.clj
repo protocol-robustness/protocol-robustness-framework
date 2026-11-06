@@ -55,7 +55,7 @@
         (println (str "BACKSTOP " tier-name " PASSED"))
         (println (str "BACKSTOP " tier-name " COMPLETED WITH FINDINGS - "
                       (count failures) " failure(s)")))
-      {:exit-code 0
+      {:exit-code (if (empty? failures) 0 1)
        :status (if (empty? failures) :passed :completed-with-findings)
        :message (if (empty? failures)
                   "backstop passed"

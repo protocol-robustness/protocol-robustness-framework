@@ -24,6 +24,7 @@
    Parameters: data/params/phase-f-baseline.edn
    Entry point: (run-phase-f params)"
   (:require [resolver-sim.sim.batch :as batch]
+            [resolver-sim.protocols.sew.runner-extension]
             [resolver-sim.stochastic.rng :as rng]))
 
 (def phase-metadata

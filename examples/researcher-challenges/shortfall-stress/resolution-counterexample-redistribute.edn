@@ -1,0 +1,10 @@
+{:schema-version "pro-rata-allocation-request.v1"
+ :mechanism/version 1
+ :allocation/id :research-resolution/shortfall-counterexample
+ :available 100
+ :rows [{:row/id :claim/a :obligation/id :obligation/a :requested 120 :weight 120 :cap 10}
+        {:row/id :claim/b :obligation/id :obligation/b :requested 120 :weight 120}
+        {:row/id :claim/c :obligation/id :obligation/c :requested 120 :weight 120}]
+ :rounding-policy :largest-remainder
+ :tie-break-policy :canonical-row-id
+ :redistribution-policy :redistribute-cap-excess}

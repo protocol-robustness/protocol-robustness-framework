@@ -2,6 +2,7 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.java.shell :as shell]
+            [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.pro-rata.allocation :as allocation]
             [resolver-sim.execution.context :as execution]
@@ -134,6 +135,11 @@
                :prf/bounty-v1
                :prf/pro-rata-verifier-v1}
              (profile-components "pro-rata-full"))))))
+
+(deftest yield-profile-reports-canonical-source-root
+  (let [source-files (:transitive-source-files (closure-report "yield-runtime"))]
+    (is (some #(str/starts-with? % "yield_runtime_src/resolver_sim/yield/") source-files))
+    (is (not-any? #(str/starts-with? % "src/resolver_sim/yield/") source-files))))
 
 (deftest claimant-runtime-profile-rejects-tampering
   (let [p (profile/build options)

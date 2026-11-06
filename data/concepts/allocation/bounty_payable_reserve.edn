@@ -12,27 +12,27 @@
 
  :concept/roles
  {:reserve-manager {:description "Entity that designates and tracks the reserve."
-                    :maps-to [:protocol.actor/governance]}
+                    }
   :reserve-auditor {:description "Entity that verifies reserve accounting."
-                    :maps-to [:protocol.role/verifier]}}
+                    }}
 
  :concept/entities
  {:reserve-designation {:description "The reserve amount earmarked for bounty payables."
-                        :maps-to [:protocol.entity/reserve]}
+                        }
   :reserve-policy {:description "The policy governing reserve designation."
-                   :maps-to [:protocol.entity/governance-policy]}}
+                   }}
 
  :concept/actions
  {:designate-reserve {:description "Earmark funds for bounty payable reserves."
-                      :maps-to [:protocol.action/record-obligation]}
+                      }
   :audit-reserve {:description "Verify reserve accounting against policy."
-                  :maps-to [:protocol.action/verify-allocation]}}
+                  }}
 
  :concept/outcomes
  {:reserve-correct {:description "Reserve accounting matches declared policy."
-                    :maps-to [:protocol.outcome/released]}
+                    }
   :reserve-misstated {:description "Reserve accounting deviates from policy."
-                      :maps-to [:protocol.outcome/adversarial-resolution]}}
+                      }}
 
  :concept/failure-modes
  [{:failure/id :reserve-overstated

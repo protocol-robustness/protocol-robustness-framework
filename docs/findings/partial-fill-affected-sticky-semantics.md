@@ -81,13 +81,13 @@ behavior, not a spec. Corrected to reflect intended semantics (full-fill →
 
 ## Changes made
 
-- `src/resolver_sim/yield/partial_fill.clj`:
+- `yield_runtime_src/resolver_sim/yield/partial_fill.clj`:
   - Added `partial-fill-outstanding?` (true iff any deferred/haircut bucket
     positive) beside the existing `partial-fill?`.
   - `post-partial-fill-position` now sets
     `:partial-fill-affected? (or prior partial-fill?)` (sticky) and
     `:status (if (partial-fill-outstanding? decision) :unwinding :withdrawn)`.
-- `src/resolver_sim/yield/modules/liquid_lending.clj`:
+- `yield_runtime_src/resolver_sim/yield/modules/liquid_lending.clj`:
   - `:618` and `:2094` now sticky OR of prior + `partial-fill? settlement`;
     `:status` decoupled via the same event basis.
   - `:1499` deferred-successor now sticky OR of predecessor + `(pos? deferred)`.
