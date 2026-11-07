@@ -66,7 +66,10 @@ The resolved 377-file closure includes these largest groups:
 | Source group | Files | What it indicates |
 | --- | ---: | --- |
 | `packages/sew-protocol-model/src` | 51 | Relocated Sew core model implementation |
-| `protocols_src/resolver_sim/protocols` | 34 | Remaining Sew integrations and shared adjudication adapters |
+| `protocols_src/resolver_sim/protocols` | 29 | Remaining Sew integrations and shared adjudication adapters |
+| `extensions/sew-analysis/src` | 5 | Optional Sew analysis and reporting adapter |
+| `extensions/sew-pro-rata-slashing/src` | 2 | Optional slash-evidence adapter and bootstrap |
+| `extensions/sew-pro-rata-economics/src` | 1 | Sew slash-allocation adapter |
 | `yield_runtime_src/resolver_sim/yield` | 28 | Yield runtime and accounting integration |
 | `protocols_src/resolver_sim/research` | 25 | Sew-specific research analyses pulled into the closure |
 | `src/resolver_sim/sim` | 24 | Simulation support |
@@ -76,12 +79,13 @@ The resolved 377-file closure includes these largest groups:
 
 These are dependency-closure counts, not a proposed package manifest.
 
-The `sew-protocol` candidate omits runner and analysis components and currently
-resolves to 234 Clojure files. Its largest groups are the in-tree Sew package
-(51), yield runtime (28), benchmark (14), scenario (14), protocol adapters in
-`protocols_src` (12), and contract-model replay (12). This remains too broad to
-count as a standalone package: the model still depends on yield, benchmark,
-scenario, replay, and shared framework services.
+The `sew-protocol` candidate omits runner assembly and currently resolves to
+234 Clojure files. It includes the Sew analysis adapter. Its largest groups are
+the in-tree Sew package (51), yield runtime (28), benchmark (14), scenario (14),
+contract-model replay (12), and the remaining protocol adapters in
+`protocols_src` (5). This remains too broad to count as a standalone package:
+the model still depends on yield, benchmark, scenario, replay, and shared
+framework services.
 
 The `sew-kernel` candidate has a 30-file closure and zero component crossings.
 Its public entrypoint is `resolver-sim.protocols.sew.kernel`; it exposes
@@ -92,9 +96,9 @@ does not claim the full protocol's settlement or evidence behavior.
 
 The initial source relocation covers the 48 core Sew model namespaces reachable
 in the `sew-protocol` closure, in addition to the three kernel namespaces
-already in the package. Force-authorisation, analysis, and shared integration namespaces remain under
-`protocols_src`; Sew slash economics and slash evidence are separate extension
-source roots. Profile
+already in the package. Force-authorisation and shared integration namespaces
+remain under `protocols_src`; Sew analysis, slash economics, and slash evidence
+are separate extension source roots. Profile
 resolution now finds the moved sources under
 `packages/sew-protocol-model/src`; the package still depends on the remaining
 protocol source tree and the shared PRF framework.

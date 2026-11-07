@@ -21,9 +21,10 @@ Sew escrow kernel and 48 additional core model namespaces, plus four component
 contract tests, have moved into `packages/sew-protocol-model/{src,test}`.
 The pro-rata slash-evidence adapter and its dedicated slashing tests now live
 in `extensions/sew-pro-rata-slashing/{src,test}`. Slash economics lives
-separately in `extensions/sew-pro-rata-economics`; force-authorisation, analysis,
-and shared adapter tests remain in `protocols_src` under separate component
-owners. The package manifest still includes
+separately in `extensions/sew-pro-rata-economics`, and the analysis adapter with
+its dedicated tests lives in `extensions/sew-analysis/{src,test}`.
+Force-authorisation and shared adapter tests remain in `protocols_src` under
+separate component owners. The package manifest still includes
 `../../protocols_src`, so this is a partial relocation, not a standalone package
 boundary.
 

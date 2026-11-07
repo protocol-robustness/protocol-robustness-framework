@@ -7,10 +7,10 @@ describe protocol behavior that can be compared with the Solidity implementation
 in ~/Code/.workspaces/sew-protocol. It does not claim the same package
 boundary, dependency graph, or deployment responsibilities.
 
-The supported sew-protocol-model profile also selects the PRF runner and
-slash-evidence adapter. Those are profile composition choices, not part of the
-meaning of the protocol-model component. The profile is not yet a standalone
-package qualification.
+The supported sew-protocol-model profile also selects the PRF runner, analysis,
+force-authorisation, slash-economics, and slash-evidence extensions. These are
+profile composition choices, not part of the protocol-model component. The
+profile is not yet a standalone package qualification.
 
 The Sew Core adapter now resolves the model through the `packages/sew-protocol-model`
 subdirectory at immutable PRF Git revision `b94b091cfbaf46ec34ae2ade4920f9a3751e3097`.
@@ -19,10 +19,11 @@ Clojure CLI dependency resolver. The escrow kernel and 48 additional core
 model namespaces, together with four component contract tests, now live under
 the package source tree. The optional slash-evidence adapter and its dedicated tests live in
 `extensions/sew-pro-rata-slashing`; slash economics lives separately in
-`extensions/sew-pro-rata-economics`. Force-authorisation, analysis, the
-compatibility-based slash-allocation vector generator, and shared adapter tests
-remain under `protocols_src`. The model package manifest still includes that
-directory plus the sibling economics-extension source and resolves the framework
+`extensions/sew-pro-rata-economics`; the analysis adapter and dedicated tests
+live in `extensions/sew-analysis`. Force-authorisation, the compatibility-based
+slash-allocation vector generator, and shared adapter tests remain under
+`protocols_src`. The model package manifest still includes that directory plus
+the sibling economics-extension source and resolves the framework
 from the PRF checkout. The economics extension resolves its evaluation API from
 a pinned PRF source revision until that API has an independent artifact. These
 are source-composition candidates, not a separate Sew repository or published

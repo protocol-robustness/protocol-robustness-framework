@@ -16,7 +16,8 @@
 (def repo-root (fs/path (System/getProperty "user.dir")))
 (def profiles-dir (fs/path repo-root "profiles"))
 (def source-roots ["yield_runtime_src" "src" "packages/sew-protocol-model/src"
-                   "extensions/sew-pro-rata-economics/src" "extensions/sew-pro-rata-slashing/src" "protocols_src"
+                   "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
+                   "extensions/sew-pro-rata-slashing/src" "protocols_src"
                    "pro-rata/contract-source" "extensions/sew-core-profile-adapter/src"])
 
 (defn read-edn [path] (edn/read-string (slurp (str path))))
@@ -227,11 +228,12 @@
     (spit (str (fs/path view-root "deps.edn"))
           (pr-str (assoc (select-keys base [:mvn/repos :deps])
                          :paths ["src" "yield_runtime_src" "packages/sew-protocol-model/src"
-                                 "extensions/sew-pro-rata-economics/src" "extensions/sew-pro-rata-slashing/src" "protocols_src"
+                                 "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
+                                 "extensions/sew-pro-rata-slashing/src" "protocols_src"
                                  "pro-rata/contract-source" "extensions/sew-core-profile-adapter/src"
                                  "resources"]
                          :aliases {:profile/check
-                                   {:extra-paths ["test" "packages/sew-protocol-model/test"
+                                   {:extra-paths ["test" "packages/sew-protocol-model/test" "extensions/sew-analysis/test"
                                                   "extensions/sew-pro-rata-slashing/test"]}})))))
 
 (defn symlink-local-dependencies! [view-root]

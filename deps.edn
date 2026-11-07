@@ -46,9 +46,11 @@
                                "packages/sew-protocol-model/test"]
     :paths/protocols     ["packages/sew-protocol-model/src"
                           "extensions/sew-pro-rata-economics/src"
+                          "extensions/sew-analysis/src"
                           "extensions/sew-pro-rata-slashing/src"
                           "protocols_src"
                           "packages/sew-protocol-model/test"
+                          "extensions/sew-analysis/test"
                           "extensions/sew-pro-rata-slashing/test"
                           "protocols_src/test"]
     :paths/dev           ["dev" "test"]              ;; = dev + test
@@ -62,12 +64,14 @@
     :paths/sew-core-profile-adapter-rt ["extensions/sew-core-profile-adapter/src"]
     :paths/sew-pro-rata-economics ["extensions/sew-pro-rata-economics/src"]
     :paths/sew-pro-rata-economics-rt ["extensions/sew-pro-rata-economics/src"]
+    :paths/sew-analysis ["extensions/sew-analysis/src" "extensions/sew-analysis/test"]
+    :paths/sew-analysis-rt ["extensions/sew-analysis/src"]
     :paths/sew-pro-rata-slashing ["extensions/sew-pro-rata-slashing/src"
                                   "extensions/sew-pro-rata-slashing/test"]
     :paths/sew-pro-rata-slashing-rt ["extensions/sew-pro-rata-slashing/src"]
     :paths/all           ["src" "yield_runtime_src" "test" "packages/sew-protocol-model/src"
                           "packages/sew-protocol-model/test" "protocols_src" "protocols_src/test" "dev" "scripts"
-                          :paths/held-custody :paths/force-authorisation :paths/sew-pro-rata-economics :paths/sew-pro-rata-slashing]
+                          :paths/held-custody :paths/force-authorisation :paths/sew-pro-rata-economics :paths/sew-analysis :paths/sew-pro-rata-slashing]
     ;; Researchers: opt-in local paths (defined in ~/.clojure/deps.edn as
     ;; :researcher/paths, e.g. {:aliases {:researcher/paths [".researcher/src"]}}).
     ;; Compose with: clojure -M:test:researcher/env  (see .researcher/ note)
@@ -397,6 +401,7 @@
            metosin/malli                     {:mvn/version "0.17.0"}}
     :paths ["src" "yield_runtime_src" "packages/sew-protocol-model/src"
             "extensions/sew-pro-rata-economics/src" "extensions/sew-pro-rata-slashing/src"
+            "extensions/sew-analysis/src"
             "protocols_src" "resources" "scenarios"]}
 
    :speds-comparator-shadow

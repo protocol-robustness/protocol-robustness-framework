@@ -217,11 +217,13 @@
    :component/entry-namespaces
    [resolver-sim.protocols.sew.analysis-extension]
    :component/material
-   [{:path "protocols_src/test/resolver_sim/protocols/sew/accounting_projection_test.clj"
+   [{:path "extensions/sew-analysis/deps.edn"
+     :kind :package-manifest}
+    {:path "extensions/sew-analysis/test/resolver_sim/protocols/sew/accounting_projection_test.clj"
      :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/funds_ledger_projection_test.clj"
+    {:path "extensions/sew-analysis/test/resolver_sim/protocols/sew/funds_ledger_projection_test.clj"
      :kind :test-source}
-    {:path "test/resolver_sim/protocols/sew/validator_registry_test.clj"
+    {:path "extensions/sew-analysis/test/resolver_sim/protocols/sew/validator_registry_test.clj"
      :kind :test-source}
     {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
      :kind :test-source}
