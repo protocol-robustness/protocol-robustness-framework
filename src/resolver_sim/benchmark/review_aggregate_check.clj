@@ -475,7 +475,10 @@
   [round & [canonical-indices]]
   (let [violations (atom [])]
     (when (rr/round-uses-member-keys? round)
-      (let [keys (rr/member-keys round)]
+      ;; Read serialized keys directly: rr/member-keys intentionally returns
+      ;; nil for non-canonical assignments, but this aggregate check must
+      ;; report malformed/sparse keys instead of treating nil as an empty set.
+      (let [keys (mapv :review-member/key (:review-round/members round))]
         (when (not= (set keys) (set (range (count keys))))
           (swap! violations conj
                  {:kind ::non-dense-member-keys

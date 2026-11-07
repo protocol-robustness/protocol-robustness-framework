@@ -73,6 +73,7 @@ Example: bb cli scenario list --search yield"
 
   evidence:bundle
   {:doc "Export an evidence bundle for the focused/latest run. Usage: bb evidence:bundle [out-dir]"
+   :requires ([clojure.string :as str])
    :task (let [outdir (or (first *command-line-args*)
                           (try (-> (clojure.java.shell/sh "python3" "-c" "from scripts.evidence_config import EvidenceConfig; print(EvidenceConfig().evidence_bundle_dir)") :out str/trim)
                                (catch Exception _ "results/evidence-bundle")))]
