@@ -12,12 +12,13 @@ force-authorisation, slash-economics, and slash-evidence extensions. These are
 profile composition choices, not part of the protocol-model component. The
 profile is not yet a standalone package qualification.
 
-The Sew Core adapter now resolves the model through the `packages/sew-protocol-model`
+The Sew Core adapter resolves the model through the `packages/sew-protocol-model`
 subdirectory at immutable PRF Git revision `b94b091cfbaf46ec34ae2ade4920f9a3751e3097`.
-This removes the consumer's local workspace path and is verified through the
-Clojure CLI dependency resolver. The escrow kernel and 48 additional core
-model namespaces, together with four component contract tests, now live under
-the package source tree. The optional slash-evidence adapter and its dedicated tests live in
+That removes the consumer's local workspace path, but it pins an earlier tree and
+does not qualify the current unpushed package-boundary changes. In the current PRF
+tree, 55 Sew model namespaces and 19 declared package contract tests live under
+the package source tree. The optional
+slash-evidence adapter and its dedicated tests live in
 `extensions/sew-pro-rata-slashing`; slash economics lives separately in
 `extensions/sew-pro-rata-economics`; the analysis adapter and dedicated tests
 live in `extensions/sew-analysis`. Force-authorisation and shared adapter tests
