@@ -1,14 +1,14 @@
 # Sew standalone boundary audit
 
-Status: preparation; local source responsibilities have been separated, but no
-source has been moved out of PRF. The supported composed profiles preserve the
-existing Sew behavior; the model-core candidate intentionally omits optional
-pro-rata slash evidence.
+Status: preparation; 51 Sew core runtime sources and four component contract
+tests now live under the in-tree Sew package, but no source has been moved out
+of PRF. The supported composed profiles preserve the existing Sew behavior;
+the model-core candidate intentionally omits optional pro-rata slash evidence.
 
 ## Summary
 
 The current `sew-protocol-model` profile is not a standalone protocol package boundary.
-At the current workspace state, `bb profile:describe sew-protocol-model` resolves 373
+At the current workspace state, `bb profile:check sew-protocol-model` resolves 376
 Clojure source files. The profile descriptor selects `runner`, `sew-protocol-model`,
 the Sew force-authorisation and analysis integrations, and the optional pro-rata
 slash-evidence adapter.
@@ -19,17 +19,17 @@ adapter is separately selectable; the supported `sew-protocol-model` and candida
 `sew-protocol` compositions include it to preserve the current evidence
 contract. These profile reports have zero undeclared component crossings, but
 their source closures remain large. The `sew-protocol` candidate excludes
-runner assembly and resolves to 199 source files with zero
-component crossings. That candidate closure is still too broad to count as a
-standalone package.
+runner assembly and currently passes its profile boundary/load check with 234
+Clojure files and zero component crossings. That candidate closure is still
+too broad to count as a standalone package.
 
 The `sew-protocol-model-core` candidate omits optional slash-evidence,
-force-authorisation, and analysis adapters and resolves to 175 source files.
+force-authorisation, and analysis adapters and resolves to 177 source files.
 It retains the Sew yield capability adapter because yield behavior is required
 by the current protocol model component.
 Evidence-producing slash execution and consensus researcher-authorisation actions
 fail visibly if their adapters are unavailable; analysis methods return empty or
-unsupported results. The 24-file difference from `sew-protocol` shows the
+unsupported results. The 57-file difference from `sew-protocol` shows the
 selectable integration boundary.
 
 A `sew-kernel` candidate isolates the escrow world representation and guarded
@@ -40,7 +40,7 @@ runtime composition remain outside this profile.
 Yield is now modeled as `:prf/yield-runtime-v1`, a reusable component required
 by Sew protocol model. Its `yield-runtime` candidate profile resolves 69 source files,
 owns all 28 yield namespaces in that closure, reports zero component crossings,
-and passes the isolated profile load check. The model-core closure is 175 files;
+and passes the isolated profile load check. The model-core closure is 177 files;
 it still composes the yield runtime. This is an explicit
 ownership boundary, not a claim that yield has been published as an independent
 package.
@@ -61,11 +61,12 @@ through a core-owned hook contract, and depends on core, slash economics, and
 pro-rata evaluation. The Sew pro-rata settlement adapter is separate and
 selected by the `pro-rata` profile.
 
-The resolved 373-file closure includes these largest groups:
+The resolved 376-file closure includes these largest groups:
 
 | Source group | Files | What it indicates |
 | --- | ---: | --- |
-| `protocols_src/resolver_sim/protocols` | 85 | Sew implementation and shared adjudication adapters |
+| `packages/sew-protocol-model/src` | 51 | Relocated Sew core model implementation |
+| `protocols_src/resolver_sim/protocols` | 36 | Remaining Sew integrations and shared adjudication adapters |
 | `yield_runtime_src/resolver_sim/yield` | 28 | Yield runtime and accounting integration |
 | `protocols_src/resolver_sim/research` | 25 | Sew-specific research analyses pulled into the closure |
 | `src/resolver_sim/sim` | 24 | Simulation support |
@@ -75,12 +76,12 @@ The resolved 373-file closure includes these largest groups:
 
 These are dependency-closure counts, not a proposed package manifest.
 
-The `sew-protocol` candidate omits runner and analysis components and has a
-199-file closure. Its largest groups are Sew protocol sources (53), yield (28),
-benchmark (14), scenario (6), and contract-model replay (2). This is the
-better starting view for further separation, but the remaining groups show
-that the Sew entry namespace still pulls yield, benchmark,
-and shared framework services into its runtime closure.
+The `sew-protocol` candidate omits runner and analysis components and currently
+resolves to 234 Clojure files. Its largest groups are the in-tree Sew package
+(51), yield runtime (28), benchmark (14), scenario (14), protocol adapters in
+`protocols_src` (12), and contract-model replay (12). This remains too broad to
+count as a standalone package: the model still depends on yield, benchmark,
+scenario, replay, and shared framework services.
 
 The `sew-kernel` candidate has a 30-file closure and zero component crossings.
 Its public entrypoint is `resolver-sim.protocols.sew.kernel`; it exposes
@@ -89,6 +90,14 @@ escrow transitions. The component declares its framework dependency and kernel
 contract test. The profile is intentionally narrower than `sew-protocol` and
 does not claim the full protocol's settlement or evidence behavior.
 
+The initial source relocation covers the 48 core Sew model namespaces reachable
+in the `sew-protocol` closure, in addition to the three kernel namespaces
+already in the package. It leaves separately owned force-authorisation,
+analysis, and pro-rata adapter namespaces under `protocols_src`. Profile
+resolution now finds the moved sources under
+`packages/sew-protocol-model/src`; the package still depends on the remaining
+protocol source tree and the shared PRF framework.
+
 The `sew-protocol-model-core` candidate selects Sew protocol model and slash economics without
 the optional analysis, pro-rata slash-evidence, or researcher force-authorisation adapters. `resolution` calls a core-owned
 evidence hook; the adapter installs the existing builder and artifact writer
@@ -96,7 +105,7 @@ when selected. The full `sew-protocol-model` profile includes all optional adapt
 the `sew-protocol` candidate includes force-authorisation and slash-evidence but
 omits analysis. The registry loads each selected adapter when its capability is
 requested. `bb profile:diff sew-protocol-model-core sew-protocol` reports the
-selected adapters and 24 added source files.
+selected adapters and 57 added source files.
 
 ## Concrete component crossings
 
@@ -251,7 +260,7 @@ test/fixture closure.
    namespace's dependencies. Replay, batch summarization, researcher
    force-authorisation, and analysis are optional components; Sew yield
    operations are behind model-owned capabilities over the required runtime.
-3. Reduce the `sew-protocol` candidate's 199-file closure by resolving its yield
+3. Reduce the `sew-protocol` candidate's 234-file closure by resolving its yield
    and remaining shared-framework dependencies. Keep yield required until
    no-yield behavior is specified for every lifecycle and evidence operation.
 4. Only after the constrained profile is small and tests/material are

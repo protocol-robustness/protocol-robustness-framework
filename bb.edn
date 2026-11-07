@@ -1502,9 +1502,17 @@ sign
                   (when (some (fn [[_ grp]] (some (fn [g] (= lit g)) grp)) path-groups)
                     (fail! (str k " raw literal \"" lit "\" should reference a :paths/* alias"))))))))
         ;; committed ordering for high-risk aliases
-        (let [expected {:test        ["test" "scripts" "protocols_src" "protocols_src/test"]
-                        :with-sew    ["protocols_src" "protocols_src/test"]
-                        :mcp         ["src" "dev" "test" "protocols_src" "protocols_src/test"]
+        (let [expected {:test        ["test" "scripts" "packages/sew-protocol-model/src"
+                                      "extensions/sew-pro-rata-slashing/src" "protocols_src"
+                                      "packages/sew-protocol-model/test" "extensions/sew-pro-rata-slashing/test"
+                                      "protocols_src/test"]
+                        :with-sew    ["packages/sew-protocol-model/src" "extensions/sew-pro-rata-slashing/src"
+                                      "protocols_src" "packages/sew-protocol-model/test"
+                                      "extensions/sew-pro-rata-slashing/test" "protocols_src/test"]
+                        :mcp         ["src" "dev" "test" "packages/sew-protocol-model/src"
+                                      "extensions/sew-pro-rata-slashing/src" "protocols_src"
+                                      "packages/sew-protocol-model/test" "extensions/sew-pro-rata-slashing/test"
+                                      "protocols_src/test"]
                         :dev/full    ["dev" "test"]}]
           (doseq [[k want] expected]
             (let [ep (:extra-paths (get aliases k))

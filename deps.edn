@@ -42,7 +42,14 @@
     :paths/test          ["test"]
     :paths/scripts       ["scripts"]
     :paths/protocols-src ["protocols_src"]
-    :paths/protocols     ["protocols_src" "protocols_src/test"]
+    :paths/sew-protocol-model ["packages/sew-protocol-model/src"
+                               "packages/sew-protocol-model/test"]
+    :paths/protocols     ["packages/sew-protocol-model/src"
+                          "extensions/sew-pro-rata-slashing/src"
+                          "protocols_src"
+                          "packages/sew-protocol-model/test"
+                          "extensions/sew-pro-rata-slashing/test"
+                          "protocols_src/test"]
     :paths/dev           ["dev" "test"]              ;; = dev + test
      :paths/src           ["src" "yield_runtime_src"]
      :paths/pro-rata-contract ["pro-rata/contract-source"]
@@ -52,8 +59,12 @@
     :paths/force-authorisation-rt ["extensions/force-authorisation/src"]
     :paths/sew-core-model ["extensions/sew-core-model/src" "extensions/sew-core-model/test"]
     :paths/sew-core-model-rt ["extensions/sew-core-model/src"]
-    :paths/all           ["src" "yield_runtime_src" "test" "protocols_src" "protocols_src/test" "dev" "scripts"
-                          :paths/held-custody :paths/force-authorisation]
+    :paths/sew-pro-rata-slashing ["extensions/sew-pro-rata-slashing/src"
+                                  "extensions/sew-pro-rata-slashing/test"]
+    :paths/sew-pro-rata-slashing-rt ["extensions/sew-pro-rata-slashing/src"]
+    :paths/all           ["src" "yield_runtime_src" "test" "packages/sew-protocol-model/src"
+                          "packages/sew-protocol-model/test" "protocols_src" "protocols_src/test" "dev" "scripts"
+                          :paths/held-custody :paths/force-authorisation :paths/sew-pro-rata-slashing]
     ;; Researchers: opt-in local paths (defined in ~/.clojure/deps.edn as
     ;; :researcher/paths, e.g. {:aliases {:researcher/paths [".researcher/src"]}}).
     ;; Compose with: clojure -M:test:researcher/env  (see .researcher/ note)
@@ -381,7 +392,9 @@
            com.github.seancorfield/next.jdbc {:mvn/version "1.3.939"}
            org.postgresql/postgresql         {:mvn/version "42.7.2"}
            metosin/malli                     {:mvn/version "0.17.0"}}
-    :paths ["src" "yield_runtime_src" "protocols_src" "resources" "scenarios"]}
+    :paths ["src" "yield_runtime_src" "packages/sew-protocol-model/src"
+            "extensions/sew-pro-rata-slashing/src"
+            "protocols_src" "resources" "scenarios"]}
 
    :speds-comparator-shadow
    {:extra-paths [:paths/scripts]

@@ -182,7 +182,10 @@ core-deps-str (pr-str
                                com.github.seancorfield/next.jdbc {:mvn/version "1.3.939"}
                                org.postgresql/postgresql {:mvn/version "42.7.2"}
                                metosin/malli {:mvn/version "0.17.0"}}
-                        :paths ["src" "yield_runtime_src" "pro-rata/contract-source" "protocols_src" "resources"]})
+                       :paths ["src" "yield_runtime_src" "pro-rata/contract-source"
+                               "packages/sew-protocol-model/src"
+                               "extensions/sew-pro-rata-slashing/src"
+                               "protocols_src" "resources"]})
         deps-str (if (or is-prf is-prf-runnable) core-deps-str sew-deps-str)
         deps-path (str (System/getProperty "java.io.tmpdir")
                        "/prf-build-deps-" (System/nanoTime) ".edn")
@@ -191,7 +194,10 @@ core-deps-str (pr-str
         src-dirs (cond
                            is-prf [".profile-view/framework"]
                            is-prf-runnable ["src" "yield_runtime_src" "pro-rata/contract-source" "resources" "scenarios"]
-                           :else ["src" "yield_runtime_src" "pro-rata/contract-source" "protocols_src" "resources" "scenarios"])
+                           :else ["src" "yield_runtime_src" "pro-rata/contract-source"
+                                  "packages/sew-protocol-model/src"
+                                  "extensions/sew-pro-rata-slashing/src"
+                                  "protocols_src" "resources" "scenarios"])
         class-dir (str (System/getProperty "java.io.tmpdir")
                        "/prf-build-" (System/nanoTime))
         jar-file (cond is-prf "target/prf.jar"
@@ -220,7 +226,7 @@ core-deps-str (pr-str
           (printf "    %s\n" sd)
           (b/copy-dir {:src-dirs [sd] :target-dir class-dir}))))
     ;; Remove test directories from class-dir to prevent AOT from picking them up
-    (doseq [test-dir ["test" "protocols_src/test"]]
+    (doseq [test-dir ["test" "protocols_src/test" "packages/sew-protocol-model/test" "extensions/sew-pro-rata-slashing/test"]]
       (let [td (java.io.File. class-dir test-dir)]
         (when (.exists td)
           (printf "  Removing test dir: %s\n" test-dir)
@@ -344,7 +350,7 @@ core-deps-str (pr-str
         class-dir "target/classes"]
     (.mkdirs (java.io.File. class-dir))
     (println "\n=== AOT compile Sew protocol sources ===")
-    (doseq [src-dir ["protocols_src" "src" "yield_runtime_src"]]
+    (doseq [src-dir ["packages/sew-protocol-model/src" "extensions/sew-pro-rata-slashing/src" "protocols_src" "src" "yield_runtime_src"]]
       (let [d (java.io.File. src-dir)]
         (when (.exists d)
           (try

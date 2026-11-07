@@ -12,13 +12,25 @@ slash-evidence adapter. Those are profile composition choices, not part of the
 meaning of the protocol-model component. The profile is not yet a standalone
 package qualification.
 
+The Sew Core adapter now resolves the model through the `packages/sew-protocol-model`
+subdirectory at immutable PRF Git revision `b94b091cfbaf46ec34ae2ade4920f9a3751e3097`.
+This removes the consumer's local workspace path and is verified through the
+Clojure CLI dependency resolver. The escrow kernel and 48 additional core
+model namespaces, together with four component contract tests, now live under
+the package source tree. The optional slash-evidence adapter and its dedicated tests live in
+`extensions/sew-pro-rata-slashing`; force-authorisation, analysis, slash
+economics, and shared adapter tests remain under `protocols_src`. The package
+manifest still includes that directory and resolves the framework from the PRF
+checkout. This is an independently resolvable source dependency, not a separate
+Sew repository or a published Maven package.
+
 ## Initial behavior map
 
 | Behavior | PRF model | Solidity implementation | Alignment status |
 | --- | --- | --- | --- |
-| Escrow lifecycle and guarded transitions | protocols_src/resolver_sim/protocols/sew/{types,state_machine,lifecycle}.clj; escrow-kernel component | [BaseEscrow.sol](../../../sew-protocol/contracts/core/BaseEscrow.sol), [EscrowVault.sol](../../../sew-protocol/contracts/core/EscrowVault.sol), [EscrowableERC20.sol](../../../sew-protocol/contracts/core/EscrowableERC20.sol) | Intended shared behavior; compare transitions and boundary cases |
-| Dispute resolution and appeal-bond accounting | protocols_src/resolver_sim/protocols/sew/resolution.clj, appeal_bond_projection.clj, and accounting_projection.clj | [DecentralizedResolutionModule.sol](../../../sew-protocol/contracts/modules/decentralized-resolution-module/DecentralizedResolutionModule.sol), [ResolverIncentiveModule.sol](../../../sew-protocol/contracts/modules/decentralized-resolution-module/incentive/ResolverIncentiveModule.sol), [BondLedger.sol](../../../sew-protocol/contracts/shared/BondLedger.sol) | Shared domain; module boundaries differ |
-| Yield accrual and settlement | yield_runtime_src/resolver_sim/yield/ and protocols_src/resolver_sim/protocols/sew/yield/ | [EscrowYield.sol](../../../sew-protocol/contracts/core/EscrowYield.sol), [AaveYieldModule.sol](../../../sew-protocol/contracts/modules/AaveYieldModule.sol), IYieldModule | Shared behavior where selected module semantics overlap; simulated providers are not Solidity package equivalents |
+| Escrow lifecycle and guarded transitions | `packages/sew-protocol-model/src/resolver_sim/protocols/sew/{types,state_machine,lifecycle}.clj`; escrow-kernel component | [BaseEscrow.sol](../../../sew-protocol/contracts/core/BaseEscrow.sol), [EscrowVault.sol](../../../sew-protocol/contracts/core/EscrowVault.sol), [EscrowableERC20.sol](../../../sew-protocol/contracts/core/EscrowableERC20.sol) | Intended shared behavior; compare transitions and boundary cases |
+| Dispute resolution and appeal-bond accounting | `packages/sew-protocol-model/src/resolver_sim/protocols/sew/{resolution,appeal_bond_projection,accounting_projection}.clj` | [DecentralizedResolutionModule.sol](../../../sew-protocol/contracts/modules/decentralized-resolution-module/DecentralizedResolutionModule.sol), [ResolverIncentiveModule.sol](../../../sew-protocol/contracts/modules/decentralized-resolution-module/incentive/ResolverIncentiveModule.sol), [BondLedger.sol](../../../sew-protocol/contracts/shared/BondLedger.sol) | Shared domain; module boundaries differ |
+| Yield accrual and settlement | `yield_runtime_src/resolver_sim/yield/` and `packages/sew-protocol-model/src/resolver_sim/protocols/sew/yield/` | [EscrowYield.sol](../../../sew-protocol/contracts/core/EscrowYield.sol), [AaveYieldModule.sol](../../../sew-protocol/contracts/modules/AaveYieldModule.sol), IYieldModule | Shared behavior where selected module semantics overlap; simulated providers are not Solidity package equivalents |
 | Slash allocation and evidence | Sew pro-rata economics, slash projection, and the optional slash-evidence adapter | ResolverIncentiveModule and ResolverIncentiveModuleV2BondLedger | Compare economic outcomes and evidence claims; PRF evidence artifacts are off-chain |
 | Replay receipts, research, and runner assembly | PRF contract-model replay, scenario runner, and research namespaces | No direct on-chain package counterpart | PRF tooling; excluded from a Solidity-core package equivalence claim |
 | Governance, deployment, and upgrades | Model-specific governance behavior where simulated | Solidity governance/admin contracts and deployment tooling | Map individual protocol rules when behavior is shared; deployment infrastructure is not model-core parity |
