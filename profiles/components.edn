@@ -246,6 +246,7 @@
    [resolver-sim.protocols.sew.analysis-extension
     resolver-sim.protocols.sew.advisory
     resolver-sim.protocols.sew.equilibrium
+    resolver-sim.protocols.sew.claimable-classification
     resolver-sim.protocols.sew.projection
     resolver-sim.protocols.sew.validator-registry]
    :component/entry-namespaces
@@ -258,6 +259,8 @@
     {:path "extensions/sew-analysis/test/resolver_sim/protocols/sew/funds_ledger_projection_test.clj"
      :kind :test-source}
     {:path "extensions/sew-analysis/test/resolver_sim/protocols/sew/validator_registry_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-analysis/test/resolver_sim/protocols/sew/claimable_classification_test.clj"
      :kind :test-source}
     {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
      :kind :test-source}

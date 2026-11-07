@@ -21,7 +21,8 @@ the package source tree. The optional
 slash-evidence adapter and its dedicated tests live in
 `extensions/sew-pro-rata-slashing`; slash economics lives separately in
 `extensions/sew-pro-rata-economics`; the analysis adapter and dedicated tests
-live in `extensions/sew-analysis`. Force-authorisation and shared adapter tests
+live in `extensions/sew-analysis`, including the claimable-classification report
+builder and its contract tests. Force-authorisation and shared adapter tests
 remain under `protocols_src`. The model package manifest no longer adds
 `protocols_src` to its classpath. It still relies on the sibling economics-extension
 source and resolves the framework from the PRF checkout. The economics extension
