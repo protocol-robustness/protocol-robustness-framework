@@ -4,6 +4,6 @@
 ;; economics adapter is currently sourced from a sibling in-tree extension
 ;; until the portable evaluation API and extension have independent artifacts.
 ;; This package is not yet relocatable out of the PRF repository.
-{:paths ["src" "../../extensions/sew-pro-rata-economics/src" "../../protocols_src"]
+{:paths ["src" "test" "../../extensions/sew-pro-rata-economics/src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
         prf/framework {:local/root "../.."}}}

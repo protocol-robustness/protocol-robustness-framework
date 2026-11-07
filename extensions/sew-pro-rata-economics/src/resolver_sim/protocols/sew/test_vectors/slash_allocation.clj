@@ -3,7 +3,7 @@
    Extracted from resolver-sim.test-vectors.pro-rata for protocol separation."
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [resolver-sim.protocols.sew.economics :as sew-economics]
+            [resolver-sim.protocols.sew.pro-rata.economics :as sew-economics]
             [resolver-sim.config.paths :as paths]))
 
 (def slash-schema-version "slash-allocation-vector.v1")

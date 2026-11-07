@@ -20,12 +20,12 @@ model namespaces, together with four component contract tests, now live under
 the package source tree. The optional slash-evidence adapter and its dedicated tests live in
 `extensions/sew-pro-rata-slashing`; slash economics lives separately in
 `extensions/sew-pro-rata-economics`; the analysis adapter and dedicated tests
-live in `extensions/sew-analysis`. Force-authorisation, the compatibility-based
-slash-allocation vector generator, and shared adapter tests remain under
-`protocols_src`. The model package manifest still includes that directory plus
-the sibling economics-extension source and resolves the framework
-from the PRF checkout. The economics extension resolves its evaluation API from
-a pinned PRF source revision until that API has an independent artifact. These
+live in `extensions/sew-analysis`. Force-authorisation and shared adapter tests
+remain under `protocols_src`. The model package manifest no longer adds
+`protocols_src` to its classpath. It still relies on the sibling economics-extension
+source and resolves the framework from the PRF checkout. The economics extension
+resolves its evaluation API from a pinned PRF source revision until that API has
+an independent artifact. These
 are source-composition candidates, not a separate Sew repository or published
 Maven packages.
 

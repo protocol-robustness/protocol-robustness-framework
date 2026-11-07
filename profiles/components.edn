@@ -102,7 +102,9 @@
                         :prf/yield-runtime-v1
                         :prf/sew-pro-rata-economics-v1]
    :component/owned-namespaces
-   [resolver-sim.cancellation.sew-projection
+   [resolver-sim.protocols.adjudication
+    resolver-sim.protocols.adjudication-authentication-verification
+    resolver-sim.cancellation.sew-projection
     resolver-sim.protocols.sew
     resolver-sim.protocols.sew.accounting
     resolver-sim.protocols.sew.accounting-projection
@@ -110,6 +112,7 @@
     resolver-sim.protocols.sew.adjudication-case
     resolver-sim.protocols.sew.adjudication-instance
     resolver-sim.protocols.sew.adjudication-snapshot
+    resolver-sim.protocols.sew.adjudication-source
     resolver-sim.protocols.sew.appeal-bond-projection
     resolver-sim.protocols.sew.authority
     resolver-sim.protocols.sew.claimable-outcome
@@ -145,25 +148,40 @@
     resolver-sim.protocols.sew.resolution-decision
     resolver-sim.protocols.sew.slash-evidence
     resolver-sim.protocols.sew.snapshot
+    resolver-sim.protocols.sew.snapshot-presets
     resolver-sim.protocols.sew.trace-metadata
     resolver-sim.protocols.sew.transition-assurance
     resolver-sim.protocols.sew.yield.invariants
     resolver-sim.protocols.sew.yield.policy
     resolver-sim.protocols.sew.yield-extension]
    :component/entry-namespaces
-   [resolver-sim.protocols.sew
+   [resolver-sim.protocols.adjudication
+    resolver-sim.protocols.adjudication-authentication-verification
+    resolver-sim.protocols.sew
     resolver-sim.protocols.sew.yield-extension
     resolver-sim.protocols.sew.appeal-bond-projection
     resolver-sim.cancellation.sew-projection
     resolver-sim.protocols.sew.replay.appeal-bond]
    :component/material
-   [{:path "packages/sew-protocol-model/test/resolver_sim/cancellation/projection_conformance_test.clj"
+   [{:path "packages/sew-protocol-model/test/resolver_sim/protocols/adjudication_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/adjudication_authentication_verification_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/snapshot_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/adjudication_case_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/adjudication_snapshot_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/adjudication_source_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/dispute_ruling_finality_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/cancellation/projection_conformance_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/replay/appeal_bond_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/accounting_test.clj"
-     :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
      :kind :test-source}]}
 
   ;; Operation-limited behavior candidate aligned to the Solidity Sew Core
@@ -344,7 +362,7 @@
      :kind :package-manifest}
     {:path "protocols_src/test/resolver_sim/protocols/sew/economics_test.clj"
      :kind :test-source}
-    {:path "protocols_src/resolver_sim/protocols/sew/test_vectors/slash_allocation.clj"
+    {:path "extensions/sew-pro-rata-economics/src/resolver_sim/protocols/sew/test_vectors/slash_allocation.clj"
      :kind :conformance-vector}]}
 
   ;; Evidence is an optional adapter to the core-owned slash-evidence contract.

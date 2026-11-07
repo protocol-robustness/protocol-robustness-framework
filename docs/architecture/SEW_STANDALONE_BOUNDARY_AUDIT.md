@@ -250,12 +250,13 @@ separate review. Its generated `deps.edn` copies the repository dependency map,
 so it does not define a minimal Sew dependency set. Sew tests and test material
 also live across
 `test/`, `protocols_src/test/`, `protocols_src/`, and shared fixture/resource
-directories. The slash-evidence adapter declares its tests. The slash-economics adapter has
-a pinned source dependency; its allocation conformance-vector generator remains
-shared under `protocols_src` because it consumes the model compatibility facade. The core Sew
-component still lacks a curated self-contained test
-closure. A package candidate needs an explicit dependency manifest and complete
-test/fixture closure.
+directories; the model package now has a focused package-only contract suite, while
+the broader Sew suite still spans those roots. The slash-evidence adapter declares its tests. The slash-economics
+adapter has a pinned source dependency, and its allocation conformance-vector
+generator now lives in the same extension source package. The model package
+manifest no longer adds `protocols_src` to its classpath, but still relies on the
+in-tree framework and sibling economics extension. A package candidate needs
+independently resolvable dependencies and a complete test/fixture closure.
 
 ## Recommended preparation sequence
 
