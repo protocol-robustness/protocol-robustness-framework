@@ -1,4 +1,4 @@
-(ns prf.extensions.sew-core-model.adapter
+(ns prf.extensions.sew-core-profile-adapter.adapter
   "Operation-limited PRF model extension for the Solidity Sew Core profile.
 
    This candidate delegates supported escrow transitions to the full Sew model,

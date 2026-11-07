@@ -194,7 +194,7 @@ semantics. A profile aligned with Solidity `sew-core` would be a separate,
 narrower model: its spec explicitly disables yield and excludes staking and
 slashing. It must be built from a reviewed operation subset with explicit
 rejection behavior, not by dropping yield from the current full model. The
-`extensions/sew-core-model` package now provides an initial guarded adapter,
+`extensions/sew-core-profile-adapter` package now provides an initial guarded adapter,
 but it still delegates to that full model and retains a 194-file source
 closure. It is an in-tree candidate, not an independently extracted or
 Solidity-equivalent package. Its candidate profile passes source-boundary and

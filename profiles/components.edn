@@ -174,17 +174,17 @@
   {:component/plane :protocol-extension
    :component/requires [:prf/sew-protocol-model-v1]
    :component/owned-namespaces
-   [prf.extensions.sew-core-model.adapter]
+   [prf.extensions.sew-core-profile-adapter.adapter]
    :component/entry-namespaces
-   [prf.extensions.sew-core-model.adapter]
+   [prf.extensions.sew-core-profile-adapter.adapter]
    :component/material
-   [{:path "extensions/sew-core-model/deps.edn"
+   [{:path "extensions/sew-core-profile-adapter/deps.edn"
      :kind :package-manifest}
     {:path "packages/sew-protocol-model/deps.edn"
      :kind :package-manifest}
-    {:path "extensions/sew-core-model/test/prf/extensions/sew_core_model/adapter_test.clj"
+    {:path "extensions/sew-core-profile-adapter/test/prf/extensions/sew_core_profile_adapter/adapter_test.clj"
      :kind :test-source}
-    {:path "extensions/sew-core-model/test/prf/extensions/sew_core_model/solidity_vectors.edn"
+    {:path "extensions/sew-core-profile-adapter/test/prf/extensions/sew_core_profile_adapter/solidity_vectors.edn"
      :kind :conformance-fixture}]}
 
   ;; Consensus force-authorisation verification is an optional protocol

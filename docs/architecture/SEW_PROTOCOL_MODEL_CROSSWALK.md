@@ -56,12 +56,12 @@ The existing 30-file `sew-kernel` candidate does not cover these operations by
 itself. An operation-limited in-tree adapter now exists as the separate
 `sew-core-extension` candidate profile. It validates its action and feature
 boundary and delegates supported behavior to the full Sew model. The adapter
-now lives in the optional `extensions/sew-core-model` package, with a separate
+now lives in the optional `extensions/sew-core-profile-adapter` package, with a separate
 `deps.edn`, source, tests, and development classpath alias. Its model dependency
 resolves through the independently selectable `packages/sew-protocol-model`
 package, while that model package still uses an in-tree framework dependency.
 The adapter is not independently downloadable until the model is published.
-Its current closure is 194 source files because it still requires the full model, including
+Its current closure is 196 source files because it still requires the full model, including
 shared yield runtime; it is not an independently extracted or Solidity
 equivalent package. The profile has no undeclared component crossings and
 passes `bb profile:check sew-core-extension`. To make that possible, runner

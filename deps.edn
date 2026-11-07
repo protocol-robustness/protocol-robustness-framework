@@ -57,8 +57,8 @@
     :paths/held-custody-rt       ["extensions/held-custody/src"]
     :paths/force-authorisation   ["extensions/force-authorisation/src" "extensions/force-authorisation/test"]
     :paths/force-authorisation-rt ["extensions/force-authorisation/src"]
-    :paths/sew-core-model ["extensions/sew-core-model/src" "extensions/sew-core-model/test"]
-    :paths/sew-core-model-rt ["extensions/sew-core-model/src"]
+    :paths/sew-core-profile-adapter ["extensions/sew-core-profile-adapter/src" "extensions/sew-core-profile-adapter/test"]
+    :paths/sew-core-profile-adapter-rt ["extensions/sew-core-profile-adapter/src"]
     :paths/sew-pro-rata-slashing ["extensions/sew-pro-rata-slashing/src"
                                   "extensions/sew-pro-rata-slashing/test"]
     :paths/sew-pro-rata-slashing-rt ["extensions/sew-pro-rata-slashing/src"]
@@ -123,11 +123,11 @@
    {:extra-paths [:paths/force-authorisation-rt]}
 
    ;; Optional Sew Core behavior profile adapter. The runtime alias omits tests.
-   :extension/sew-core-model
-   {:extra-paths [:paths/sew-core-model]}
+   :extension/sew-core-profile-adapter
+   {:extra-paths [:paths/sew-core-profile-adapter]}
 
-   :extension/sew-core-model-rt
-   {:extra-paths [:paths/sew-core-model-rt]}
+   :extension/sew-core-profile-adapter-rt
+   {:extra-paths [:paths/sew-core-profile-adapter-rt]}
 
    ;; flow-storm
 ;;   {:1.12-storm {:classpath-overrides {org.clojure/clojure nil}

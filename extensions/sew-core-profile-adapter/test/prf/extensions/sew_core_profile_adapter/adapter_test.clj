@@ -1,14 +1,14 @@
-(ns prf.extensions.sew-core-model.adapter-test
+(ns prf.extensions.sew-core-profile-adapter.adapter-test
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.protocols.registry :as registry]
             [resolver-sim.time.context :as time-context]
-            [prf.extensions.sew-core-model.adapter :as core]))
+            [prf.extensions.sew-core-profile-adapter.adapter :as core]))
 
 (def solidity-vectors
-  (edn/read-string (slurp (io/resource "prf/extensions/sew_core_model/solidity_vectors.edn"))))
+  (edn/read-string (slurp (io/resource "prf/extensions/sew_core_profile_adapter/solidity_vectors.edn"))))
 
 (def valid-scenario
   {:protocol-params {:governance-mode :restricted

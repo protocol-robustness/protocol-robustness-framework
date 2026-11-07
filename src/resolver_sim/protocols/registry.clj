@@ -133,7 +133,7 @@
 (defn- bootstrap-sew-core-extension! [protocol-id requested-capability]
   (when (= "sew-v1" protocol-id)
     (try
-      (require 'prf.extensions.sew-core-model.adapter)
+      (require 'prf.extensions.sew-core-profile-adapter.adapter)
       (catch java.io.FileNotFoundException _ nil))
     (restore-capability-group! protocol-id :sew-core requested-capability)))
 
