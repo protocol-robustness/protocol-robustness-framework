@@ -338,7 +338,11 @@
    :component/entry-namespaces
    [resolver-sim.protocols.sew.pro-rata.economics]
    :component/material
-   [{:path "protocols_src/resolver_sim/protocols/sew/test_vectors/slash_allocation.clj"
+   [{:path "extensions/sew-pro-rata-economics/deps.edn"
+     :kind :package-manifest}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/economics_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/resolver_sim/protocols/sew/test_vectors/slash_allocation.clj"
      :kind :conformance-vector}]}
 
   ;; Evidence is an optional adapter to the core-owned slash-evidence contract.

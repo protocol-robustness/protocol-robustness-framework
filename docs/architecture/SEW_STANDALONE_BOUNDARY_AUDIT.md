@@ -8,7 +8,7 @@ the model-core candidate intentionally omits optional pro-rata slash evidence.
 ## Summary
 
 The current `sew-protocol-model` profile is not a standalone protocol package boundary.
-At the current workspace state, `bb profile:check sew-protocol-model` resolves 376
+At the current workspace state, `bb profile:check sew-protocol-model` resolves 377
 Clojure source files. The profile descriptor selects `runner`, `sew-protocol-model`,
 the Sew force-authorisation and analysis integrations, and the optional pro-rata
 slash-evidence adapter.
@@ -61,12 +61,12 @@ through a core-owned hook contract, and depends on core, slash economics, and
 pro-rata evaluation. The Sew pro-rata settlement adapter is separate and
 selected by the `pro-rata` profile.
 
-The resolved 376-file closure includes these largest groups:
+The resolved 377-file closure includes these largest groups:
 
 | Source group | Files | What it indicates |
 | --- | ---: | --- |
 | `packages/sew-protocol-model/src` | 51 | Relocated Sew core model implementation |
-| `protocols_src/resolver_sim/protocols` | 36 | Remaining Sew integrations and shared adjudication adapters |
+| `protocols_src/resolver_sim/protocols` | 34 | Remaining Sew integrations and shared adjudication adapters |
 | `yield_runtime_src/resolver_sim/yield` | 28 | Yield runtime and accounting integration |
 | `protocols_src/resolver_sim/research` | 25 | Sew-specific research analyses pulled into the closure |
 | `src/resolver_sim/sim` | 24 | Simulation support |
@@ -92,8 +92,9 @@ does not claim the full protocol's settlement or evidence behavior.
 
 The initial source relocation covers the 48 core Sew model namespaces reachable
 in the `sew-protocol` closure, in addition to the three kernel namespaces
-already in the package. It leaves separately owned force-authorisation,
-analysis, and pro-rata adapter namespaces under `protocols_src`. Profile
+already in the package. Force-authorisation, analysis, and shared integration namespaces remain under
+`protocols_src`; Sew slash economics and slash evidence are separate extension
+source roots. Profile
 resolution now finds the moved sources under
 `packages/sew-protocol-model/src`; the package still depends on the remaining
 protocol source tree and the shared PRF framework.
@@ -195,14 +196,14 @@ narrower model: its spec explicitly disables yield and excludes staking and
 slashing. It must be built from a reviewed operation subset with explicit
 rejection behavior, not by dropping yield from the current full model. The
 `extensions/sew-core-profile-adapter` package now provides an initial guarded adapter,
-but it still delegates to that full model and retains a 194-file source
+but it still delegates to that full model and retains a 196-file source
 closure. It is an in-tree candidate, not an independently extracted or
 Solidity-equivalent package. Its candidate profile passes source-boundary and
 entrypoint-load checks. The model profile still composes `yield-runtime`.
 
 ### Pro-rata evaluation inside the Sew slash integration
 
-`protocols_src/resolver_sim/protocols/sew/pro_rata/evidence.clj` imports
+`extensions/sew-pro-rata-slashing/src/resolver_sim/protocols/sew/pro_rata/evidence.clj` imports
 `resolver-sim.pro-rata.evaluation`. That namespace deliberately composes the
 pro-rata allocator, redistribution engine, and independent exact verifier to
 produce canonical result artifacts. This is an application integration, not a
@@ -245,8 +246,9 @@ separate review. Its generated `deps.edn` copies the repository dependency map,
 so it does not define a minimal Sew dependency set. Sew tests and test material
 also live across
 `test/`, `protocols_src/test/`, `protocols_src/`, and shared fixture/resource
-directories. The slash-evidence adapter declares its tests, and the slash
-economics component declares the allocation conformance vector. The core Sew
+directories. The slash-evidence adapter declares its tests. The slash-economics adapter has
+a pinned source dependency; its allocation conformance-vector generator remains
+shared under `protocols_src` because it consumes the model compatibility facade. The core Sew
 component still lacks a curated self-contained test
 closure. A package candidate needs an explicit dependency manifest and complete
 test/fixture closure.

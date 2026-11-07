@@ -101,7 +101,7 @@
                          "(defn- allocate-shared-withdrawal-rows"
                          "(defn- make-evidence")
         sew-slash
-        (function-source "protocols_src/resolver_sim/protocols/sew/pro_rata/economics.clj"
+        (function-source "extensions/sew-pro-rata-economics/src/resolver_sim/protocols/sew/pro_rata/economics.clj"
                          "(defn calculate-sew-slash-allocation"
                          "(defn build-sew-slash-projection-artifact")]
     (is (str/includes? shared-withdrawal "pro-rata/allocate"))

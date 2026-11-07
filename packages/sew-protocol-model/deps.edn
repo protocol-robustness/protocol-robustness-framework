@@ -1,7 +1,9 @@
 ;; Source subpackage for the PRF Sew protocol model. Consumers can resolve this
 ;; subdirectory from an immutable PRF Git revision; its framework dependency
-;; intentionally resolves from the same repository checkout. Publish this
-;; package and the framework before replacing that relative dependency.
-{:paths ["src" "../../protocols_src"]
+;; intentionally resolves from the same repository checkout. The Sew slash-
+;; economics adapter is currently sourced from a sibling in-tree extension
+;; until the portable evaluation API and extension have independent artifacts.
+;; This package is not yet relocatable out of the PRF repository.
+{:paths ["src" "../../extensions/sew-pro-rata-economics/src" "../../protocols_src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
         prf/framework {:local/root "../.."}}}

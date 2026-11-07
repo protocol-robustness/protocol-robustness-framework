@@ -184,7 +184,7 @@ core-deps-str (pr-str
                                metosin/malli {:mvn/version "0.17.0"}}
                        :paths ["src" "yield_runtime_src" "pro-rata/contract-source"
                                "packages/sew-protocol-model/src"
-                               "extensions/sew-pro-rata-slashing/src"
+                               "extensions/sew-pro-rata-economics/src" "extensions/sew-pro-rata-slashing/src"
                                "protocols_src" "resources"]})
         deps-str (if (or is-prf is-prf-runnable) core-deps-str sew-deps-str)
         deps-path (str (System/getProperty "java.io.tmpdir")
@@ -196,7 +196,7 @@ core-deps-str (pr-str
                            is-prf-runnable ["src" "yield_runtime_src" "pro-rata/contract-source" "resources" "scenarios"]
                            :else ["src" "yield_runtime_src" "pro-rata/contract-source"
                                   "packages/sew-protocol-model/src"
-                                  "extensions/sew-pro-rata-slashing/src"
+                                  "extensions/sew-pro-rata-economics/src" "extensions/sew-pro-rata-slashing/src"
                                   "protocols_src" "resources" "scenarios"])
         class-dir (str (System/getProperty "java.io.tmpdir")
                        "/prf-build-" (System/nanoTime))
@@ -350,7 +350,7 @@ core-deps-str (pr-str
         class-dir "target/classes"]
     (.mkdirs (java.io.File. class-dir))
     (println "\n=== AOT compile Sew protocol sources ===")
-    (doseq [src-dir ["packages/sew-protocol-model/src" "extensions/sew-pro-rata-slashing/src" "protocols_src" "src" "yield_runtime_src"]]
+    (doseq [src-dir ["packages/sew-protocol-model/src" "extensions/sew-pro-rata-economics/src" "extensions/sew-pro-rata-slashing/src" "protocols_src" "src" "yield_runtime_src"]]
       (let [d (java.io.File. src-dir)]
         (when (.exists d)
           (try

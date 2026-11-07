@@ -18,11 +18,15 @@ This removes the consumer's local workspace path and is verified through the
 Clojure CLI dependency resolver. The escrow kernel and 48 additional core
 model namespaces, together with four component contract tests, now live under
 the package source tree. The optional slash-evidence adapter and its dedicated tests live in
-`extensions/sew-pro-rata-slashing`; force-authorisation, analysis, slash
-economics, and shared adapter tests remain under `protocols_src`. The package
-manifest still includes that directory and resolves the framework from the PRF
-checkout. This is an independently resolvable source dependency, not a separate
-Sew repository or a published Maven package.
+`extensions/sew-pro-rata-slashing`; slash economics lives separately in
+`extensions/sew-pro-rata-economics`. Force-authorisation, analysis, the
+compatibility-based slash-allocation vector generator, and shared adapter tests
+remain under `protocols_src`. The model package manifest still includes that
+directory plus the sibling economics-extension source and resolves the framework
+from the PRF checkout. The economics extension resolves its evaluation API from
+a pinned PRF source revision until that API has an independent artifact. These
+are source-composition candidates, not a separate Sew repository or published
+Maven packages.
 
 ## Initial behavior map
 
