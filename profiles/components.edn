@@ -177,6 +177,22 @@
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/dispute_ruling_finality_test.clj"
      :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/authority_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/lifecycle_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/dispute_ruling_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/resolution_basis_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/resolution_decision_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/state_machine_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/evidence_admission_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/diff_test.clj"
+     :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/cancellation/projection_conformance_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/replay/appeal_bond_test.clj"
