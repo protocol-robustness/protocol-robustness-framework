@@ -154,6 +154,92 @@
                               (review/sign-initial-input-approval
                                manifest packages context (.getPrivate wrong-pair) key-id)))))))
 
+(deftest initial-input-preflight-checks-reviewed-context-without-signing
+  (let [{:keys [source-revision source-tree-sha256 source-root source-lock-path]}
+        (source-fixture/create-lock-fixture)
+        packages (package-fixtures/generic-packages)
+        manifest (review/review-manifest-v3 packages source-revision source-tree-sha256 approver)
+        pair (.generateKeyPair (KeyPairGenerator/getInstance "Ed25519"))
+        encoded (.getEncoded (.getPublic pair))
+        raw (java.util.Arrays/copyOfRange encoded (- (alength encoded) 32) (alength encoded))
+        public-hex (apply str (map #(format "%02x" (bit-and 0xff %)) raw))
+        key-id :owner-preflight-test
+        trust {:trusted-keys [{:key/id key-id :key/public public-hex
+                               :key/role review/approval-role :key/status :active
+                               :approval/principal approver}]}
+        context {:source-revision source-revision :source-tree-sha256 source-tree-sha256
+                 :source-root source-root :source-lock-path source-lock-path
+                 :principal approver :trust-policy trust :action "approve-initial-inputs"}
+        result (review/initial-input-approval-preflight manifest packages context key-id)]
+    (is (:valid? result))
+    (is (= "ready-for-authorized-signature-not-approved" (:qualification result)))
+    (is (= (review/manifest-root manifest) (:manifestRoot result)))
+    (is (= 1 (get-in result [:sourceIdentity :source-file-count])))
+    (is (every? true? (vals (:checks result))))
+    (is (false? (:privateKeyRead result)))
+    (is (false? (:signatureCreated result)))
+    (is (false? (:approvalWritten result)))
+    (doseq [changed-context [(assoc context :action "approve-successor-transition")
+                             (assoc context :source-tree-sha256 (apply str (repeat 64 "d")))
+                             (assoc-in context [:trust-policy :trusted-keys 0 :key/status] :revoked)
+                             (assoc-in context [:trust-policy :trusted-keys 0 :approval/principal]
+                                       "0x0000000000000000000000000000000000000001")
+                             (assoc-in context [:trust-policy :trusted-keys 0 :key/role] :other-role)
+                             (assoc-in context [:trust-policy :trusted-keys 0 :key/public] "not-hex")
+                             (update context :trust-policy update :trusted-keys conj
+                                     (first (:trusted-keys trust)))]]
+      (is (false? (:valid? (review/initial-input-approval-preflight
+                            manifest packages changed-context key-id)))))
+    (is (false? (:valid? (review/initial-input-approval-preflight
+                          manifest packages context :unknown-key-id))))
+    (is (false? (:valid? (review/initial-input-approval-preflight
+                          manifest
+                          (update-in packages [:local-authority-policy :local-authority-policy]
+                                     assoc :authority/transition-validator-address
+                                     "0x0000000000000000000000000000000000000001")
+                          context key-id))))))
+
+(deftest initial-input-preflight-cli-emits-machine-readable-non-approval
+  (let [{:keys [source-revision source-tree-sha256 source-root source-lock-path]}
+        (source-fixture/create-lock-fixture)
+        packages (package-fixtures/generic-packages)
+        manifest (review/review-manifest-v3 packages source-revision source-tree-sha256 approver)
+        pair (.generateKeyPair (KeyPairGenerator/getInstance "Ed25519"))
+        encoded (.getEncoded (.getPublic pair))
+        raw (java.util.Arrays/copyOfRange encoded (- (alength encoded) 32) (alength encoded))
+        public-hex (apply str (map #(format "%02x" (bit-and 0xff %)) raw))
+        key-id :owner-preflight-cli-test
+        context {:source-revision source-revision :source-tree-sha256 source-tree-sha256
+                 :source-root source-root :source-lock-path source-lock-path
+                 :principal approver :trust-policy
+                 {:trusted-keys [{:key/id key-id :key/public public-hex
+                                  :key/role review/approval-role :key/status :active
+                                  :approval/principal approver}]}
+                 :action "approve-initial-inputs"}
+        temp (.toFile (Files/createTempDirectory "prf-initial-preflight-cli"
+                                                 (make-array java.nio.file.attribute.FileAttribute 0)))
+        manifest-file (io/file temp "manifest.edn")
+        packages-file (io/file temp "packages.edn")
+        context-file (io/file temp "trusted-context.edn")]
+    (spit manifest-file (pr-str manifest))
+    (spit packages-file (pr-str packages))
+    (spit context-file (pr-str context))
+    (let [output (with-out-str
+                   (review/-main "preflight-initial-inputs"
+                                 (.getPath manifest-file) (.getPath packages-file)
+                                 (.getPath context-file) (pr-str key-id)))
+          report (json/read-str output :key-fn keyword)]
+      (is (= "prf-local-initial-input-approval-preflight.v1" (:schema report)))
+      (is (true? (:valid report)))
+      (is (= "ready-for-authorized-signature-not-approved" (:qualification report)))
+      (is (false? (:privateKeyRead report)))
+      (is (false? (:signatureCreated report)))
+      (is (false? (:approvalWritten report))))
+    (.delete context-file)
+    (.delete packages-file)
+    (.delete manifest-file)
+    (.delete temp)))
+
 (deftest initial-input-signer-cli-writes-a-verified-envelope-once
   (let [{:keys [source-revision source-tree-sha256 source-root source-lock-path]}
         (source-fixture/create-lock-fixture)

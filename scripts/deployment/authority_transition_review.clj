@@ -5,9 +5,51 @@
             [clojure.java.io :as io]
             [clojure.data.json :as json]
             [resolver-sim.authority-state :as authority]
-            [resolver-sim.genesis :as genesis]))
+            [resolver-sim.genesis :as genesis])
+  (:import [java.nio.file Files StandardOpenOption]))
 
 (def request-schema "prf-authority-transition-request.v1")
+(def ^:private request-input-keys
+  #{:previous-state :successor-state :current-policy :successor-policy
+    :chain-instance :decision-preimages})
+
+(defn build-request
+  "Derive an unsigned transition request from explicit semantic inputs.
+  This does not authenticate approval, sign, or submit a transaction."
+  [inputs]
+  (when-not (and (map? inputs) (= request-input-keys (set (keys inputs))))
+    (throw (ex-info "request inputs must contain exactly the six declared semantic inputs"
+                    {:expected request-input-keys :actual (set (keys inputs))})))
+  (let [{:keys [previous-state successor-state current-policy successor-policy
+                chain-instance decision-preimages]} inputs
+        envelope (authority/authority-transition-envelope
+                  previous-state successor-state current-policy successor-policy
+                  chain-instance decision-preimages)
+        preimages (:authority-transition/decision-preimages envelope)
+        _ (when-not (= 1 (count preimages))
+            (throw (ex-info "bounded C0 -> C1 request requires exactly one decision preimage"
+                            {:decision-preimage-count (count preimages)})))
+        semantic (authority/validate-authority-transition-envelope
+                  envelope previous-state successor-state current-policy
+                  successor-policy chain-instance)
+        _ (when-not (:valid? semantic)
+            (throw (ex-info "authority-transition inputs fail independent semantic validation"
+                            {:errors (:errors semantic)})))
+        preimage (first preimages)
+        transition (:decision/transition preimage)]
+    (when-not transition
+      (throw (ex-info "authority transition preimage has no configuration transition" {})))
+    {:request/schema request-schema
+     :previous-state previous-state
+     :successor-state successor-state
+     :current-policy current-policy
+     :successor-policy successor-policy
+     :chain-instance chain-instance
+     :expected-configuration-transition transition
+     :expected-decision-root (:decision/root preimage)
+     :expected-parent-verifier-registry-root
+     (:decision/parent-verifier-registry-root preimage)
+     :envelope envelope}))
 
 (defn- evm-bytes32 [value]
   (if (and (string? value) (re-matches #"^(sha256|keccak256):[0-9a-f]{64}$" value))
@@ -99,15 +141,33 @@
       {:valid? false :qualification :rejected :errors [(.getMessage error)]})))
 
 (defn -main [& [mode request-path trusted-context-path & extra]]
+  (when (= mode "build")
+    (when-not (and request-path trusted-context-path (empty? extra))
+      (binding [*out* *err*]
+        (println "Usage: clojure -M:test -m scripts.deployment.authority-transition-review build <inputs.edn> <new-request.edn>"))
+      (System/exit 2))
+    (let [inputs (edn/read-string (slurp (io/file request-path)))
+          request (build-request inputs)
+          output-path (.toPath (io/file trusted-context-path))]
+      (Files/write output-path
+                   (.getBytes (str (pr-str request) "\n") java.nio.charset.StandardCharsets/UTF_8)
+                   (into-array StandardOpenOption [StandardOpenOption/CREATE_NEW StandardOpenOption/WRITE]))
+      (println (json/write-str {:schema request-schema
+                                :qualification "unsigned-derived-not-approved"
+                                :output (.getPath (io/file trusted-context-path))
+                                :executionCommitment
+                                (:authority-transition/execution-commitment (:envelope request))}))))
   (when-not (and (= mode "verify-json") request-path trusted-context-path (empty? extra))
+    (when-not (= mode "build")
     (binding [*out* *err*]
       (println "Usage: clojure -M:test -m scripts.deployment.authority-transition-review verify-json <request.edn> <trusted-context.edn>"))
-    (System/exit 2))
-  (let [request (edn/read-string (slurp (io/file request-path)))
-        trusted-context (edn/read-string (slurp (io/file trusted-context-path)))
-        result (verify-request request trusted-context)
-        output (-> (json-safe result)
-                   (dissoc "valid?")
-                   (assoc "valid" (:valid? result)))]
-    (println (json/write-str output :escape-slash false))
-    (when-not (:valid? result) (System/exit 1))))
+      (System/exit 2)))
+  (when (= mode "verify-json")
+    (let [request (edn/read-string (slurp (io/file request-path)))
+          trusted-context (edn/read-string (slurp (io/file trusted-context-path)))
+          result (verify-request request trusted-context)
+          output (-> (json-safe result)
+                     (dissoc "valid?")
+                     (assoc "valid" (:valid? result)))]
+      (println (json/write-str output :escape-slash false))
+      (when-not (:valid? result) (System/exit 1)))))
