@@ -40,6 +40,7 @@
    [resolver-sim.core
     resolver-sim.commands.run-simulation
     resolver-sim.commands.simulation
+    resolver-sim.benchmark.corpus-validation
     resolver-sim.core.phases
     resolver-sim.definitions.runner-execution-registry
     resolver-sim.protocols.sew.runner-extension
@@ -60,6 +61,7 @@
     resolver-sim.protocols.sew.io.trace-export
     resolver-sim.protocols.sew.dispute-context.case-bundle
     resolver-sim.protocols.sew.dispute-context.disagree
+    resolver-sim.io.claimable-classification-emitter
     resolver-sim.commands.protocol-finality
     resolver-sim.commands.invariants-run
     resolver-sim.db.sew
@@ -72,11 +74,21 @@
     resolver-sim.sim.reference-validation-evidence
     resolver-sim.io.scenario-runner
     resolver-sim.server.grpc
-    resolver-sim.io.diff-runner]
+    resolver-sim.io.diff-runner
+    resolver-sim.lab.exec
+    resolver-sim.lab.experiments.insolvency
+    resolver-sim.lab.experiments.pro-rata
+    resolver-sim.lab.experiments.withdrawal
+    resolver-sim.lab.http
+    resolver-sim.lab.json
+    resolver-sim.lab.registry
+    resolver-sim.lab.runner
+    resolver-sim.lab.validation]
    :component/entry-namespaces
    [resolver-sim.core
     resolver-sim.commands.run-simulation
     resolver-sim.commands.simulation
+    resolver-sim.benchmark.corpus-validation
     resolver-sim.core.phases
     resolver-sim.definitions.runner-execution-registry
     resolver-sim.protocols.sew.runner-extension
@@ -87,6 +99,7 @@
     resolver-sim.protocols.sew.io.trace-export
     resolver-sim.protocols.sew.dispute-context.case-bundle
     resolver-sim.protocols.sew.dispute-context.disagree
+    resolver-sim.io.claimable-classification-emitter
     resolver-sim.commands.protocol-finality
     resolver-sim.commands.invariants-run
     resolver-sim.db.sew
@@ -98,10 +111,30 @@
     resolver-sim.sim.reference-validation-evidence
     resolver-sim.io.scenario-runner
     resolver-sim.server.grpc
-    resolver-sim.io.diff-runner]
+    resolver-sim.io.diff-runner
+    resolver-sim.lab.exec
+    resolver-sim.lab.experiments.insolvency
+    resolver-sim.lab.experiments.pro-rata
+    resolver-sim.lab.experiments.withdrawal
+    resolver-sim.lab.http
+    resolver-sim.lab.json
+    resolver-sim.lab.registry
+    resolver-sim.lab.runner
+    resolver-sim.lab.validation]
    :component/material
    [{:path "extensions/sew-runner/deps.edn"
      :kind :package-manifest}
+    {:path "benchmarks"
+     :view-path "resources/benchmarks"
+     :kind :benchmark-corpus}
+    {:path "scenarios"
+     :view-path "resources/scenarios"
+     :kind :scenario-corpus}
+    {:path "data/fixtures/traces"
+     :view-path "resources/data/fixtures/traces"
+     :kind :scenario-fixture}
+    {:path "resources/test-vectors/negative-corpus"
+     :kind :test-fixture}
     {:path "extensions/sew-runner/test/resolver_sim/sim/fixtures_mc_batch_test.clj"
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/sim/reference_validation_evidence_test.clj"
@@ -144,6 +177,8 @@
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/commands/simulation_test.clj"
      :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/benchmark/corpus_validation_test.clj"
+     :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/io/diff_test.clj"
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/io/scenario_runner_test.clj"
@@ -167,6 +202,16 @@
     {:path "extensions/sew-runner/test/resolver_sim/commands/invariants_run_test.clj"
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/repl/interactive_resolution_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/lab/isolation_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/lab/registry_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/lab/runner_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/lab/security_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/lab/validation_test.clj"
      :kind :test-source}
     {:path "extensions/sew-runner/docs/interactive_resolution.md"
      :kind :documentation}

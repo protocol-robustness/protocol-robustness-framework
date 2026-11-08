@@ -23,6 +23,7 @@
   (is (fn? (protocols/get-capability
             "sew-v1" :replay/finalize-appeal-bond)))
   (is (fn? (protocols/get-capability "sew-v1" :runner/replay)))
+  (is (fn? (protocols/get-capability "sew-v1" :runner/post-invariants)))
   (is (fn? (protocols/get-capability "sew-v1" :runner/summarise-batch)))
   (is (fn? (protocols/get-capability
             "sew-v1" :force-authorisation/validate-consensus)))

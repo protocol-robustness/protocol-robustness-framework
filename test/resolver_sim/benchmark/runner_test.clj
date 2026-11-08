@@ -316,39 +316,46 @@
 
 (deftest test-deterministic-replay-benchmark-produces-claim-results
   (testing "PRF deterministic replay benchmark executes duplicate runs and resolves replay claims"
-    (with-redefs [repo/metadata (fn [] {:repo {:commit "test-commit"
-                                               :dirty? false}})
-                  sew/replay-with-sew-protocol (fn [_scenario _opts]
-                                                 {:events-processed 3
-                                                  :outcome :pass
-                                                  :halt-reason nil
-                                                  :metrics {:invariant-results {}}
-                                                  :world {:status :ok}})
-                  sew-inv/check-all (fn [_world] {:results {}})]
-      (let [evidence (runner/run-benchmark
-                      "benchmarks/packs/prf-core/deterministic-replay-v1.edn"
-                      runner/default-adapter
-                      {:scenario-output-dir (.getPath (temp-dir!))
-                       :benchmark/executable-artifact-root
-                       deterministic-executable-artifact-root})
-            claim-results (:claim-results evidence)
-            claim-outcomes (into {} (map (juxt :claim/id :claim/outcome)) claim-results)]
-        (is (= 130 (count (:results evidence)))
-            "Deterministic replay benchmark should execute 65 scenarios twice")
-        (is (= #{0 1} (into #{} (map :benchmark/run-index) (:results evidence)))
-            "run indices are 0-based repetitions (range run-count)")
-        (is (= #{2} (into #{} (map :benchmark/run-count) (:results evidence))))
-        (is (= 130 (get-in evidence [:metrics :execution-count])))
-        (is (= 65 (get-in evidence [:metrics :unique-scenario-count])))
-        (is (= 2 (get-in evidence [:metrics :declared-run-count])))
-        (is (= 130 (get-in evidence [:run/manifest :execution-count])))
-        (is (= 65 (get-in evidence [:run/manifest :unique-scenario-count])))
-        (is (= 2 (get-in evidence [:run/manifest :declared-run-count])))
-        (is (= :pass (get claim-outcomes :claim/replay-identical-results)))
-        (is (= :pass (get claim-outcomes :claim/hash-consistency-across-runs)))
-        (is (= :pass (get claim-outcomes :claim/no-nondeterminism)))
-        (is (not-any? #(= :inconclusive (:claim/outcome %)) claim-results)
-            "Replay claims should now resolve to concrete outcomes")))))
+    (let [get-capability protocols/get-capability]
+      (with-redefs [repo/metadata (fn [] {:repo {:commit "test-commit"
+                                                 :dirty? false}})
+                    protocols/get-capability
+                    (fn [protocol capability]
+                      (if (and (= "sew-v1" protocol)
+                               (= :runner/replay capability))
+                        sew/replay-with-sew-protocol
+                        (get-capability protocol capability)))
+                    sew/replay-with-sew-protocol (fn [_scenario _opts]
+                                                   {:events-processed 3
+                                                    :outcome :pass
+                                                    :halt-reason nil
+                                                    :metrics {:invariant-results {}}
+                                                    :world {:status :ok}})
+                    sew-inv/check-all (fn [_world] {:results {}})]
+        (let [evidence (runner/run-benchmark
+                        "benchmarks/packs/prf-core/deterministic-replay-v1.edn"
+                        runner/default-adapter
+                        {:scenario-output-dir (.getPath (temp-dir!))
+                         :benchmark/executable-artifact-root
+                         deterministic-executable-artifact-root})
+              claim-results (:claim-results evidence)
+              claim-outcomes (into {} (map (juxt :claim/id :claim/outcome)) claim-results)]
+          (is (= 130 (count (:results evidence)))
+              "Deterministic replay benchmark should execute 65 scenarios twice")
+          (is (= #{0 1} (into #{} (map :benchmark/run-index) (:results evidence)))
+              "run indices are 0-based repetitions (range run-count)")
+          (is (= #{2} (into #{} (map :benchmark/run-count) (:results evidence))))
+          (is (= 130 (get-in evidence [:metrics :execution-count])))
+          (is (= 65 (get-in evidence [:metrics :unique-scenario-count])))
+          (is (= 2 (get-in evidence [:metrics :declared-run-count])))
+          (is (= 130 (get-in evidence [:run/manifest :execution-count])))
+          (is (= 65 (get-in evidence [:run/manifest :unique-scenario-count])))
+          (is (= 2 (get-in evidence [:run/manifest :declared-run-count])))
+          (is (= :pass (get claim-outcomes :claim/replay-identical-results)))
+          (is (= :pass (get claim-outcomes :claim/hash-consistency-across-runs)))
+          (is (= :pass (get claim-outcomes :claim/no-nondeterminism)))
+          (is (not-any? #(= :inconclusive (:claim/outcome %)) claim-results)
+              "Replay claims should now resolve to concrete outcomes"))))))
 
 (deftest test-malformed-manifest
   (testing "Throws on missing manifest"

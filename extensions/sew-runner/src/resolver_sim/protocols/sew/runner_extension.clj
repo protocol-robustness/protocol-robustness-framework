@@ -1,6 +1,7 @@
 (ns resolver-sim.protocols.sew.runner-extension
   "Sew-specific catalogs and assurance adapters for PRF's optional runner."
   (:require [resolver-sim.protocols.sew.invariant-scenarios :as scenarios]
+            [resolver-sim.protocols.sew.invariants :as invariants]
             [resolver-sim.protocols.sew.research-models.ring-batch :as ring-batch]
             [resolver-sim.protocols.sew.runner-replay :as runner-replay]
             [resolver-sim.protocols.registry :as protocol-registry]
@@ -14,6 +15,11 @@
   (batch/register-ring-batch-adapter! ring-batch/run-ring-batch)
   (protocol-registry/register-capability!
    "sew-v1" :runner/replay runner-replay/replay-with-sew-protocol)
+  (protocol-registry/register-capability!
+   "sew-v1" :runner/post-invariants
+   (fn [world]
+     {:ids (sort invariants/canonical-ids)
+      :results (:results (invariants/check-all world))}))
   (protocol-registry/register-capability!
    "sew-v1" :runner/summarise-batch sew-db/sew-summarise-batch)
   (protocol-registry/register-capability!
