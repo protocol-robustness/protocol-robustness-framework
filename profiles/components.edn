@@ -172,6 +172,7 @@
     resolver-sim.protocols.sew.invariants.solvency
     resolver-sim.protocols.sew.invariants.state
     resolver-sim.protocols.sew.invariants.temporal
+    resolver-sim.protocols.sew.invariants.yield
     resolver-sim.protocols.sew.lifecycle
     resolver-sim.protocols.sew.registry
     resolver-sim.protocols.sew.related-claims
@@ -195,6 +196,7 @@
     resolver-sim.protocols.sew
     resolver-sim.protocols.sew.actions
     resolver-sim.protocols.sew.config
+    resolver-sim.protocols.sew.invariants.yield
     resolver-sim.protocols.sew.yield-extension
     resolver-sim.protocols.sew.appeal-bond-projection
     resolver-sim.protocols.sew.dispute-resolution-terminal-envelope
@@ -253,6 +255,8 @@
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/sim/capacity_exhaustion.clj"
      :kind :test-support}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/capacity_exhaustion_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/invariants/yield_test.clj"
      :kind :test-source}
     {:path "protocols_src/test/resolver_sim/protocols/sew/terminal_state_snapshot_test.clj"
      :kind :test-source}

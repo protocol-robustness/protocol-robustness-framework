@@ -16,7 +16,7 @@
                                                 (not (pos? (get-in pos [:shortfall :deferred-amount] 0))))
                                  :withdrawn (not= 0 (+ principal (get pos :realized-yield 0)
                                                          (get pos :unrealized-yield 0)))
-                                 false)]
+                                 true)]
                      {:owner-id (if (vector? oid) (second oid) oid)
                       :status status
                       :principal principal
@@ -42,8 +42,8 @@
                                           total-exposure (+ unrealized realized)
                                           stake (get resolver-stakes wf-id 0)]
                                       (and (pos? total-exposure) (< stake total-exposure))))]
-                     {:owner-id (second oid)
-                      :workflow-id (first oid)
+                     {:owner-id oid
+                      :workflow-id (second oid)
                       :yield-exposure (+ (get pos :unrealized-yield 0) (get pos :realized-yield 0))
                       :resolver-stake (get resolver-stakes (second oid) 0)
                       :detail "yield exposure exceeds resolver stake"})]
