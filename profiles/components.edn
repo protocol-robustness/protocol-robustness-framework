@@ -144,6 +144,8 @@
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/sim/reference_validation_evidence_test.clj"
      :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/benchmark/sew_pre_application_test.clj"
+     :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/research_models/ring_batch_test.clj"
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/replay_test.clj"
@@ -178,7 +180,7 @@
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/transition_assurance_test.clj"
      :kind :test-source}
-    {:path "test/resolver_sim/contract_model/replay_batch_sew_test.clj"
+    {:path "extensions/sew-runner/test/resolver_sim/contract_model/replay_batch_sew_test.clj"
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/commands/simulation_test.clj"
      :kind :test-source}
