@@ -50,12 +50,14 @@
                           "extensions/sew-pro-rata-slashing/src"
                           "extensions/sew-financial-lifecycle/src"
                           "extensions/sew-bounty-route/src"
+                          "extensions/sew-pro-rata-application/src"
                           "protocols_src"
                           "packages/sew-protocol-model/test"
                           "extensions/sew-analysis/test"
                           "extensions/sew-pro-rata-slashing/test"
                           "extensions/sew-financial-lifecycle/test"
                           "extensions/sew-bounty-route/test"
+                          "extensions/sew-pro-rata-application/test"
                           "protocols_src/test"]
     :paths/dev           ["dev" "test"]              ;; = dev + test
      :paths/src           ["src" "yield_runtime_src"]
@@ -79,9 +81,13 @@
     :paths/sew-bounty-route ["extensions/sew-bounty-route/src"
                              "extensions/sew-bounty-route/test"]
     :paths/sew-bounty-route-rt ["extensions/sew-bounty-route/src"]
+    :paths/sew-pro-rata-application ["extensions/sew-pro-rata-application/src"
+                                     "extensions/sew-pro-rata-application/test"]
+    :paths/sew-pro-rata-application-rt ["extensions/sew-pro-rata-application/src"]
     :paths/all           ["src" "yield_runtime_src" "test" "packages/sew-protocol-model/src"
                           "packages/sew-protocol-model/test" "protocols_src" "protocols_src/test"
-                          :paths/sew-financial-lifecycle :paths/sew-bounty-route "dev" "scripts"
+                          :paths/sew-financial-lifecycle :paths/sew-bounty-route
+                          :paths/sew-pro-rata-application "dev" "scripts"
                           :paths/held-custody :paths/force-authorisation :paths/sew-pro-rata-economics :paths/sew-analysis :paths/sew-pro-rata-slashing]
     ;; Researchers: opt-in local paths (defined in ~/.clojure/deps.edn as
     ;; :researcher/paths, e.g. {:aliases {:researcher/paths [".researcher/src"]}}).
@@ -414,6 +420,7 @@
             "extensions/sew-pro-rata-economics/src" "extensions/sew-pro-rata-slashing/src"
             "extensions/sew-financial-lifecycle/src"
             "extensions/sew-bounty-route/src"
+            "extensions/sew-pro-rata-application/src"
             "extensions/sew-analysis/src"
             "protocols_src" "resources" "scenarios"]}
 

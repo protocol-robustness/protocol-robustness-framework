@@ -17,7 +17,7 @@
 (def data-file "data/notebooks.edn")
 (def scan-dirs
   "Source directories to scan for notebook file references."
-  ["src" "yield_runtime_src" "packages/sew-protocol-model/src" "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src" "extensions/sew-pro-rata-slashing/src" "extensions/sew-financial-lifecycle/src" "extensions/sew-bounty-route/src" "protocols_src" "scripts" "docs"])
+  ["src" "yield_runtime_src" "packages/sew-protocol-model/src" "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src" "extensions/sew-pro-rata-slashing/src" "extensions/sew-financial-lifecycle/src" "extensions/sew-bounty-route/src" "extensions/sew-pro-rata-application/src" "protocols_src" "scripts" "docs"])
 (def archived-ids
   ;; IDs that were once active and are now retired.
   ;; Entries with :notebook/status :archived may exist in the registry

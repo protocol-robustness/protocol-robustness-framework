@@ -8,5 +8,7 @@
          "../../extensions/sew-financial-lifecycle/test"
          "../../extensions/sew-bounty-route/src"
          "../../extensions/sew-bounty-route/test"
+         "../../extensions/sew-pro-rata-application/src"
+         "../../extensions/sew-pro-rata-application/test"
          "../../packages/sew-protocol-model/test"
          "../../protocols_src/test"]}

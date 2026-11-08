@@ -31,7 +31,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 source-root() {
-  (cd "$1" && find src test packages/sew-protocol-model/src packages/sew-protocol-model/test extensions/sew-pro-rata-economics/src extensions/sew-analysis/src extensions/sew-analysis/test extensions/sew-pro-rata-slashing/src extensions/sew-pro-rata-slashing/test extensions/sew-financial-lifecycle/src extensions/sew-financial-lifecycle/test extensions/sew-bounty-route/src extensions/sew-bounty-route/test protocols_src -type f \( -name '*.clj' -o -name '*.cljc' \) \
+  (cd "$1" && find src test packages/sew-protocol-model/src packages/sew-protocol-model/test extensions/sew-pro-rata-economics/src extensions/sew-analysis/src extensions/sew-analysis/test extensions/sew-pro-rata-slashing/src extensions/sew-pro-rata-slashing/test extensions/sew-financial-lifecycle/src extensions/sew-financial-lifecycle/test extensions/sew-bounty-route/src extensions/sew-bounty-route/test extensions/sew-pro-rata-application/src extensions/sew-pro-rata-application/test protocols_src -type f \( -name '*.clj' -o -name '*.cljc' \) \
      | sort | xargs sha256sum | sha256sum | awk '{print $1}')
 }
 

@@ -442,7 +442,12 @@
    :component/owned-namespaces
    [resolver-sim.protocols.sew.pro-rata-application]
    :component/entry-namespaces
-   [resolver-sim.protocols.sew.pro-rata-application]}
+   [resolver-sim.protocols.sew.pro-rata-application]
+   :component/material
+   [{:path "extensions/sew-pro-rata-application/deps.edn"
+     :kind :package-manifest}
+    {:path "extensions/sew-pro-rata-application/test/resolver_sim/protocols/sew/pro_rata_application_test.clj"
+     :kind :test-source}]}
 
   :prf/bounty-v1
   {:component/plane :semantic
