@@ -121,6 +121,10 @@
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/temporal_generator_test.clj"
      :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/replay_bridge_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/transition_assurance_test.clj"
+     :kind :test-source}
     {:path "test/resolver_sim/contract_model/replay_batch_sew_test.clj"
      :kind :test-source}
     {:path "protocols_src/test/resolver_sim/commands/invariants_run_test.clj"
@@ -335,6 +339,10 @@
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/cooldown_authorization_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/properties_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/yield/policy_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/yield/finalize_parity_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/settlement_custody_attribution_test.clj"
      :kind :test-source}
