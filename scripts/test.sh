@@ -379,6 +379,7 @@ run_unit() {
     resolver-sim.economics.with-bounty.verification-test \
     resolver-sim.economics.with-bounty.replay-test \
     resolver-sim.protocols.sew.with-bounty-test \
+    resolver-sim.protocols.sew.with-bounty-contract-test \
     resolver-sim.hash.canonical-test \
     resolver-sim.hash.concat-properties-test \
     resolver-sim.hash.framing-view-test \

@@ -1,4 +1,4 @@
-(ns resolver-sim.protocols.sew.with-bounty-test
+(ns resolver-sim.protocols.sew.with-bounty-contract-test
   "Stage B vertical slice, Sew side: apply a validated with-bounty application
    plan to a Sew world through the canonical payable/backing and held-custody
    paths. Covers preflight fail-before-mutation, idempotency (no duplicate

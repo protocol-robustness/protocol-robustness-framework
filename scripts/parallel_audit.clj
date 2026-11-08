@@ -23,7 +23,7 @@
    "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src" "extensions/sew-analysis/test"
    "extensions/sew-pro-rata-slashing/src" "extensions/sew-pro-rata-slashing/test"
    "extensions/sew-financial-lifecycle/src" "extensions/sew-financial-lifecycle/test"
-   "extensions/sew-bounty-route/src" "extensions/sew-bounty-route/test"
+   "extensions/sew-bounty-route/src" "extensions/sew-bounty/src" "extensions/sew-bounty-route/test" "extensions/sew-bounty/test"
    "extensions/sew-pro-rata-application/src" "extensions/sew-pro-rata-application/test"
    "extensions/sew-runner/src" "extensions/sew-runner/test" "protocols_src"])
 

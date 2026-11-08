@@ -484,14 +484,29 @@
    :component/absence-enforced? true
    :component/requires [:prf/ideal-pro-rata-v1]
    :component/owned-namespaces
-   [resolver-sim.economics.with-bounty.composition
-    resolver-sim.protocols.sew.with-bounty]
+   [resolver-sim.economics.with-bounty.composition]
    :component/entry-namespaces
-   [resolver-sim.economics.with-bounty.composition
-    resolver-sim.protocols.sew.with-bounty]
+   [resolver-sim.economics.with-bounty.composition]
    :component/material
    [{:path "test/resolver_sim/economics/with_bounty" :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/with_bounty_test.clj"
+    {:path "test/resolver_sim/protocols/sew/with_bounty_test.clj"
+     :kind :test-source}]}
+
+  :prf/sew-bounty-adapter-v1
+  {:component/plane :protocol-adapter
+   :component/requires [:prf/framework-v1
+                        :prf/bounty-v1
+                        :prf/sew-protocol-model-v1]
+   :component/owned-namespaces
+   [resolver-sim.protocols.sew.with-bounty]
+   :component/entry-namespaces
+   [resolver-sim.protocols.sew.with-bounty]
+   :component/material
+   [{:path "extensions/sew-bounty/deps.edn"
+     :kind :package-manifest}
+    {:path "extensions/sew-bounty/test/resolver_sim/protocols/sew/with_bounty_contract_test.clj"
+     :kind :test-source}
+    {:path "test/resolver_sim/protocols/sew/with_bounty_test.clj"
      :kind :test-source}]}
 
   :prf/sew-bounty-route-v1
