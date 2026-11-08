@@ -266,10 +266,20 @@
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/invariants/accounting_test.clj"
      :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/terminal_state_snapshot_test.clj"
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/terminal_state_snapshot_test.clj"
      :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/held_custody_test_env.clj"
-     :kind :test-support}]}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/held_custody_test_env.clj"
+     :kind :test-support}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/alias_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/appeal_bond_projection_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/registry_immutability_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/replay_idempotency_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/held_custody_test_env_test.clj"
+     :kind :test-source}]}
 
   ;; Operation-limited behavior candidate aligned to the Solidity Sew Core
   ;; deployment profile. This adapts the in-tree model and therefore still
