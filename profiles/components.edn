@@ -266,6 +266,10 @@
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/invariants/accounting_test.clj"
      :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/invariants/solvency_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/invariants/temporal_test.clj"
+     :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/terminal_state_snapshot_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/held_custody_test_env.clj"
