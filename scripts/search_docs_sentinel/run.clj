@@ -13,7 +13,7 @@
 (def scan-paths
   "Directories to scan for term occurrences."
   ["docs" "protocols_src" "packages/sew-protocol-model/src" "extensions/sew-runner/src"
-   "extensions/sew-pro-rata-economics/src"
+   "extensions/sew-pro-rata-economics/src" "extensions/sew-pro-rata-economics/test"
    "packages/sew-protocol-model/test" "extensions/sew-pro-rata-slashing/src"
    "extensions/sew-pro-rata-slashing/test" "extensions/sew-financial-lifecycle/src"
    "extensions/sew-financial-lifecycle/test" "extensions/sew-bounty-route/src" "extensions/sew-bounty/src"

@@ -617,7 +617,7 @@
    :component/material
    [{:path "extensions/sew-pro-rata-economics/deps.edn"
      :kind :package-manifest}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/economics_test.clj"
+    {:path "extensions/sew-pro-rata-economics/test/resolver_sim/protocols/sew/economics_test.clj"
      :kind :test-source}
     {:path "extensions/sew-pro-rata-economics/src/resolver_sim/protocols/sew/test_vectors/slash_allocation.clj"
      :kind :conformance-vector}]}

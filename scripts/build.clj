@@ -236,7 +236,7 @@ core-deps-str (pr-str
           (printf "    %s\n" sd)
           (b/copy-dir {:src-dirs [sd] :target-dir class-dir}))))
     ;; Remove test directories from class-dir to prevent AOT from picking them up
-    (doseq [test-dir ["test" "protocols_src/test" "packages/sew-protocol-model/test" "extensions/sew-pro-rata-slashing/test" "extensions/sew-analysis/test" "extensions/sew-financial-lifecycle/test" "extensions/sew-bounty-route/test" "extensions/sew-bounty/test" "extensions/sew-pro-rata-application/test" "extensions/sew-runner/test"]]
+    (doseq [test-dir ["test" "protocols_src/test" "packages/sew-protocol-model/test" "extensions/sew-pro-rata-economics/test" "extensions/sew-pro-rata-slashing/test" "extensions/sew-analysis/test" "extensions/sew-financial-lifecycle/test" "extensions/sew-bounty-route/test" "extensions/sew-bounty/test" "extensions/sew-pro-rata-application/test" "extensions/sew-runner/test"]]
       (let [td (java.io.File. class-dir test-dir)]
         (when (.exists td)
           (printf "  Removing test dir: %s\n" test-dir)

@@ -10,6 +10,7 @@
 (def source-roots
   ["src" "test" "packages/sew-protocol-model/src/resolver_sim"
    "extensions/sew-pro-rata-economics/src/resolver_sim"
+   "extensions/sew-pro-rata-economics/test/resolver_sim"
    "extensions/sew-analysis/src/resolver_sim"
    "extensions/sew-pro-rata-slashing/src/resolver_sim"
    "packages/sew-protocol-model/test/resolver_sim"

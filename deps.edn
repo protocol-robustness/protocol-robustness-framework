@@ -57,6 +57,7 @@
                           "extensions/sew-runner/src"
                           "protocols_src"
                           "packages/sew-protocol-model/test"
+                          "extensions/sew-pro-rata-economics/test"
                           "extensions/sew-analysis/test"
                           "extensions/sew-pro-rata-slashing/test"
                           "extensions/sew-financial-lifecycle/test"
@@ -76,7 +77,8 @@
     :paths/force-authorisation-rt ["extensions/force-authorisation/src"]
     :paths/sew-core-profile-adapter ["extensions/sew-core-profile-adapter/src" "extensions/sew-core-profile-adapter/test"]
     :paths/sew-core-profile-adapter-rt ["extensions/sew-core-profile-adapter/src"]
-    :paths/sew-pro-rata-economics ["extensions/sew-pro-rata-economics/src"]
+    :paths/sew-pro-rata-economics ["extensions/sew-pro-rata-economics/src"
+                                  "extensions/sew-pro-rata-economics/test"]
     :paths/sew-pro-rata-economics-rt ["extensions/sew-pro-rata-economics/src"]
     :paths/sew-analysis ["extensions/sew-analysis/src" "extensions/sew-analysis/test"]
     :paths/sew-analysis-rt ["extensions/sew-analysis/src"]

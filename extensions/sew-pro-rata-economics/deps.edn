@@ -1,4 +1,4 @@
-{:paths ["src"]
+{:paths ["src" "test"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
         ;; The Sew adapter currently uses PRF's in-tree portable evaluation
         ;; API. Pin the source dependency until that API has a published artifact.

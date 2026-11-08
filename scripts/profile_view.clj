@@ -247,7 +247,9 @@
                                  "pro-rata/contract-source" "extensions/sew-core-profile-adapter/src"
                                  "resources"]
                          :aliases {:profile/check
-                                   {:extra-paths ["test" "packages/sew-protocol-model/test" "extensions/sew-analysis/test"
+                                   {:extra-paths ["test" "packages/sew-protocol-model/test"
+                                                  "extensions/sew-pro-rata-economics/test"
+                                                  "extensions/sew-analysis/test"
                                                   "extensions/sew-pro-rata-slashing/test"
                                                   "extensions/sew-financial-lifecycle/test"
                                                   "extensions/sew-bounty-route/test"
