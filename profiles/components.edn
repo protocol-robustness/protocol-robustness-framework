@@ -168,6 +168,7 @@
     resolver-sim.protocols.sew.invariants.escrow
     resolver-sim.protocols.sew.invariants.fees
     resolver-sim.protocols.sew.invariants.governance
+    resolver-sim.protocols.sew.invariants.accounting
     resolver-sim.protocols.sew.invariants.settlement
     resolver-sim.protocols.sew.invariants.solvency
     resolver-sim.protocols.sew.invariants.state
@@ -198,6 +199,7 @@
     resolver-sim.protocols.sew.actions
     resolver-sim.protocols.sew.config
     resolver-sim.protocols.sew.invariants.yield
+    resolver-sim.protocols.sew.invariants.accounting
     resolver-sim.protocols.sew.yield.risk-policy
     resolver-sim.protocols.sew.yield-extension
     resolver-sim.protocols.sew.appeal-bond-projection
@@ -261,6 +263,8 @@
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/invariants/yield_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/yield/risk_policy_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/invariants/accounting_test.clj"
      :kind :test-source}
     {:path "protocols_src/test/resolver_sim/protocols/sew/terminal_state_snapshot_test.clj"
      :kind :test-source}
