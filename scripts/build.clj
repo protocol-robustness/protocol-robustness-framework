@@ -187,6 +187,7 @@ core-deps-str (pr-str
                                "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
                                "extensions/sew-pro-rata-slashing/src" "extensions/sew-financial-lifecycle/src"
                                "extensions/sew-bounty-route/src" "extensions/sew-bounty/src" "extensions/sew-pro-rata-application/src"
+                               "extensions/sew-research-models/src"
                                "extensions/sew-runner/src"
                                "protocols_src" "resources"]})
         deps-str (if (or is-prf is-prf-runnable) core-deps-str sew-deps-str)
@@ -202,6 +203,7 @@ core-deps-str (pr-str
                                   "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
                                   "extensions/sew-pro-rata-slashing/src" "extensions/sew-financial-lifecycle/src"
                                   "extensions/sew-bounty-route/src" "extensions/sew-bounty/src" "extensions/sew-pro-rata-application/src"
+                                  "extensions/sew-research-models/src"
                                   "extensions/sew-runner/src"
                                   "protocols_src" "resources" "scenarios"])
         class-dir (str (System/getProperty "java.io.tmpdir")
@@ -360,6 +362,7 @@ core-deps-str (pr-str
                      "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
                      "extensions/sew-pro-rata-slashing/src" "extensions/sew-financial-lifecycle/src"
                      "extensions/sew-bounty-route/src" "extensions/sew-bounty/src" "extensions/sew-pro-rata-application/src"
+                     "extensions/sew-research-models/src"
                      "extensions/sew-runner/src" "protocols_src" "src" "yield_runtime_src"]]
       (let [d (java.io.File. src-dir)]
         (when (.exists d)

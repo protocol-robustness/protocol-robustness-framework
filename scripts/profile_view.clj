@@ -21,6 +21,7 @@
                    "extensions/sew-financial-lifecycle/src"
                    "extensions/sew-bounty-route/src" "extensions/sew-bounty/src"
                    "extensions/sew-pro-rata-application/src"
+                   "extensions/sew-research-models/src"
                    "extensions/sew-runner/src"
                    "protocols_src"
                    "pro-rata/contract-source" "extensions/sew-core-profile-adapter/src"])
@@ -238,6 +239,7 @@
                                  "extensions/sew-financial-lifecycle/src"
                                  "extensions/sew-bounty-route/src" "extensions/sew-bounty/src"
                                  "extensions/sew-pro-rata-application/src"
+                                 "extensions/sew-research-models/src"
                                  "extensions/sew-runner/src"
                                  "protocols_src"
                                  "pro-rata/contract-source" "extensions/sew-core-profile-adapter/src"
@@ -249,6 +251,7 @@
                                                   "extensions/sew-bounty-route/test"
                                                   "extensions/sew-bounty/test"
                                                   "extensions/sew-pro-rata-application/test"
+                                                  "extensions/sew-research-models/test"
                                                   "extensions/sew-runner/test"]}})))))
 
 (defn symlink-local-dependencies! [view-root]

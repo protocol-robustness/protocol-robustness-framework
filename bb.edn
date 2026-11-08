@@ -1510,6 +1510,7 @@ sign
                                       "extensions/sew-bounty-route/src"
                                       "extensions/sew-bounty/src"
                                       "extensions/sew-pro-rata-application/src"
+                                      "extensions/sew-research-models/src"
                                       "extensions/sew-runner/src" "protocols_src"
                                       "packages/sew-protocol-model/test" "extensions/sew-analysis/test"
                                       "extensions/sew-pro-rata-slashing/test"
@@ -1517,6 +1518,7 @@ sign
                                       "extensions/sew-bounty-route/test"
                                       "extensions/sew-bounty/test"
                                       "extensions/sew-pro-rata-application/test"
+                                      "extensions/sew-research-models/test"
                                       "extensions/sew-runner/test"
                                       "protocols_src/test"]
                         :with-sew    ["packages/sew-protocol-model/src"
@@ -1526,6 +1528,7 @@ sign
                                       "extensions/sew-bounty-route/src"
                                       "extensions/sew-bounty/src"
                                       "extensions/sew-pro-rata-application/src"
+                                      "extensions/sew-research-models/src"
                                       "extensions/sew-runner/src"
                                       "protocols_src" "packages/sew-protocol-model/test"
                                       "extensions/sew-analysis/test" "extensions/sew-pro-rata-slashing/test"
@@ -1533,6 +1536,7 @@ sign
                                       "extensions/sew-bounty-route/test"
                                       "extensions/sew-bounty/test"
                                       "extensions/sew-pro-rata-application/test"
+                                      "extensions/sew-research-models/test"
                                       "extensions/sew-runner/test"
                                       "protocols_src/test"]
                         :mcp         ["src" "dev" "test" "packages/sew-protocol-model/src"

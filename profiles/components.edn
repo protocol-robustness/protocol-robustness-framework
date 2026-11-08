@@ -34,7 +34,8 @@
    :component/requires [:prf/framework-v1
                         :prf/sew-protocol-model-v1
                         :prf/sew-analysis-v1
-                        :prf/sew-pro-rata-slashing-v1]
+                        :prf/sew-pro-rata-slashing-v1
+                        :prf/sew-research-models-v1]
    :component/owned-namespaces
    [resolver-sim.core.phases
     resolver-sim.definitions.runner-execution-registry
@@ -299,6 +300,33 @@
     {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
      :kind :test-source}
     {:path "test/resolver_sim/scenario/equilibrium_test.clj"
+     :kind :test-source}]}
+
+  ;; Sew-specific adversarial and economic research models. Their Monte Carlo
+  ;; primitives remain in shared PRF stochastic simulation; the extension
+  ;; currently resolves its Sew model dependency from this repository and is
+  ;; therefore an in-tree candidate, not an independently qualified package.
+  :prf/sew-research-models-v1
+  {:component/plane :protocol-extension
+   :component/requires [:prf/framework-v1 :prf/sew-protocol-model-v1]
+   :component/owned-namespaces
+   [resolver-sim.protocols.sew.research-models.bribery-markets
+    resolver-sim.protocols.sew.research-models.delegation
+    resolver-sim.protocols.sew.research-models.escalation-economics
+    resolver-sim.protocols.sew.research-models.evidence-spoofing
+    resolver-sim.protocols.sew.research-models.information-cascade
+    resolver-sim.protocols.sew.research-models.resolver-ring]
+   :component/entry-namespaces
+   [resolver-sim.protocols.sew.research-models.bribery-markets
+    resolver-sim.protocols.sew.research-models.delegation
+    resolver-sim.protocols.sew.research-models.escalation-economics
+    resolver-sim.protocols.sew.research-models.evidence-spoofing
+    resolver-sim.protocols.sew.research-models.information-cascade
+    resolver-sim.protocols.sew.research-models.resolver-ring]
+   :component/material
+   [{:path "extensions/sew-research-models/deps.edn"
+     :kind :package-manifest}
+    {:path "extensions/sew-research-models/test/resolver_sim/delegation_test.clj"
      :kind :test-source}]}
 
   ;; Insolvency progression and its evidence report are optional Sew financial

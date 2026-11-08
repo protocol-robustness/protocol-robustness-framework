@@ -107,6 +107,7 @@
     resolver-sim.protocols.sew.registry-immutability-test
     resolver-sim.protocols.sew.related-claims-test
     resolver-sim.protocols.sew.research-resolution-test
+    resolver-sim.delegation-test
     resolver-sim.protocols.sew.resolution-test
     resolver-sim.protocols.sew.resolver-yield-accrual-test
     resolver-sim.protocols.sew.snapshot-boundary-test
