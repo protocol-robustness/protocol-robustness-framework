@@ -267,6 +267,33 @@
     {:path "test/resolver_sim/scenario/equilibrium_test.clj"
      :kind :test-source}]}
 
+  ;; Insolvency progression and its evidence report are optional Sew financial
+  ;; behavior layered over the escrow model.
+  :prf/sew-financial-lifecycle-v1
+  {:component/plane :protocol-extension
+   :component/requires [:prf/sew-protocol-model-v1]
+   :component/owned-namespaces
+   [resolver-sim.protocols.sew.financial.lifecycle
+    resolver-sim.protocols.sew.financial.episode-report]
+   :component/entry-namespaces
+   [resolver-sim.protocols.sew.financial.lifecycle
+    resolver-sim.protocols.sew.financial.episode-report]
+   :component/material
+   [{:path "extensions/sew-financial-lifecycle/deps.edn"
+     :kind :package-manifest}
+    {:path "extensions/sew-financial-lifecycle/test/resolver_sim/protocols/sew/financial/lifecycle_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-financial-lifecycle/test/resolver_sim/protocols/sew/financial/compound_action_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-financial-lifecycle/test/resolver_sim/protocols/sew/financial/compound_frame_correspondence_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-financial-lifecycle/test/resolver_sim/protocols/sew/financial/episode_report_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-financial-lifecycle/test/resolver_sim/protocols/sew/financial/normalization_fixedpoint_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-financial-lifecycle/test/resolver_sim/protocols/sew/financial/p4b_create_escrow_integration_test.clj"
+     :kind :test-source}]}
+
   ;; Shared yield state and operations are a reusable runtime subsystem. Sew
   ;; composes it for stake, accrual, settlement, risk, and evidence behavior.
   :prf/yield-runtime-v1

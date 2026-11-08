@@ -1505,22 +1505,28 @@ sign
         (let [expected {:test        ["test" "scripts" "packages/sew-protocol-model/src"
                                       "extensions/sew-pro-rata-economics/src"
                                       "extensions/sew-analysis/src"
-                                      "extensions/sew-pro-rata-slashing/src" "protocols_src"
+                                      "extensions/sew-pro-rata-slashing/src"
+                                      "extensions/sew-financial-lifecycle/src" "protocols_src"
                                       "packages/sew-protocol-model/test" "extensions/sew-analysis/test"
                                       "extensions/sew-pro-rata-slashing/test"
+                                      "extensions/sew-financial-lifecycle/test"
                                       "protocols_src/test"]
                         :with-sew    ["packages/sew-protocol-model/src"
                                       "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
                                       "extensions/sew-pro-rata-slashing/src"
+                                      "extensions/sew-financial-lifecycle/src"
                                       "protocols_src" "packages/sew-protocol-model/test"
                                       "extensions/sew-analysis/test" "extensions/sew-pro-rata-slashing/test"
+                                      "extensions/sew-financial-lifecycle/test"
                                       "protocols_src/test"]
                         :mcp         ["src" "dev" "test" "packages/sew-protocol-model/src"
                                       "extensions/sew-pro-rata-economics/src"
                                       "extensions/sew-analysis/src"
-                                      "extensions/sew-pro-rata-slashing/src" "protocols_src"
+                                      "extensions/sew-pro-rata-slashing/src"
+                                      "extensions/sew-financial-lifecycle/src" "protocols_src"
                                       "packages/sew-protocol-model/test" "extensions/sew-analysis/test"
                                       "extensions/sew-pro-rata-slashing/test"
+                                      "extensions/sew-financial-lifecycle/test"
                                       "protocols_src/test"]
                         :dev/full    ["dev" "test"]}]
           (doseq [[k want] expected]

@@ -4,5 +4,7 @@
         {:local/root "../../packages/sew-protocol-model"}}
  :paths ["../../extensions/sew-analysis/src"
          "../../extensions/sew-analysis/test"
+         "../../extensions/sew-financial-lifecycle/src"
+         "../../extensions/sew-financial-lifecycle/test"
          "../../packages/sew-protocol-model/test"
          "../../protocols_src/test"]}

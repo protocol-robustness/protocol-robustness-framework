@@ -21,7 +21,8 @@
   ["test" "protocols_src/test" "src" "yield_runtime_src"
    "packages/sew-protocol-model/src" "packages/sew-protocol-model/test"
    "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src" "extensions/sew-analysis/test"
-   "extensions/sew-pro-rata-slashing/src" "extensions/sew-pro-rata-slashing/test" "protocols_src"])
+   "extensions/sew-pro-rata-slashing/src" "extensions/sew-pro-rata-slashing/test"
+   "extensions/sew-financial-lifecycle/src" "extensions/sew-financial-lifecycle/test" "protocols_src"])
 
 (defn ns->path
   [sym]

@@ -20,7 +20,7 @@
             [clojure.tools.namespace.find :as find]))
 
 (def ^:private default-roots
-  ["src" "yield_runtime_src" "packages/sew-protocol-model/src" "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src" "extensions/sew-pro-rata-slashing/src" "protocols_src"])
+  ["src" "yield_runtime_src" "packages/sew-protocol-model/src" "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src" "extensions/sew-pro-rata-slashing/src" "extensions/sew-financial-lifecycle/src" "protocols_src"])
 
 (defn- root-set [args]
   (let [args (or args [])]
