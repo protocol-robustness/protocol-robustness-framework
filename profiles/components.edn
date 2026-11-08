@@ -103,7 +103,23 @@
      :kind :test-source}
     {:path "test/resolver_sim/definitions/runner_execution_registry_test.clj"
      :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/extension_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/dispute_resolution_coverage_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/governance_gates_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/integration_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/replay_event_id_scenario_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/require_event_id_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/resolver_yield_accrual_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/temporal_boundary_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/temporal_generator_test.clj"
      :kind :test-source}
     {:path "test/resolver_sim/contract_model/replay_batch_sew_test.clj"
      :kind :test-source}
@@ -391,8 +407,6 @@
      :kind :test-source}
     {:path "extensions/sew-analysis/test/resolver_sim/protocols/sew/claimable_classification_test.clj"
      :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
-     :kind :test-source}
     {:path "test/resolver_sim/scenario/equilibrium_test.clj"
      :kind :test-source}]}
 
@@ -667,8 +681,6 @@
    [{:path "extensions/sew-pro-rata-slashing/deps.edn"
      :kind :package-manifest}
     {:path "extensions/sew-pro-rata-slashing/test/resolver_sim/protocols/sew/evidence/slashing_test.clj"
-     :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
      :kind :test-source}
     {:path "extensions/sew-pro-rata-slashing/test/resolver_sim/protocols/sew/slashing_test.clj"
      :kind :test-source}

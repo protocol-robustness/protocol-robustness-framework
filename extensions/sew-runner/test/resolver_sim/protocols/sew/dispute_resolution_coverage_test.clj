@@ -874,7 +874,7 @@
 
 (deftest test-governance-dispatch-audit
   (testing "Governance-sensitive actions must reach the governance gate"
-    (let [source (slurp "protocols_src/resolver_sim/protocols/sew.clj")
+    (let [source (slurp "packages/sew-protocol-model/src/resolver_sim/protocols/sew.clj")
           sections (rest (cstr/split source #"\(defmethod apply-action \""))
           wrapped-actions (into #{}
                                 (keep (fn [section]
