@@ -311,6 +311,10 @@
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/adversarial_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/invariant_registry_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/yield_solvency_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/yield_reorg_race_test.clj"
      :kind :test-source}]}
 
   ;; Operation-limited behavior candidate aligned to the Solidity Sew Core
