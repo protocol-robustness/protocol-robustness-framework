@@ -301,6 +301,8 @@
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/related_claims_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/snapshot_boundary_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/distribution_characterization_test.clj"
      :kind :test-source}]}
 
   ;; Operation-limited behavior candidate aligned to the Solidity Sew Core
