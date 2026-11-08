@@ -216,9 +216,11 @@ directories; the model package now has a focused package-only contract suite, wh
 the broader Sew suite still spans those roots. The slash-evidence adapter declares its tests. The slash-economics
 adapter has a pinned source dependency, and its allocation conformance-vector
 generator now lives in the same extension source package. The model package
-manifest no longer adds `protocols_src` to its classpath, but still relies on the
-in-tree framework and sibling economics extension. A package candidate needs
-independently resolvable dependencies and a complete test/fixture closure.
+manifest no longer adds `protocols_src` to its classpath. It pins the sibling
+economics extension to an immutable candidate revision, but that revision is
+not yet available on a shared remote; clean-clone dependency resolution remains
+unqualified. A package candidate needs independently resolvable dependencies
+and a complete test/fixture closure.
 
 ## Recommended preparation sequence
 

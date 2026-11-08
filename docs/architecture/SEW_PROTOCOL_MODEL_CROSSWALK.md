@@ -13,10 +13,12 @@ profile composition choices, not part of the protocol-model component. The
 profile is not yet a standalone package qualification.
 
 The model package manifest pins PRF core at immutable Git revision
-`b94b091cfbaf46ec34ae2ade4920f9a3751e3097`, but it still resolves the
-unpublished Sew pro-rata economics extension through a local-root path. The
-model package is therefore an in-tree candidate, not independently resolvable.
-The pin also predates the current unpushed package-boundary changes. Most Sew
+`b94b091cfbaf46ec34ae2ade4920f9a3751e3097` and the Sew pro-rata economics
+extension at candidate revision `c6d21f852f8fbeff3d29b52c1139ad6f88ed332a`.
+The economics revision is not yet available on a shared remote, so clean-clone
+resolution remains unqualified. The test alias uses an in-checkout local-root
+override. The model package remains an in-tree candidate, not a published
+package. Most Sew
 model namespaces and contract tests live under the package source tree. The optional
 slash-evidence adapter and its dedicated tests live in
 `extensions/sew-pro-rata-slashing`; slash economics lives separately in
@@ -75,11 +77,12 @@ manifest still loads the legacy `protocols_src` tree, so it is only a historical
 integration baseline and does not qualify the extracted model. The package's
 `:test` alias replaces that dependency with the current local
 `packages/sew-protocol-model` candidate and adds the yield integration source;
-the passing tests qualify this checkout only. The extracted model itself still
-depends on local `sew-pro-rata-economics` source. The adapter and model
-are not independently resolvable against the extracted candidate until the
-model and its economics dependency are available at shared immutable revisions
-and their manifests pin those revisions.
+the passing tests qualify this checkout only. The model manifest now pins the
+economics extension to candidate Git revision
+`c6d21f852f8fbeff3d29b52c1139ad6f88ed332a` and uses a local-root override only
+for in-checkout tests. That revision is not yet published on a shared remote.
+The adapter and model remain unqualified for clean-clone resolution until the
+candidate revisions are published and the default dependency path is verified.
 The model package's in-tree test command is
 `clojure -M:test -m resolver-sim.protocols.sew.package-test-runner`; it loads
 the sibling yield integration test fixture and passes 731 tests with 2,448
