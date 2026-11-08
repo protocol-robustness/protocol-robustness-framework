@@ -425,10 +425,12 @@
    :component/requires [:prf/sew-protocol-model-v1]
    :component/owned-namespaces
    [resolver-sim.protocols.sew.financial.lifecycle
-    resolver-sim.protocols.sew.financial.episode-report]
+    resolver-sim.protocols.sew.financial.episode-report
+    resolver-sim.protocols.sew.reclaimed-reconstruction]
    :component/entry-namespaces
    [resolver-sim.protocols.sew.financial.lifecycle
-    resolver-sim.protocols.sew.financial.episode-report]
+    resolver-sim.protocols.sew.financial.episode-report
+    resolver-sim.protocols.sew.reclaimed-reconstruction]
    :component/material
    [{:path "extensions/sew-financial-lifecycle/deps.edn"
      :kind :package-manifest}
@@ -443,6 +445,8 @@
     {:path "extensions/sew-financial-lifecycle/test/resolver_sim/protocols/sew/financial/normalization_fixedpoint_test.clj"
      :kind :test-source}
     {:path "extensions/sew-financial-lifecycle/test/resolver_sim/protocols/sew/financial/p4b_create_escrow_integration_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-financial-lifecycle/test/resolver_sim/protocols/sew/reclaimed_reconstruction_test.clj"
      :kind :test-source}]}
 
   ;; Shared yield state and operations are a reusable runtime subsystem. Sew
