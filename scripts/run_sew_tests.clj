@@ -108,6 +108,10 @@
     resolver-sim.protocols.sew.related-claims-test
     resolver-sim.protocols.sew.research-resolution-test
     resolver-sim.delegation-test
+    resolver-sim.protocols.sew.research-models.ring-batch-test
+    resolver-sim.research.sew.adversarial.liveness-participation-test
+    resolver-sim.research.sew.adversarial.collusion-ring-test
+    resolver-sim.sim.phase-e-evidence-integrity-test
     resolver-sim.protocols.sew.resolution-test
     resolver-sim.protocols.sew.resolver-yield-accrual-test
     resolver-sim.protocols.sew.snapshot-boundary-test

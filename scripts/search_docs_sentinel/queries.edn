@@ -119,7 +119,7 @@
                     "src/resolver_sim/sim/batch.clj"
                     "src/resolver_sim/sim/sweep.clj"
                     "scripts/run_sweep.sh"
-                    "protocols_src/resolver_sim/research/sew/analytic/phase_c_corruption_economics.clj"
+                    "extensions/sew-research/src/resolver_sim/research/sew/analytic/phase_c_corruption_economics.clj"
                    "src/resolver_sim/sim/trial_router.clj"
                    "docs/overview/REUSABLE_COMPONENTS.md"]
   :tags [:simulation :infrastructure]

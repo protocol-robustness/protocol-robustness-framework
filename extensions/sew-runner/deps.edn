@@ -11,4 +11,8 @@
         org.protocol-robustness/prf-sew-pro-rata-slashing
         {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
          :git/sha "b94b091cfbaf46ec34ae2ade4920f9a3751e3097"
-         :deps/root "extensions/sew-pro-rata-slashing"}}}
+         :deps/root "extensions/sew-pro-rata-slashing"}
+        ;; Sew research is still an in-tree candidate; its local root keeps
+        ;; the runner classpath honest until an immutable package revision exists.
+        org.protocol-robustness/prf-sew-research
+        {:local/root "../sew-research"}}}

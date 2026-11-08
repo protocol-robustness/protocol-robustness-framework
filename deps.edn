@@ -53,6 +53,7 @@
                           "extensions/sew-bounty/src"
                           "extensions/sew-pro-rata-application/src"
                           "extensions/sew-research-models/src"
+                          "extensions/sew-research/src"
                           "extensions/sew-runner/src"
                           "protocols_src"
                           "packages/sew-protocol-model/test"
@@ -63,6 +64,7 @@
                           "extensions/sew-bounty/test"
                           "extensions/sew-pro-rata-application/test"
                           "extensions/sew-research-models/test"
+                          "extensions/sew-research/test"
                           "extensions/sew-runner/test"
                           "protocols_src/test"]
     :paths/dev           ["dev" "test"]              ;; = dev + test
@@ -97,10 +99,13 @@
     :paths/sew-research-models ["extensions/sew-research-models/src"
                                 "extensions/sew-research-models/test"]
     :paths/sew-research-models-rt ["extensions/sew-research-models/src"]
+    :paths/sew-research ["extensions/sew-research/src"
+                         "extensions/sew-research/test"]
+    :paths/sew-research-rt ["extensions/sew-research/src"]
     :paths/all           ["src" "yield_runtime_src" "test" "packages/sew-protocol-model/src"
                           "packages/sew-protocol-model/test" "protocols_src" "protocols_src/test"
                           :paths/sew-financial-lifecycle :paths/sew-bounty-route :paths/sew-bounty
-                          :paths/sew-pro-rata-application :paths/sew-research-models :paths/sew-runner "dev" "scripts"
+                          :paths/sew-pro-rata-application :paths/sew-research-models :paths/sew-research :paths/sew-runner "dev" "scripts"
                           :paths/held-custody :paths/force-authorisation :paths/sew-pro-rata-economics :paths/sew-analysis :paths/sew-pro-rata-slashing]
     ;; Researchers: opt-in local paths (defined in ~/.clojure/deps.edn as
     ;; :researcher/paths, e.g. {:aliases {:researcher/paths [".researcher/src"]}}).
@@ -172,6 +177,13 @@
 
    :extension/sew-research-models-rt
    {:extra-paths [:paths/sew-research-models-rt]}
+
+   ;; Optional Sew-specific falsification studies and analysis phases.
+   :extension/sew-research
+   {:extra-paths [:paths/sew-research]}
+
+   :extension/sew-research-rt
+   {:extra-paths [:paths/sew-research-rt]}
 
    ;; flow-storm
 ;;   {:1.12-storm {:classpath-overrides {org.clojure/clojure nil}

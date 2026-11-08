@@ -23,8 +23,7 @@
 
    Parameters: data/params/phase-f-baseline.edn
    Entry point: (run-phase-f params)"
-  (:require [resolver-sim.sim.batch :as batch]
-            [resolver-sim.protocols.sew.runner-extension]
+  (:require [resolver-sim.protocols.sew.research-models.ring-batch :as ring-batch]
             [resolver-sim.stochastic.rng :as rng]))
 
 (def phase-metadata
@@ -63,7 +62,7 @@
         junior-bond (:junior-bond params 1000)
         ring-spec  (build-ring-spec senior-bond junior-bond junior-count)
         run-params (assoc params :slashing-detection-probability detection-prob)
-        result     (batch/run-ring-batch run-rng (:n-trials params 1000) run-params ring-spec)]
+        result     (ring-batch/run-ring-batch run-rng (:n-trials params 1000) run-params ring-spec)]
     (assoc result
            :junior-count      junior-count
            :detection-prob    detection-prob

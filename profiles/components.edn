@@ -35,7 +35,7 @@
                         :prf/sew-protocol-model-v1
                         :prf/sew-analysis-v1
                         :prf/sew-pro-rata-slashing-v1
-                        :prf/sew-research-models-v1]
+                        :prf/sew-research-v1]
    :component/owned-namespaces
    [resolver-sim.core.phases
     resolver-sim.definitions.runner-execution-registry
@@ -55,7 +55,6 @@
     resolver-sim.protocols.sew.invariant-scenarios.reversal
     resolver-sim.protocols.sew.narrative
     resolver-sim.protocols.sew.io.trace-export
-    resolver-sim.protocols.sew.research-models.ring-batch
     resolver-sim.protocols.sew.dispute-context.case-bundle
     resolver-sim.protocols.sew.dispute-context.disagree
     resolver-sim.commands.protocol-finality
@@ -75,7 +74,6 @@
     resolver-sim.protocols.sew.invariant-runner
     resolver-sim.protocols.sew.invariant-scenarios
     resolver-sim.protocols.sew.io.trace-export
-    resolver-sim.protocols.sew.research-models.ring-batch
     resolver-sim.protocols.sew.dispute-context.case-bundle
     resolver-sim.protocols.sew.dispute-context.disagree
     resolver-sim.commands.protocol-finality
@@ -328,6 +326,79 @@
      :kind :package-manifest}
     {:path "extensions/sew-research-models/test/resolver_sim/delegation_test.clj"
      :kind :test-source}]}
+
+  ;; Falsification studies and Sew economic/adversarial analysis are optional
+  ;; research integrations, separate from the protocol runtime surface.
+  :prf/sew-research-v1
+  {:component/plane :research
+   :component/requires [:prf/sew-research-models-v1]
+   :component/owned-namespaces
+   [resolver-sim.research.sew.adversarial.advanced-vulnerability
+    resolver-sim.research.sew.adversarial.collusion-ring
+    resolver-sim.research.sew.adversarial.ema-convergence
+    resolver-sim.research.sew.adversarial.epoch-solvency
+    resolver-sim.research.sew.adversarial.equity-divergence
+    resolver-sim.research.sew.adversarial.escalation-trap
+    resolver-sim.research.sew.adversarial.evidence-fog
+    resolver-sim.research.sew.adversarial.fair-slashing
+    resolver-sim.research.sew.adversarial.falsification-lite
+    resolver-sim.research.sew.adversarial.falsification-revised
+    resolver-sim.research.sew.adversarial.legitimacy-loop
+    resolver-sim.research.sew.adversarial.liveness-participation
+    resolver-sim.research.sew.adversarial.trust-floor
+    resolver-sim.research.sew.analytic.phase-c-corruption-economics
+    resolver-sim.research.sew.analytic.phase-e-evidence-integrity
+    resolver-sim.research.sew.analytic.phase-f-economic-parameters
+    resolver-sim.research.sew.analytic.phase-m-fairness-analysis
+    resolver-sim.research.sew.economic.adaptive-attacker
+    resolver-sim.research.sew.economic.belief-cascades
+    resolver-sim.research.sew.economic.burst-concurrency
+    resolver-sim.research.sew.economic.dispute-clustering
+    resolver-sim.research.sew.economic.evidence-fog-lite
+    resolver-sim.research.sew.economic.market-exit
+    resolver-sim.research.sew.governance.adversary
+    resolver-sim.research.sew.governance.bandwidth-floor
+    resolver-sim.research.sew.governance.capture-drift
+    resolver-sim.protocols.sew.research-models.ring-batch]
+   :component/entry-namespaces
+   [resolver-sim.research.sew.adversarial.advanced-vulnerability
+    resolver-sim.research.sew.adversarial.collusion-ring
+    resolver-sim.research.sew.adversarial.ema-convergence
+    resolver-sim.research.sew.adversarial.epoch-solvency
+    resolver-sim.research.sew.adversarial.equity-divergence
+    resolver-sim.research.sew.adversarial.escalation-trap
+    resolver-sim.research.sew.adversarial.evidence-fog
+    resolver-sim.research.sew.adversarial.fair-slashing
+    resolver-sim.research.sew.adversarial.falsification-lite
+    resolver-sim.research.sew.adversarial.falsification-revised
+    resolver-sim.research.sew.adversarial.legitimacy-loop
+    resolver-sim.research.sew.adversarial.liveness-participation
+    resolver-sim.research.sew.adversarial.trust-floor
+    resolver-sim.research.sew.analytic.phase-c-corruption-economics
+    resolver-sim.research.sew.analytic.phase-e-evidence-integrity
+    resolver-sim.research.sew.analytic.phase-f-economic-parameters
+    resolver-sim.research.sew.analytic.phase-m-fairness-analysis
+    resolver-sim.research.sew.economic.adaptive-attacker
+    resolver-sim.research.sew.economic.belief-cascades
+    resolver-sim.research.sew.economic.burst-concurrency
+    resolver-sim.research.sew.economic.dispute-clustering
+    resolver-sim.research.sew.economic.evidence-fog-lite
+    resolver-sim.research.sew.economic.market-exit
+    resolver-sim.research.sew.governance.adversary
+    resolver-sim.research.sew.governance.bandwidth-floor
+    resolver-sim.research.sew.governance.capture-drift
+    resolver-sim.protocols.sew.research-models.ring-batch]
+   :component/material
+   [{:path "extensions/sew-research/deps.edn"
+     :kind :package-manifest}
+    {:path "extensions/sew-research/test/resolver_sim/research/sew/adversarial/liveness_participation_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-research/test/resolver_sim/sim/phase_e_evidence_integrity_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-research/test/resolver_sim/research/sew/adversarial/collusion_ring_test.clj"
+     :kind :test-source}
+    {:path "data/fixtures/protocol"
+     :kind :runtime-fixtures}]}
 
   ;; Insolvency progression and its evidence report are optional Sew financial
   ;; behavior layered over the escrow model.
