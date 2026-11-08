@@ -16,7 +16,8 @@
    "extensions/sew-pro-rata-economics/src"
    "packages/sew-protocol-model/test" "extensions/sew-pro-rata-slashing/src"
    "extensions/sew-pro-rata-slashing/test" "extensions/sew-financial-lifecycle/src"
-   "extensions/sew-financial-lifecycle/test" "src" "yield_runtime_src"
+   "extensions/sew-financial-lifecycle/test" "extensions/sew-bounty-route/src"
+   "extensions/sew-bounty-route/test" "src" "yield_runtime_src"
    "scenarios" "scripts" "schemas" "data" "suites"])
 
 (def queries-path

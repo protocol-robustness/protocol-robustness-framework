@@ -18,7 +18,8 @@
 (def source-roots ["yield_runtime_src" "src" "packages/sew-protocol-model/src"
                    "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
                    "extensions/sew-pro-rata-slashing/src"
-                   "extensions/sew-financial-lifecycle/src" "protocols_src"
+                   "extensions/sew-financial-lifecycle/src"
+                   "extensions/sew-bounty-route/src" "protocols_src"
                    "pro-rata/contract-source" "extensions/sew-core-profile-adapter/src"])
 
 (defn read-edn [path] (edn/read-string (slurp (str path))))
@@ -231,13 +232,15 @@
                          :paths ["src" "yield_runtime_src" "packages/sew-protocol-model/src"
                                  "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
                                  "extensions/sew-pro-rata-slashing/src"
-                                 "extensions/sew-financial-lifecycle/src" "protocols_src"
+                                 "extensions/sew-financial-lifecycle/src"
+                                 "extensions/sew-bounty-route/src" "protocols_src"
                                  "pro-rata/contract-source" "extensions/sew-core-profile-adapter/src"
                                  "resources"]
                          :aliases {:profile/check
                                    {:extra-paths ["test" "packages/sew-protocol-model/test" "extensions/sew-analysis/test"
                                                   "extensions/sew-pro-rata-slashing/test"
-                                                  "extensions/sew-financial-lifecycle/test"]}})))))
+                                                  "extensions/sew-financial-lifecycle/test"
+                                                  "extensions/sew-bounty-route/test"]}})))))
 
 (defn symlink-local-dependencies! [view-root]
   (let [deps (:deps (read-edn (fs/path repo-root "deps.edn")))]

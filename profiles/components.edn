@@ -459,6 +459,19 @@
     {:path "protocols_src/test/resolver_sim/protocols/sew/with_bounty_test.clj"
      :kind :test-source}]}
 
+  :prf/sew-bounty-route-v1
+  {:component/plane :protocol-adapter
+   :component/requires [:prf/framework-v1 :prf/bounty-v1]
+   :component/owned-namespaces
+   [resolver-sim.protocols.sew.bounty-escrow-route]
+   :component/entry-namespaces
+   [resolver-sim.protocols.sew.bounty-escrow-route]
+   :component/material
+   [{:path "extensions/sew-bounty-route/deps.edn"
+     :kind :package-manifest}
+    {:path "extensions/sew-bounty-route/test/resolver_sim/protocols/sew/bounty_escrow_route_test.clj"
+     :kind :test-source}]}
+
   :prf/pro-rata-verifier-v1
   {:component/plane :assurance
    :component/requires [:prf/ideal-pro-rata-v1]

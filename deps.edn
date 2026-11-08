@@ -49,11 +49,13 @@
                           "extensions/sew-analysis/src"
                           "extensions/sew-pro-rata-slashing/src"
                           "extensions/sew-financial-lifecycle/src"
+                          "extensions/sew-bounty-route/src"
                           "protocols_src"
                           "packages/sew-protocol-model/test"
                           "extensions/sew-analysis/test"
                           "extensions/sew-pro-rata-slashing/test"
                           "extensions/sew-financial-lifecycle/test"
+                          "extensions/sew-bounty-route/test"
                           "protocols_src/test"]
     :paths/dev           ["dev" "test"]              ;; = dev + test
      :paths/src           ["src" "yield_runtime_src"]
@@ -74,9 +76,12 @@
     :paths/sew-financial-lifecycle ["extensions/sew-financial-lifecycle/src"
                                     "extensions/sew-financial-lifecycle/test"]
     :paths/sew-financial-lifecycle-rt ["extensions/sew-financial-lifecycle/src"]
+    :paths/sew-bounty-route ["extensions/sew-bounty-route/src"
+                             "extensions/sew-bounty-route/test"]
+    :paths/sew-bounty-route-rt ["extensions/sew-bounty-route/src"]
     :paths/all           ["src" "yield_runtime_src" "test" "packages/sew-protocol-model/src"
                           "packages/sew-protocol-model/test" "protocols_src" "protocols_src/test"
-                          :paths/sew-financial-lifecycle "dev" "scripts"
+                          :paths/sew-financial-lifecycle :paths/sew-bounty-route "dev" "scripts"
                           :paths/held-custody :paths/force-authorisation :paths/sew-pro-rata-economics :paths/sew-analysis :paths/sew-pro-rata-slashing]
     ;; Researchers: opt-in local paths (defined in ~/.clojure/deps.edn as
     ;; :researcher/paths, e.g. {:aliases {:researcher/paths [".researcher/src"]}}).
@@ -408,6 +413,7 @@
     :paths ["src" "yield_runtime_src" "packages/sew-protocol-model/src"
             "extensions/sew-pro-rata-economics/src" "extensions/sew-pro-rata-slashing/src"
             "extensions/sew-financial-lifecycle/src"
+            "extensions/sew-bounty-route/src"
             "extensions/sew-analysis/src"
             "protocols_src" "resources" "scenarios"]}
 

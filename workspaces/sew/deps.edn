@@ -6,5 +6,7 @@
          "../../extensions/sew-analysis/test"
          "../../extensions/sew-financial-lifecycle/src"
          "../../extensions/sew-financial-lifecycle/test"
+         "../../extensions/sew-bounty-route/src"
+         "../../extensions/sew-bounty-route/test"
          "../../packages/sew-protocol-model/test"
          "../../protocols_src/test"]}
