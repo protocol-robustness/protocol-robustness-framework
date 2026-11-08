@@ -75,7 +75,7 @@
    :concepts-registry    {:default hash-ref/concept-registry-path}
    :concepts-dir         {:default "data/concepts"
                           :env     "PRF_CONCEPTS_DIR"}
-   :claims-file          {:default "data/claims/sew-claims.edn"
+   :claims-file          {:default "extensions/sew-runner/resources/data/claims/sew-claims.edn"
                           :env     "PRF_CLAIMS_FILE"}
    :speds-definitions    {:default "data/speds/definitions.edn"
                           :env     "PRF_SPEDS_DEFINITIONS"}

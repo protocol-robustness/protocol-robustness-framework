@@ -7,7 +7,7 @@
   (let [result (corpus-validation/validate-corpus!)]
     (is (= :passed (:status result)))
     (is (= 2 (:packs result)))
-    (is (= 11 (:benchmarks result)))
+    (is (= 12 (:benchmarks result)))
     (is (pos? (:hash-intent-count result)))
     (is (some? (:content-root result)))
     (is (some? (:reference-closure-root result)))))
@@ -267,7 +267,7 @@
     (let [manifest (:manifest result)]
       (is (= "benchmark-corpus.v1" (:corpus/schema manifest)))
       (is (= 2 (:corpus/packs manifest)))
-      (is (= 11 (:corpus/benchmark-count manifest)))
+      (is (= 12 (:corpus/benchmark-count manifest)))
       (is (some? (:corpus/content-root manifest)))
       (is (some? (:corpus/reference-closure-root manifest)))
       (is (= "corpus-verification.v2" (:corpus/verification-profile manifest)))

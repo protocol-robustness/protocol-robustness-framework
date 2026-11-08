@@ -17,7 +17,7 @@
    are a separate concept from yield modules and escrow snapshots."
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as ref]
-            [resolver-sim.yield.protocols :as yield-proto]
+            [resolver-sim.protocols.sew.yield-capabilities :as yield-capabilities]
             [resolver-sim.protocols.sew.types :as types]))
 
 (def ^:private nat-fields
@@ -171,7 +171,7 @@
   (let [seed (or yield-profile yield-generation-module)]
     (if seed
       (let [{:keys [profile-id archetype module-id]}
-            (yield-proto/resolve-yield-profile seed)]
+            (yield-capabilities/resolve-profile seed)]
         (and (or (nil? yield-profile)
                  (= yield-profile profile-id))
              (or (nil? yield-archetype)
@@ -242,7 +242,7 @@
                   :actual v})))))
    (when-not (yield-fields-consistent? snapshot)
      (let [{:keys [profile-id archetype module-id]}
-           (yield-proto/resolve-yield-profile
+           (yield-capabilities/resolve-profile
             (or (:yield-profile snapshot) (:yield-generation-module snapshot)))]
        (throw (snapshot-validation-error
                "Yield profile, archetype, and generation-module are inconsistent"
@@ -286,7 +286,7 @@
         yield-id (or (get pp :yield-generation-module nil)
                      (get pp :yield-profile nil))
         {:keys [profile-id archetype module-id]}
-        (yield-proto/resolve-yield-profile yield-id)
+        (yield-capabilities/resolve-profile yield-id)
         snap (make-escrow-snapshot
               {:escrow-fee-bps (get pp :resolver-fee-bps 100)
                :resolution-module (get pp :resolution-module nil)

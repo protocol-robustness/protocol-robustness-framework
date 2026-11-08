@@ -1,4 +1,4 @@
-{:paths ["src"]
+{:paths ["src" "resources"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
         ;; These are explicit local roots while the component packages are
         ;; unpublished. This manifest is an in-tree candidate, not a
@@ -7,6 +7,8 @@
         {:local/root "../.."}
         org.protocol-robustness/prf-sew-protocol-model
         {:local/root "../../packages/sew-protocol-model"}
+        org.protocol-robustness/prf-sew-yield-integration
+        {:local/root "../sew-yield-integration"}
         org.protocol-robustness/prf-sew-analysis
         {:local/root "../sew-analysis"}
         org.protocol-robustness/prf-sew-pro-rata-slashing

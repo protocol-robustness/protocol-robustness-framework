@@ -5,8 +5,7 @@
   (:require [resolver-sim.protocols.registry :as registry]
             [resolver-sim.protocols.sew :as sew]
             [resolver-sim.protocols.sew.invariants :as invariants]
-            [resolver-sim.protocols.sew.pro-rata.evidence]
-            [resolver-sim.protocols.sew.replay.appeal-bond :as appeal-bond-replay]))
+            [resolver-sim.protocols.sew.pro-rata.evidence]))
 
 (defn register-capabilities! []
   (registry/register-extension! "sew-v1" 'resolver-sim.protocols.sew/protocol)
@@ -16,13 +15,7 @@
   (registry/register-capability!
    "sew-v1" :reference-validation/invariant-checker
    {:world-invariant-ids invariants/world-invariant-ids
-    :check-all-fn invariants/check-all})
-  (registry/register-capability!
-   "sew-v1" :replay/appeal-bond-transition-receipt
-   appeal-bond-replay/transition-receipt)
-  (registry/register-capability!
-   "sew-v1" :replay/finalize-appeal-bond
-   appeal-bond-replay/finalize-evidence))
+    :check-all-fn invariants/check-all}))
 
 (registry/register-capability-provider! "sew-v1" :core register-capabilities!)
 (def protocol-id (do (register-capabilities!) "sew-v1"))

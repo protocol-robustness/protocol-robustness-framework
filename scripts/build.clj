@@ -184,7 +184,9 @@ core-deps-str (pr-str
                                metosin/malli {:mvn/version "0.17.0"}}
                        :paths ["src" "yield_runtime_src" "pro-rata/contract-source"
                                "packages/sew-protocol-model/src"
+                               "extensions/sew-yield-integration/src"
                                "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
+                               "extensions/sew-pro-rata-test-vectors/src"
                                "extensions/sew-pro-rata-slashing/src" "extensions/sew-financial-lifecycle/src"
                                "extensions/sew-bounty-route/src" "extensions/sew-bounty/src" "extensions/sew-pro-rata-application/src"
                                "extensions/sew-research-models/src"
@@ -201,7 +203,9 @@ core-deps-str (pr-str
                            is-prf-runnable ["src" "yield_runtime_src" "pro-rata/contract-source" "resources" "scenarios"]
                            :else ["src" "yield_runtime_src" "pro-rata/contract-source"
                                   "packages/sew-protocol-model/src"
+                                  "extensions/sew-yield-integration/src"
                                   "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
+                                  "extensions/sew-pro-rata-test-vectors/src"
                                   "extensions/sew-pro-rata-slashing/src" "extensions/sew-financial-lifecycle/src"
                                   "extensions/sew-bounty-route/src" "extensions/sew-bounty/src" "extensions/sew-pro-rata-application/src"
                                   "extensions/sew-research-models/src"
@@ -361,7 +365,9 @@ core-deps-str (pr-str
     (.mkdirs (java.io.File. class-dir))
     (println "\n=== AOT compile Sew protocol sources ===")
     (doseq [src-dir ["packages/sew-protocol-model/src"
+                     "extensions/sew-yield-integration/src"
                      "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
+                     "extensions/sew-pro-rata-test-vectors/src"
                      "extensions/sew-pro-rata-slashing/src" "extensions/sew-financial-lifecycle/src"
                      "extensions/sew-bounty-route/src" "extensions/sew-bounty/src" "extensions/sew-pro-rata-application/src"
                      "extensions/sew-research-models/src"

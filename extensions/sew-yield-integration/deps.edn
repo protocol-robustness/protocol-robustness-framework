@@ -1,0 +1,7 @@
+;; In-tree candidate for the Sew-specific yield adapter. The model dependency
+;; remains local until the Sew protocol model is published independently.
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        org.protocol-robustness/prf-sew-protocol-model
+        {:local/root "../../packages/sew-protocol-model"}}
+ :aliases {:test {:extra-paths ["test"]}}}
