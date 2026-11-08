@@ -47,7 +47,7 @@
 (def default-config
   {:bookmark-glob "agent-*"
    :impl-roots ["src" "yield_runtime_src" "test"
-                "packages/sew-protocol-model/src" "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src" "extensions/sew-pro-rata-slashing/src" "extensions/sew-financial-lifecycle/src" "extensions/sew-bounty-route/src" "extensions/sew-pro-rata-application/src" "protocols_src"]
+                "packages/sew-protocol-model/src" "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src" "extensions/sew-pro-rata-slashing/src" "extensions/sew-financial-lifecycle/src" "extensions/sew-bounty-route/src" "extensions/sew-pro-rata-application/src" "extensions/sew-runner/src" "protocols_src"]
    :tmp-root "/tmp/opencode"
    :baseline "integration@origin"})
 

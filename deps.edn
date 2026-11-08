@@ -51,6 +51,7 @@
                           "extensions/sew-financial-lifecycle/src"
                           "extensions/sew-bounty-route/src"
                           "extensions/sew-pro-rata-application/src"
+                          "extensions/sew-runner/src"
                           "protocols_src"
                           "packages/sew-protocol-model/test"
                           "extensions/sew-analysis/test"
@@ -58,6 +59,7 @@
                           "extensions/sew-financial-lifecycle/test"
                           "extensions/sew-bounty-route/test"
                           "extensions/sew-pro-rata-application/test"
+                          "extensions/sew-runner/test"
                           "protocols_src/test"]
     :paths/dev           ["dev" "test"]              ;; = dev + test
      :paths/src           ["src" "yield_runtime_src"]
@@ -84,10 +86,12 @@
     :paths/sew-pro-rata-application ["extensions/sew-pro-rata-application/src"
                                      "extensions/sew-pro-rata-application/test"]
     :paths/sew-pro-rata-application-rt ["extensions/sew-pro-rata-application/src"]
+    :paths/sew-runner ["extensions/sew-runner/src" "extensions/sew-runner/test"]
+    :paths/sew-runner-rt ["extensions/sew-runner/src"]
     :paths/all           ["src" "yield_runtime_src" "test" "packages/sew-protocol-model/src"
                           "packages/sew-protocol-model/test" "protocols_src" "protocols_src/test"
                           :paths/sew-financial-lifecycle :paths/sew-bounty-route
-                          :paths/sew-pro-rata-application "dev" "scripts"
+                          :paths/sew-pro-rata-application :paths/sew-runner "dev" "scripts"
                           :paths/held-custody :paths/force-authorisation :paths/sew-pro-rata-economics :paths/sew-analysis :paths/sew-pro-rata-slashing]
     ;; Researchers: opt-in local paths (defined in ~/.clojure/deps.edn as
     ;; :researcher/paths, e.g. {:aliases {:researcher/paths [".researcher/src"]}}).
@@ -421,6 +425,7 @@
             "extensions/sew-financial-lifecycle/src"
             "extensions/sew-bounty-route/src"
             "extensions/sew-pro-rata-application/src"
+            "extensions/sew-runner/src"
             "extensions/sew-analysis/src"
             "protocols_src" "resources" "scenarios"]}
 

@@ -10,5 +10,7 @@
          "../../extensions/sew-bounty-route/test"
          "../../extensions/sew-pro-rata-application/src"
          "../../extensions/sew-pro-rata-application/test"
+         "../../extensions/sew-runner/src"
+         "../../extensions/sew-runner/test"
          "../../packages/sew-protocol-model/test"
          "../../protocols_src/test"]}

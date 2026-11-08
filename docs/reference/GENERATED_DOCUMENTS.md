@@ -6,7 +6,7 @@ Some repository documents are derived from executable definitions. Do not hand-e
 
 | Output | Source of truth | Regenerate | Verify only |
 |---|---|---|---|
-| `docs/scenarios.md` S01–S23 table | `src/resolver_sim/protocols/sew/invariant_scenarios/doc_summaries.clj` | `bb docs:scenarios` | Review the resulting diff. |
+| `docs/scenarios.md` S01–S23 table | `extensions/sew-runner/src/resolver_sim/protocols/sew/invariant_scenarios/doc_summaries.clj` | `bb docs:scenarios` | Review the resulting diff. |
 | `docs/protocols/sew/STATE_MACHINE_GENERATED.md` | Sew state-machine definitions | `make state-machine-docs-generate` | `make state-machine-docs-check` |
 | `docs/protocols/sew/TRANSITION_COVERAGE_GENERATED.md` | Sew state-machine definitions and `scenarios/edn/*.edn` coverage | `make state-machine-docs-generate` | `make state-machine-docs-check` |
 | Core generated docs | Their registered core-doc sources | `make core-generated-docs-generate` | `make core-generated-docs-check` |

@@ -42,7 +42,7 @@
   :terms ["fork isolation" "S33" "two-escrow-fork-isolation"]
    :expected-paths ["scenarios/edn/S33_forking-strategist-two-escrow-fork-isolation.edn"
                     "docs/scenarios.md"
-                    "protocols_src/resolver_sim/protocols/sew/invariant_scenarios/forking_strategist.clj"
+                    "extensions/sew-runner/src/resolver_sim/protocols/sew/invariant_scenarios/forking_strategist.clj"
                     "data/fixtures/suites/forking-strategist.edn"]
   :tags [:scenario :invariant :adversarial]
   :note "Fork isolation is a key safety property; must be traceable from docs to code."}
@@ -160,7 +160,7 @@
                     "scenarios/edn/S42_resolver-buyer-bribery-loop.edn"
                     "scenarios/edn/S08_state-machine-attack-gauntlet.edn"
                     "data/fixtures/suites/forking-strategist.edn"
-                    "protocols_src/resolver_sim/protocols/sew/invariant_scenarios/adversarial.clj"]
+                    "extensions/sew-runner/src/resolver_sim/protocols/sew/invariant_scenarios/adversarial.clj"]
   :tags [:adversarial :scenario :invariant]
   :note "Adversarial scenarios are the main evidence of protocol robustness."}
 

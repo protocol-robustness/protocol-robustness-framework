@@ -40,6 +40,19 @@
     resolver-sim.definitions.runner-execution-registry
     resolver-sim.protocols.sew.runner-extension
     resolver-sim.protocols.sew.runner-replay
+    resolver-sim.protocols.sew.runner
+    resolver-sim.protocols.sew.invariant-runner
+    resolver-sim.protocols.sew.invariant-scenarios
+    resolver-sim.protocols.sew.invariant-scenarios.adversarial
+    resolver-sim.protocols.sew.invariant-scenarios.baseline
+    resolver-sim.protocols.sew.invariant-scenarios.cancellation-extended
+    resolver-sim.protocols.sew.invariant-scenarios.common
+    resolver-sim.protocols.sew.invariant-scenarios.doc-summaries
+    resolver-sim.protocols.sew.invariant-scenarios.extended
+    resolver-sim.protocols.sew.invariant-scenarios.forking-strategist
+    resolver-sim.protocols.sew.invariant-scenarios.gaps
+    resolver-sim.protocols.sew.invariant-scenarios.reversal
+    resolver-sim.protocols.sew.narrative
     resolver-sim.protocols.sew.io.trace-export
     resolver-sim.protocols.sew.research-models.ring-batch
     resolver-sim.protocols.sew.dispute-context.case-bundle
@@ -57,6 +70,9 @@
     resolver-sim.definitions.runner-execution-registry
     resolver-sim.protocols.sew.runner-extension
     resolver-sim.protocols.sew.runner-replay
+    resolver-sim.protocols.sew.runner
+    resolver-sim.protocols.sew.invariant-runner
+    resolver-sim.protocols.sew.invariant-scenarios
     resolver-sim.protocols.sew.io.trace-export
     resolver-sim.protocols.sew.research-models.ring-batch
     resolver-sim.protocols.sew.dispute-context.case-bundle
@@ -70,13 +86,21 @@
     resolver-sim.server.grpc
     resolver-sim.io.diff-runner]
    :component/material
-   [{:path "test/resolver_sim/sim/fixtures_mc_batch_test.clj"
+   [{:path "extensions/sew-runner/deps.edn"
+     :kind :package-manifest}
+    {:path "test/resolver_sim/sim/fixtures_mc_batch_test.clj"
      :kind :test-source}
     {:path "test/resolver_sim/sim/reference_validation_evidence_test.clj"
      :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/research_models/ring_batch_test.clj"
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/research_models/ring_batch_test.clj"
      :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/replay_test.clj"
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/replay_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/runner_parity_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/invariant_runner_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/forking_strategist_expectations_test.clj"
      :kind :test-source}
     {:path "test/resolver_sim/definitions/runner_execution_registry_test.clj"
      :kind :test-source}
@@ -88,9 +112,15 @@
      :kind :test-source}
     {:path "test/resolver_sim/contract_model/replay/analysis_test.clj"
      :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/dispute_context/case_bundle_test.clj"
+    {:path "test/resolver_sim/io/scenario_fixture_parity_test.clj"
      :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/protocols/sew/dispute_context/disagree_test.clj"
+    {:path "test/resolver_sim/validation/scenario_registry_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/dispute_context/case_bundle_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/dispute_context/disagree_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/trace_export_idempotency_test.clj"
      :kind :test-source}
     {:path "data/fixtures/protocol"
      :kind :runtime-fixtures}]}

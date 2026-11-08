@@ -20,6 +20,7 @@
                    "extensions/sew-pro-rata-slashing/src"
                    "extensions/sew-financial-lifecycle/src"
                    "extensions/sew-bounty-route/src" "extensions/sew-pro-rata-application/src"
+                   "extensions/sew-runner/src"
                    "protocols_src"
                    "pro-rata/contract-source" "extensions/sew-core-profile-adapter/src"])
 
@@ -235,6 +236,7 @@
                                  "extensions/sew-pro-rata-slashing/src"
                                  "extensions/sew-financial-lifecycle/src"
                                  "extensions/sew-bounty-route/src" "extensions/sew-pro-rata-application/src"
+                                 "extensions/sew-runner/src"
                                  "protocols_src"
                                  "pro-rata/contract-source" "extensions/sew-core-profile-adapter/src"
                                  "resources"]
@@ -243,7 +245,8 @@
                                                   "extensions/sew-pro-rata-slashing/test"
                                                   "extensions/sew-financial-lifecycle/test"
                                                   "extensions/sew-bounty-route/test"
-                                                  "extensions/sew-pro-rata-application/test"]}})))))
+                                                  "extensions/sew-pro-rata-application/test"
+                                                  "extensions/sew-runner/test"]}})))))
 
 (defn symlink-local-dependencies! [view-root]
   (let [deps (:deps (read-edn (fs/path repo-root "deps.edn")))]
