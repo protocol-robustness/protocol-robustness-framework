@@ -159,6 +159,7 @@
     resolver-sim.protocols.sew.financial.liabilities
     resolver-sim.protocols.sew.financial.loss
     resolver-sim.protocols.sew.financial.solvency
+    resolver-sim.protocols.sew.held-reconstruction
     resolver-sim.protocols.sew.held-mutation-admission
     resolver-sim.protocols.sew.invariants
     resolver-sim.protocols.sew.invariants.bond
@@ -195,6 +196,7 @@
     resolver-sim.protocols.sew.yield-extension
     resolver-sim.protocols.sew.appeal-bond-projection
     resolver-sim.protocols.sew.dispute-resolution-terminal-envelope
+    resolver-sim.protocols.sew.held-reconstruction
     resolver-sim.protocols.sew.terminal-evidence-publication
     resolver-sim.protocols.sew.terminal-state-snapshot
     resolver-sim.cancellation.sew-projection
@@ -241,6 +243,8 @@
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/dispute_resolution_closure_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/terminal_state_snapshot_contract_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/held_reconstruction_test.clj"
      :kind :test-source}
     {:path "protocols_src/test/resolver_sim/protocols/sew/terminal_state_snapshot_test.clj"
      :kind :test-source}
