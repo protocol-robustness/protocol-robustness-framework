@@ -1,6 +1,5 @@
 (ns resolver-sim.protocols.sew.yield.risk-policy
-  "Dynamic yield risk policy engine for liquid-lending modules."
-  (:require [resolver-sim.protocols.sew.types :as t]))
+  "Dynamic yield risk policy engine for liquid-lending modules.")
 
 (defmulti calculate-risk-adjustment
   "Compute dynamic APY and liquidity mode adjustments based on current shortfall ratio.

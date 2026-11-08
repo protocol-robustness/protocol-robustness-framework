@@ -189,6 +189,7 @@
     resolver-sim.protocols.sew.transition-assurance
     resolver-sim.protocols.sew.yield.invariants
     resolver-sim.protocols.sew.yield.policy
+    resolver-sim.protocols.sew.yield.risk-policy
     resolver-sim.protocols.sew.yield-extension]
    :component/entry-namespaces
    [resolver-sim.protocols.adjudication
@@ -197,6 +198,7 @@
     resolver-sim.protocols.sew.actions
     resolver-sim.protocols.sew.config
     resolver-sim.protocols.sew.invariants.yield
+    resolver-sim.protocols.sew.yield.risk-policy
     resolver-sim.protocols.sew.yield-extension
     resolver-sim.protocols.sew.appeal-bond-projection
     resolver-sim.protocols.sew.dispute-resolution-terminal-envelope
@@ -257,6 +259,8 @@
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/capacity_exhaustion_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/invariants/yield_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/yield/risk_policy_test.clj"
      :kind :test-source}
     {:path "protocols_src/test/resolver_sim/protocols/sew/terminal_state_snapshot_test.clj"
      :kind :test-source}
