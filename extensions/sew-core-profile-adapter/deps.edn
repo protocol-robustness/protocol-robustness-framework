@@ -1,10 +1,18 @@
 {:paths ["src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
-        ;; Resolve the Sew model from an immutable public source revision. The
-        ;; subdirectory manifest pulls its framework dependency from the same
-        ;; repository checkout, so consumers need no local workspace path.
+        ;; Immutable integration baseline. The :test alias exercises the
+        ;; extracted model candidate from this checkout instead.
         org.protocol-robustness/prf-sew-protocol-model
         {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
          :git/sha "b94b091cfbaf46ec34ae2ade4920f9a3751e3097"
          :deps/root "packages/sew-protocol-model"}}
- :aliases {:test {:extra-paths ["test"]}}}
+ :aliases {:test
+           ;; The package's ordinary test command must exercise the current
+           ;; extracted model candidate, not the historical default pin.
+           {:replace-deps {org.clojure/clojure {:mvn/version "1.12.0"}
+                           org.protocol-robustness/prf-sew-protocol-model
+                           {:local/root "../../packages/sew-protocol-model"}}
+            :extra-paths ["test" "../../extensions/sew-yield-integration/src"]}
+           ;; Keep the historical dependency baseline explicit; it does not
+           ;; qualify the extracted model.
+           :test/baseline {:extra-paths ["test"]}}}

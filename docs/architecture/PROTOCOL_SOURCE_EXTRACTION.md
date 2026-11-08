@@ -100,19 +100,22 @@ been removed; profile generation now succeeds. `runner` and supported
 `sew-protocol-model` profile boundary/load checks pass. The runner profile declares its
 protocol fixture data and test material. Profile link generation verifies
 that destinations remain inside `.profile-view` and cannot overwrite source
-paths. The runner-free `sew-protocol-model-core` candidate still
-reports unresolved runner entries in the execution registry, so resolve that
-profile/registry composition before treating the candidate as package-qualified.
+paths. The runner-free `sew-protocol-model-core` profile now passes its
+boundary/load check without runner or yield integration sources. This check
+does not qualify all model-only runtime behavior; no-yield fallback and
+fail-closed yield capability behavior have focused contract coverage.
 
-The runner-free `sew-protocol` candidate now resolves to 199 files with no
-component crossings. Replay and batch reporting are runner capabilities;
+The runner-free `sew-protocol` candidate resolves to 201 files with no
+component crossings. The `sew-protocol-model-core` profile resolves to 143 files
+and excludes the Sew yield integration and shared yield runtime. Full Sew
+profiles select `sew-yield-integration`, which has an in-tree manifest with a
+local model dependency. Replay and batch reporting are runner capabilities;
 researcher authorization and scenario analysis are separately selectable Sew
-integrations. The Sew model exposes yield operations through an internal
-capability adapter over shared yield runtime. The remaining broad groups are
-yield, benchmark/research, and shared framework code. Keep research models and runner assembly out of the
-initial `prf-sew` runtime package. The exact pro-rata
-verifier remains a candidate for a separate optional assurance package later,
-once its dependency contract is independently qualified.
+integrations. Benchmark, scenario, replay, and shared framework code remain in
+the candidate closure. Keep research models and runner assembly out of the
+initial `prf-sew` runtime package. The exact pro-rata verifier remains a
+candidate for a separate optional assurance package later, once its dependency
+contract is independently qualified.
 
 ## Target approach: multiple repositories
 

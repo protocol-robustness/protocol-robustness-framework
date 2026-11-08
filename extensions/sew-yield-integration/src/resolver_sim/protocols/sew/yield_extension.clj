@@ -9,6 +9,8 @@
             [resolver-sim.yield.expectations :as yield-expectations]
             [resolver-sim.yield.ops :as yield-ops]
             [resolver-sim.yield.partial-fill :as yield-partial-fill]
+            [resolver-sim.yield.evidence :as yield-evidence]
+            [resolver-sim.yield.invariants :as yield-invariants]
             [resolver-sim.yield.accounting :as yield-accounting]
             [resolver-sim.yield.position :as yield-position]))
 
@@ -25,6 +27,10 @@
   (registry/register-capability! "sew-v1" :yield/check-expectations yield-expectations/check-expectations)
   (registry/register-capability! "sew-v1" :yield/liquidity-modes yield-accounting/liquidity-modes)
   (registry/register-capability! "sew-v1" :yield/partial-yield-shortfall? yield-accounting/partial-yield-shortfall?)
+  (registry/register-capability! "sew-v1" :yield/sum-recognized-losses
+                                 yield-evidence/sum-recognized-losses)
+  (registry/register-capability! "sew-v1" :yield/check-position-consistency
+                                 yield-invariants/check-position-consistency)
   (registry/register-capability! "sew-v1" :yield/apply-yield-op yield-ops/apply-yield-op)
   (registry/register-capability! "sew-v1" :yield/position-identity yield-position/position-identity)
   (registry/register-capability! "sew-v1" :yield/filled-total yield-partial-fill/filled-total)

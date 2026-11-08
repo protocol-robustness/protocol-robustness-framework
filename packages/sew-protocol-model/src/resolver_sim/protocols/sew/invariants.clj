@@ -23,10 +23,9 @@
              [resolver-sim.protocols.sew.accounting-projection :as accounting-projection]
             [resolver-sim.protocols.sew.authority     :as auth]
             [resolver-sim.protocols.sew.types         :as t]
-            [resolver-sim.yield.accounting            :as yield-acct]
+            [resolver-sim.protocols.sew.yield-capabilities :as yield-capabilities]
             [resolver-sim.protocols.sew.state-machine :as sm]
             [resolver-sim.time.invariants :as time-inv]
-            [resolver-sim.yield.invariants :as generic-yield-inv]
             [resolver-sim.protocols.sew.invariants.escrow :as escrow]
             [resolver-sim.protocols.sew.invariants.governance :as governance]
             [resolver-sim.protocols.sew.invariants.solvency :as solvency]
@@ -37,11 +36,9 @@
             [resolver-sim.protocols.sew.invariants.bond :as bond]
             [resolver-sim.protocols.sew.invariants.settlement :as settlement]
             [resolver-sim.protocols.sew.invariants.dispute :as dispute]
-            [resolver-sim.yield.evidence :as yield-evi]
             [resolver-sim.time.context :as time-ctx]
             [resolver-sim.protocols.sew.economics :as sew-econ]
             [resolver-sim.protocols.sew.registry :as reg]
-            [resolver-sim.protocols.registry :as protocol-registry]
             [resolver-sim.protocols.sew.related-claims :as rc]
             [resolver-sim.accounting.held-adjustment :as held-adjustment]
             [resolver-sim.hash.canonical :as hash]
@@ -752,7 +749,7 @@
                      expected-claimable
                      (cond
                        (and shortfall pos-after
-                            (yield-acct/partial-yield-shortfall? pos-after shortfall))
+                            (yield-capabilities/partial-yield-shortfall? pos-after shortfall))
                        (let [fee-bps (or (:yield-protocol-fee-bps snap) 0)
                              liq     (long (:fulfilled-amount shortfall 0))
                              net-liq (- liq (t/compute-fee liq fee-bps))]
@@ -1382,7 +1379,7 @@
               :let [principal   (t/safe-parse-long (get (:total-principal-deposited world) token 0))
                     yield       (t/safe-parse-long (get (:total-yield-generated world) token 0))
                     bonds       (t/safe-parse-long (get (:total-bonds-posted world) token 0))
-                    losses      (yield-evi/sum-recognized-losses world token)
+                    losses      (yield-capabilities/sum-recognized-losses world token)
                     inflow      (- (+ principal yield bonds slash-total) losses)
 
                     held        (t/safe-parse-long (get (:total-held world) token 0))
@@ -1433,7 +1430,7 @@
        (nil? pos) 0
        (pos? reclaimed) (reduce + 0 (vals (get-in world [:claimable-v2 workflow-id :settlement/yield] {})))
        (= :settled (:status pos)) (max (reduce + 0 (vals (get-in world [:claimable-v2 workflow-id :settlement/yield] {}))) pos-yield)
-       (yield-acct/partial-yield-shortfall? pos shortfall)
+       (yield-capabilities/partial-yield-shortfall? pos shortfall)
        (let [liq (long (:fulfilled-amount shortfall 0))]
          (- liq (t/compute-fee liq fee-bps)))
        :else pos-yield))))
@@ -1783,8 +1780,8 @@
                     inflow-after     (+ (get (:total-principal-deposited world-after) token 0)
                                         (get (:total-bonds-posted world-after) token 0)
                                         (get (:total-yield-generated world-after) token 0))
-                    losses-before    (yield-evi/sum-recognized-losses world-before token)
-                    losses-after     (yield-evi/sum-recognized-losses world-after token)
+                    losses-before    (yield-capabilities/sum-recognized-losses world-before token)
+                    losses-after     (yield-capabilities/sum-recognized-losses world-after token)
                     delta-losses     (- losses-after losses-before)
                     delta-inflow     (- (- inflow-after inflow-before) delta-losses)
 
@@ -2683,15 +2680,9 @@
                      :related-claims-do-not-block-finality (related-claims-do-not-block-finality? world)
                       :related-claims-authorisation-scope-closed (related-claims-authorisation-scope-closed? world)
                       :evidence-provenance-verifiable     (evidence-provenance-verifiable? world)
-                     :yield-position-consistency          (generic-yield-inv/check-position-consistency world)
-                     :yield-exposure                      (if-let [check-yield
-                                                                     (protocol-registry/get-capability
-                                                                      "sew-v1" :yield/check-sew-invariants)]
-                                                           (or (:sew/yield-exposure (check-yield world))
-                                                               {:holds? false
-                                                                :violations [{:error :missing-yield-exposure-check}]})
-                                                           {:holds? false
-                                                            :violations [{:error :missing-yield-integration}]})
+                     :yield-position-consistency          (yield-capabilities/check-position-consistency world)
+                     :yield-exposure                      (:sew/yield-exposure
+                                                          (yield-capabilities/check-sew-invariants world))
                      :fee-payouts-sum-equals-total-fees-withdrawn (fee-payouts-sum-equals-total-fees-withdrawn? world)
                      :no-reentrant-guard-leak (no-reentrant-guard-leak? world)}
          ;; Force-auth invariants are only executed when the composition

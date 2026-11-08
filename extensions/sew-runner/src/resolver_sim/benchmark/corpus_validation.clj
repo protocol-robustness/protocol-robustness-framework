@@ -185,7 +185,7 @@
 (def intent-coverage-classification
   "Classifies each hash intent by its corpus-coverage requirement.
 
-   :required        — core Sew protocol intents that must be exercised by
+   :required        — production protocol intents that must be exercised by
                       at least one benchmark scenario.
    :optional        — infrastructure intents that may be exercised by specific
                       benchmark configurations but are not required for all.
@@ -244,24 +244,69 @@
                 [intent-kw :optional]
                 [intent-kw :required]))))))
 
-(defn- exercised-intents
-  "Scan production source directories for `:hash/intent` usage to determine
-   which intents are actually exercised by code paths."
+(defn- production-source-directories
+  "Find Clojure source roots across in-tree modules and resolved dependencies."
   []
-  (let [exercised (atom #{})]
-    (doseq [dir ["src" "protocols_src"]
-            :when (.exists (java.io.File. dir))]
-      (doseq [f (->> (file-seq (java.io.File. dir))
-                     (filter #(.endsWith (.getName %) ".clj"))
-                     (filter #(.isFile %)))]
-        (let [content (slurp f)]
-          (doseq [m (re-seq #":hash/intent\s+:([a-zA-Z0-9/-]+)" content)]
-            (swap! exercised conj (keyword (second m)))))))
+  (let [classpath-roots
+        (->> (some-> (System/getProperty "java.class.path")
+                     (str/split (re-pattern
+                                 (java.util.regex.Pattern/quote
+                                  (str java.io.File/pathSeparator)))))
+             (filter #(= "src" (.getName (java.io.File. %))))
+             (filter #(.isDirectory (java.io.File. %)))
+             (remove #(re-find #"(^|[/\\])test([/\\]|$)" %)))
+        nested-roots
+        (for [container ["packages" "extensions"]
+              :let [root (java.io.File. container)]
+              :when (.isDirectory root)
+              file (file-seq root)
+              :when (and (.isDirectory file) (= "src" (.getName file)))]
+          (.getPath file))]
+    (->> (concat ["src" "yield_runtime_src" "protocols_src"]
+                 nested-roots classpath-roots)
+         distinct
+         (filter #(.isDirectory (java.io.File. %))))))
+
+(defn- production-source-file?
+  [^java.io.File file]
+  (and (.isFile file)
+       (.endsWith (.getName file) ".clj")
+       (not (re-find #"(^|[/\\])test([/\\]|$)" (.getPath file)))))
+
+(defn- exercised-intents
+  "Scan production Clojure source for explicit hash-intent and domain-hash use.
+   Test directories are excluded so tests cannot make an unused production
+   intent appear covered."
+  []
+  (let [exercised (atom #{})
+        intent-tokens
+        (into {}
+              (mapcat (fn [[intent contract]]
+                        (cond-> [[(str intent) intent]]
+                          (:intent/domain-tag contract)
+                          (conj [(str "\"" (:intent/domain-tag contract) "\"") intent])))
+                      canonical/hash-intents))
+        intent-pattern (re-pattern
+                        (str "(?<![A-Za-z0-9_*/.!?$%&=+:-])(?:"
+                             (str/join "|"
+                                       (map (comp java.util.regex.Pattern/quote key)
+                                            (sort-by (comp - count key) intent-tokens)))
+                             ")(?![A-Za-z0-9_*/.!?$%&=+-])"))]
+    (doseq [dir (production-source-directories)
+            file (file-seq (java.io.File. dir))
+            :when (and (production-source-file? file)
+                       (not (str/ends-with?
+                             (str/replace (.getPath file) "\\" "/")
+                             "resolver_sim/hash/canonical.clj")))]
+      (let [content (slurp file)]
+        (when (re-find #"(?:hash-with-intent|hash-with-domain|domain-hash)" content)
+          (doseq [match (re-seq intent-pattern content)]
+            (swap! exercised conj (get intent-tokens match))))))
     @exercised))
 
 (defn check-intent-coverage
   "Machine-readable coverage matrix answering:
-   1. Which intents are defined (76).
+   1. Which intents are defined.
    2. Which intents are exercised by production source code.
    3. Which intents are required but not exercised (fail).
    4. Classification of each intent: :required | :optional | :not-applicable.

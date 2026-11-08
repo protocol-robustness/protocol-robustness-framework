@@ -5,7 +5,7 @@
             [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.protocols.sew.lifecycle :as lc]
             [resolver-sim.protocols.sew.resolution :as res]
-            [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
+            [resolver-sim.protocols.sew.yield.test-support :as snap-fix]
             [resolver-sim.yield.registry :as yield-reg]))
 
 (def ^:private partial-liquidity-config

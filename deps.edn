@@ -45,7 +45,9 @@
     :paths/sew-protocol-model ["packages/sew-protocol-model/src"
                                "packages/sew-protocol-model/test"]
     :paths/protocols     ["packages/sew-protocol-model/src"
+                          "extensions/sew-yield-integration/src"
                           "extensions/sew-pro-rata-economics/src"
+                          "extensions/sew-pro-rata-test-vectors/src"
                           "extensions/sew-analysis/src"
                           "extensions/sew-pro-rata-slashing/src"
                           "extensions/sew-financial-lifecycle/src"
@@ -55,9 +57,12 @@
                           "extensions/sew-research-models/src"
                           "extensions/sew-research/src"
                           "extensions/sew-runner/src"
+                          "extensions/sew-runner/resources"
                           "protocols_src"
                           "packages/sew-protocol-model/test"
+                          "extensions/sew-yield-integration/test"
                           "extensions/sew-pro-rata-economics/test"
+                          "extensions/sew-pro-rata-test-vectors/test"
                           "extensions/sew-analysis/test"
                           "extensions/sew-pro-rata-slashing/test"
                           "extensions/sew-financial-lifecycle/test"
@@ -69,6 +74,7 @@
                           "extensions/sew-runner/test"
                           "protocols_src/test"]
     :paths/protocols-runtime ["packages/sew-protocol-model/src"
+                              "extensions/sew-yield-integration/src"
                               "extensions/sew-pro-rata-economics/src"
                               "extensions/sew-analysis/src"
                               "extensions/sew-pro-rata-slashing/src"
@@ -79,6 +85,7 @@
                               "extensions/sew-research-models/src"
                               "extensions/sew-research/src"
                               "extensions/sew-runner/src"
+                              "extensions/sew-runner/resources"
                               "protocols_src"]
     :paths/dev           ["dev" "test"]              ;; = dev + test
      :paths/src           ["src" "yield_runtime_src"]

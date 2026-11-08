@@ -16,7 +16,9 @@
 (def repo-root (fs/path (System/getProperty "user.dir")))
 (def profiles-dir (fs/path repo-root "profiles"))
 (def source-roots ["yield_runtime_src" "src" "packages/sew-protocol-model/src"
+                   "extensions/sew-yield-integration/src"
                    "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
+                   "extensions/sew-pro-rata-test-vectors/src"
                    "extensions/sew-pro-rata-slashing/src"
                    "extensions/sew-financial-lifecycle/src"
                    "extensions/sew-bounty-route/src" "extensions/sew-bounty/src"
@@ -265,7 +267,9 @@
     (spit (str (fs/path view-root "deps.edn"))
           (pr-str (assoc (select-keys base [:mvn/repos :deps])
                          :paths ["src" "yield_runtime_src" "packages/sew-protocol-model/src"
+                                 "extensions/sew-yield-integration/src"
                                  "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
+                                 "extensions/sew-pro-rata-test-vectors/src"
                                  "extensions/sew-pro-rata-slashing/src"
                                  "extensions/sew-financial-lifecycle/src"
                                  "extensions/sew-bounty-route/src" "extensions/sew-bounty/src"

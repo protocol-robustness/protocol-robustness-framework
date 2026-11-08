@@ -91,8 +91,7 @@
       (require extension-ns)
       (catch java.io.FileNotFoundException _ nil))
     (when (or (nil? requested-capability)
-              (contains? #{"reference-validation" "replay"}
-                         (namespace requested-capability)))
+              (= "reference-validation" (namespace requested-capability)))
       (restore-capability-group! protocol-id :core requested-capability))))
 
 (defn- bootstrap-runner-extension! [protocol-id requested-capability]
@@ -102,6 +101,15 @@
       (require extension-ns)
       (catch java.io.FileNotFoundException _ nil))
     (restore-capability-group! protocol-id :runner requested-capability)))
+
+(defn- bootstrap-replay-extension! [protocol-id requested-capability]
+  (let [extension-name (first (str/split protocol-id #"-"))
+        extension-ns (symbol (str "resolver-sim.protocols." extension-name
+                                  ".replay-extension"))]
+    (try
+      (require extension-ns)
+      (catch java.io.FileNotFoundException _ nil))
+    (restore-capability-group! protocol-id :replay requested-capability)))
 
 (defn- bootstrap-force-authorisation-extension! [protocol-id requested-capability]
   (let [extension-name (first (str/split protocol-id #"-"))
@@ -152,13 +160,15 @@
 
 (defn get-capability
   "Resolve an optional protocol capability, loading its conventional extension
-   bootstrap and optional runner bootstrap first. Returns nil when the protocol
-   or capability is unavailable. Runner capabilities are loaded only when
-   requested, so model-only profiles do not acquire runner dependencies."
+   bootstrap and the selected runner or replay bootstrap first. Returns nil
+   when the protocol or capability is unavailable. Runner and replay groups
+   load only when requested, so model-only profiles do not acquire them."
   [protocol-id capability-id]
   (bootstrap-extension! protocol-id capability-id)
   (when (= "runner" (namespace capability-id))
     (bootstrap-runner-extension! protocol-id capability-id))
+  (when (= "replay" (namespace capability-id))
+    (bootstrap-replay-extension! protocol-id capability-id))
   (when (= "force-authorisation" (namespace capability-id))
     (bootstrap-force-authorisation-extension! protocol-id capability-id))
   (when (= "analysis" (namespace capability-id))

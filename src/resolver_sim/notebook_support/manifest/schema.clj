@@ -93,3 +93,6 @@
 
 (defn explain-manifest [m]
   (m/explain Manifest m))
+
+(defn explain-claim [c]
+  (m/explain Claim c))

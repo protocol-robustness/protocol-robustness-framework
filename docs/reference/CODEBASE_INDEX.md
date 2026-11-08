@@ -137,7 +137,7 @@ scripts/              3 files — evidence signing, manifest tools
 |------|----------|
 | `data/params/` | 71 EDN Monte Carlo parameter definitions (phases O–AI, controls, baselines) |
 | `data/fixtures/golden/` | Golden report fixtures for yield scenarios (S68–S115) |
-| `data/claims/` | Claim registry (`sew-claims.edn`) |
+| `extensions/sew-runner/resources/data/claims/` | Sew protocol claim registry |
 | `data/yield/` | Yield invariant catalog |
 | `scenarios/` | ~120 JSON deterministic scenario files |
 | `verification-suite/scenarios/` | Public reference-validation scenarios |

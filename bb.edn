@@ -1512,7 +1512,8 @@ sign
                                       "extensions/sew-pro-rata-application/src"
                                       "extensions/sew-research-models/src"
                                       "extensions/sew-research/src"
-                                      "extensions/sew-runner/src" "protocols_src"
+                                      "extensions/sew-runner/src"
+                                      "extensions/sew-runner/resources" "protocols_src"
                                       "packages/sew-protocol-model/test" "extensions/sew-pro-rata-economics/test"
                                       "extensions/sew-analysis/test"
                                       "extensions/sew-pro-rata-slashing/test"
@@ -1534,7 +1535,8 @@ sign
                                       "extensions/sew-pro-rata-application/src"
                                       "extensions/sew-research-models/src"
                                       "extensions/sew-research/src"
-                                      "extensions/sew-runner/src" "protocols_src"]
+                                      "extensions/sew-runner/src"
+                                      "extensions/sew-runner/resources" "protocols_src"]
                         :cli         ["packages/sew-protocol-model/src"
                                       "extensions/sew-pro-rata-economics/src"
                                       "extensions/sew-analysis/src"
@@ -1545,7 +1547,8 @@ sign
                                       "extensions/sew-pro-rata-application/src"
                                       "extensions/sew-research-models/src"
                                       "extensions/sew-research/src"
-                                      "extensions/sew-runner/src" "protocols_src"]
+                                      "extensions/sew-runner/src"
+                                      "extensions/sew-runner/resources" "protocols_src"]
                         :with-sew    ["packages/sew-protocol-model/src"
                                       "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
                                       "extensions/sew-pro-rata-slashing/src"
@@ -1556,6 +1559,7 @@ sign
                                       "extensions/sew-research-models/src"
                                       "extensions/sew-research/src"
                                       "extensions/sew-runner/src"
+                                      "extensions/sew-runner/resources"
                                       "protocols_src" "packages/sew-protocol-model/test"
                                       "extensions/sew-pro-rata-economics/test"
                                       "extensions/sew-analysis/test" "extensions/sew-pro-rata-slashing/test"

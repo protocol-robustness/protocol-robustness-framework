@@ -1,5 +1,5 @@
 (ns resolver-sim.protocols.sew.yield.policy-test
-  (:require [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
+  (:require [resolver-sim.protocols.sew.yield.test-support :as snap-fix]
             [clojure.test :refer :all]
             [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.protocols.sew :as sew]

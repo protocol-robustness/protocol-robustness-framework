@@ -1,7 +1,7 @@
 (ns resolver-sim.protocols.sew.claimable-outcome
   "Observed escrow_yield delivery outcomes for claimable-classification.v2."
   (:require [resolver-sim.protocols.sew.types :as t]
-            [resolver-sim.yield.accounting :as yield-acct]))
+            [resolver-sim.protocols.sew.yield-capabilities :as yield-capabilities]))
 
 (def manifest-shortfall-outcomes
   #{:may-be-partially-deferred :fully-deferred :fully-immediate :none})
@@ -49,7 +49,7 @@
      :outcome outcome
      :manifest-label (when (manifest-shortfall-outcomes outcome)
                        (name outcome))
-     :partial-yield-shortfall? (yield-acct/partial-yield-shortfall? pos sf)
+     :partial-yield-shortfall? (yield-capabilities/partial-yield-shortfall? pos sf)
      :immediate-yield-claimable (reduce + 0 (vals (get-in world [:claimable-v2 wf :settlement/yield] {})))
      :principal-claimable (reduce + 0 (vals (get-in world [:claimable-v2 wf :settlement/principal] {})))
      :deferred-amount (long (or (:deferred-amount sf) 0))

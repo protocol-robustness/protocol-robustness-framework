@@ -302,7 +302,6 @@
           (assoc :partial_distribution (not= (:pre-root atom-bond) (:post-root atom-bond))))]
     metric-values))
 
-
 (defn finalize-evidence
   "Add Sew appeal-bond projections, receipts, metrics, and prerequisites to a replay result."
   [scenario result]
@@ -337,9 +336,9 @@
                                    amount (vals (get domains :bond/refund {}))]
                                (or amount 0)))
         slash-count (count (for [[_ slash] (merge (get terminal-world :pending-fraud-slashes {})
-                                                   (get terminal-world :reversal-slash-history {}))
-                                :when (= :executed (:status slash))]
-                            slash))
+                                                  (get terminal-world :reversal-slash-history {}))
+                                 :when (= :executed (:status slash))]
+                             slash))
         trace (:trace result)
         enriched (cond-> result
                    bond-projection (assoc :appeal-bond/projection bond-projection)
