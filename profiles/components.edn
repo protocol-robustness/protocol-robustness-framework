@@ -579,10 +579,12 @@
                         :prf/pro-rata-evaluation-v1]
    :component/owned-namespaces
    [resolver-sim.protocols.sew.pro-rata.evidence
-    resolver-sim.protocols.sew.extension]
+    resolver-sim.protocols.sew.extension
+    resolver-sim.protocols.sew.evidence.slashing]
    :component/entry-namespaces
    [resolver-sim.protocols.sew.extension
-    resolver-sim.protocols.sew.pro-rata.evidence]
+    resolver-sim.protocols.sew.pro-rata.evidence
+    resolver-sim.protocols.sew.evidence.slashing]
    :component/material
    [{:path "extensions/sew-pro-rata-slashing/deps.edn"
      :kind :package-manifest}
