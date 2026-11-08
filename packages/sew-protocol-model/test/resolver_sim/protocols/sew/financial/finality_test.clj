@@ -155,20 +155,23 @@
     (let [w (t/empty-world 1000)
           wf-id 0]
       (testing "Provisional state (no escrow)"
-        (is (empty? (#'fin/open-gates w wf-id (fin/index-pending-slashes w)))))
+        (is (empty? (:open-gates (fin/classify-financial-finality w wf-id)))))
 
       (testing "Disputed state with pending settlement"
-        (let [w-disp (assoc-in w [:escrow-transfers wf-id] {:status :disputed})
+        (let [w-disp (assoc-in w [:escrow-transfers wf-id] {:escrow-state :disputed})
               w-pend (assoc-in w-disp [:pending-settlements wf-id] {:exists true :appeal-deadline 2000})]
-          (is (= #{:pending-settlement :appeal-window} (set (#'fin/open-gates w-pend wf-id (fin/index-pending-slashes w-pend))))))
+          (is (= #{:escrow-state :pending-settlement :appeal-window}
+                 (set (#'fin/open-gates w-pend wf-id (fin/index-pending-slashes w-pend))))))
 
-        (let [w-disp (assoc-in w [:escrow-transfers wf-id] {:status :disputed})
+        (let [w-disp (assoc-in w [:escrow-transfers wf-id] {:escrow-state :disputed})
               w-pend (assoc-in w-disp [:pending-settlements wf-id] {:exists true :appeal-deadline 500})]
           ;; deadline 500 < world time 1000: appeal-window closed
-          (is (= #{:pending-settlement} (set (#'fin/open-gates w-pend wf-id (fin/index-pending-slashes w-pend))))))
+          (is (= #{:escrow-state :pending-settlement}
+                 (set (#'fin/open-gates w-pend wf-id (fin/index-pending-slashes w-pend))))))
 
         (testing "Yield recovery state"
-          (let [w-yield (assoc-in w [:yield/positions "owner1"] {:status :unwinding})
-              ;; Requires owner mapping
-                w-yield-mapped (assoc w-yield :yield/owner-map {wf-id "owner1"})]
-            (is (contains? (set (#'fin/open-gates w-yield-mapped wf-id (fin/index-pending-slashes w-yield-mapped))) :yield-recovery))))))))
+          (let [w-disp (assoc-in w [:escrow-transfers wf-id] {:escrow-state :disputed})
+                owner-id (t/escrow-yield-owner-id wf-id)
+                w-yield (assoc-in w-disp [:yield/positions owner-id] {:status :unwinding})]
+            (is (= #{:escrow-state :yield-recovery}
+                   (set (#'fin/open-gates w-yield wf-id (fin/index-pending-slashes w-yield)))))))))))
