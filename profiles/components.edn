@@ -359,6 +359,7 @@
     resolver-sim.research.sew.governance.adversary
     resolver-sim.research.sew.governance.bandwidth-floor
     resolver-sim.research.sew.governance.capture-drift
+    resolver-sim.protocols.sew.research-ratification
     resolver-sim.protocols.sew.research-models.ring-batch]
    :component/entry-namespaces
    [resolver-sim.research.sew.adversarial.advanced-vulnerability
@@ -387,6 +388,7 @@
     resolver-sim.research.sew.governance.adversary
     resolver-sim.research.sew.governance.bandwidth-floor
     resolver-sim.research.sew.governance.capture-drift
+    resolver-sim.protocols.sew.research-ratification
     resolver-sim.protocols.sew.research-models.ring-batch]
    :component/material
    [{:path "extensions/sew-research/deps.edn"
@@ -396,6 +398,8 @@
     {:path "extensions/sew-research/test/resolver_sim/sim/phase_e_evidence_integrity_test.clj"
      :kind :test-source}
     {:path "extensions/sew-research/test/resolver_sim/research/sew/adversarial/collusion_ring_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/resolution_test.clj"
      :kind :test-source}
     {:path "data/fixtures/protocol"
      :kind :runtime-fixtures}]}
