@@ -39,6 +39,26 @@
    :appeal-probability-if-wrong    0.0
    :strategy                       :honest})
 
+(defn- simulation-invariants-explicitly-incomplete?
+  "A trial without complete ledger evidence must fail closed, while every
+   evaluated invariant still holds and the incomplete checks are identified."
+  [result]
+  (let [checks (:cm/inv-violations result)
+        not-evaluated (into #{}
+                            (keep (fn [[id check]]
+                                    (when (= :not-evaluated (:status check)) id)))
+                            checks)
+        evaluated-failures (into #{}
+                                 (keep (fn [[id check]]
+                                         (when (and (not (:holds? check))
+                                                    (not= :not-evaluated (:status check)))
+                                           id)))
+                                 checks)]
+    (and (false? (:cm/invariants-ok? result))
+         (contains? not-evaluated :accounting-projection)
+         (contains? not-evaluated :held-adjustments-reconstruct-total-held)
+         (empty? evaluated-failures))))
+
 (deftest run-trial-malicious-detected
   "Malicious resolver: forced wrong verdict + high detection => loss."
   (let [;; rng vals: [verdict?, detection?]
@@ -53,7 +73,7 @@
     ;; afa = 10000 - 50 = 9950;  bond = 9950 * 700 / 10000 = 696 (int div)
     (is (< (:profit-malice r) (:profit-honest r))
         "malicious profit < honest profit when detected")
-    (is (true? (:cm/invariants-ok? r)))))
+    (is (simulation-invariants-explicitly-incomplete? r))))
 
 (deftest run-trial-malicious-evades
   "Malicious resolver: wrong verdict but evades detection."
@@ -72,15 +92,15 @@
                       :appeal-probability-if-correct 1.0)  ; always appeal
         r      (runner/run-trial (always 0.5) params)]
     (is (map? r) "run-trial returns a result map")
-    (is (true? (:cm/invariants-ok? r)))))
+    (is (simulation-invariants-explicitly-incomplete? r))))
 
-(deftest run-trial-invariants-hold-across-strategies
-  "Invariants hold for all strategies."
+(deftest run-trial-reports-invariant-completeness-across-strategies
+  "Evaluated invariants hold and missing ledger evidence remains explicit."
   (doseq [strategy [:honest :lazy :malicious :collusive]]
     (let [r (runner/run-trial (seq-rng 0.5 0.99 0.99)
                               (assoc base-params :strategy strategy))]
-      (is (true? (:cm/invariants-ok? r))
-          (str "invariants failed for strategy " strategy)))))
+      (is (simulation-invariants-explicitly-incomplete? r)
+          (str "invariant assessment is incomplete or contains a failure for " strategy)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Divergence detector
