@@ -147,6 +147,7 @@
     resolver-sim.protocols.sew.authority
     resolver-sim.protocols.sew.claimable-outcome
     resolver-sim.protocols.sew.compat
+    resolver-sim.protocols.sew.config
     resolver-sim.protocols.sew.diff
     resolver-sim.protocols.sew.dispute-resolution-closure
     resolver-sim.protocols.sew.dispute-ruling
@@ -188,6 +189,7 @@
    [resolver-sim.protocols.adjudication
     resolver-sim.protocols.adjudication-authentication-verification
     resolver-sim.protocols.sew
+    resolver-sim.protocols.sew.config
     resolver-sim.protocols.sew.yield-extension
     resolver-sim.protocols.sew.appeal-bond-projection
     resolver-sim.cancellation.sew-projection
@@ -198,6 +200,8 @@
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/adjudication_authentication_verification_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/snapshot_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/dispute_capacity_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/adjudication_case_test.clj"
      :kind :test-source}
