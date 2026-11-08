@@ -250,6 +250,10 @@
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/actions_test.clj"
      :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/sim/capacity_exhaustion.clj"
+     :kind :test-support}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/capacity_exhaustion_test.clj"
+     :kind :test-source}
     {:path "protocols_src/test/resolver_sim/protocols/sew/terminal_state_snapshot_test.clj"
      :kind :test-source}
     {:path "protocols_src/test/resolver_sim/protocols/sew/held_custody_test_env.clj"
