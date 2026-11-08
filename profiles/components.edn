@@ -149,6 +149,7 @@
     resolver-sim.protocols.sew.config
     resolver-sim.protocols.sew.diff
     resolver-sim.protocols.sew.dispute-resolution-closure
+    resolver-sim.protocols.sew.dispute-resolution-terminal-envelope
     resolver-sim.protocols.sew.dispute-ruling
     resolver-sim.protocols.sew.dispute-ruling-finality
     resolver-sim.protocols.sew.economics
@@ -179,6 +180,8 @@
     resolver-sim.protocols.sew.slash-evidence
     resolver-sim.protocols.sew.snapshot
     resolver-sim.protocols.sew.snapshot-presets
+    resolver-sim.protocols.sew.terminal-evidence-publication
+    resolver-sim.protocols.sew.terminal-state-snapshot
     resolver-sim.protocols.sew.trace-metadata
     resolver-sim.protocols.sew.transition-assurance
     resolver-sim.protocols.sew.yield.invariants
@@ -191,6 +194,9 @@
     resolver-sim.protocols.sew.config
     resolver-sim.protocols.sew.yield-extension
     resolver-sim.protocols.sew.appeal-bond-projection
+    resolver-sim.protocols.sew.dispute-resolution-terminal-envelope
+    resolver-sim.protocols.sew.terminal-evidence-publication
+    resolver-sim.protocols.sew.terminal-state-snapshot
     resolver-sim.cancellation.sew-projection
     resolver-sim.protocols.sew.replay.appeal-bond]
    :component/material
@@ -231,7 +237,15 @@
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/replay/appeal_bond_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/accounting_test.clj"
-     :kind :test-source}]}
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/dispute_resolution_closure_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/terminal_state_snapshot_contract_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/terminal_state_snapshot_test.clj"
+     :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/held_custody_test_env.clj"
+     :kind :test-support}]}
 
   ;; Operation-limited behavior candidate aligned to the Solidity Sew Core
   ;; deployment profile. This adapts the in-tree model and therefore still
