@@ -137,6 +137,7 @@
     resolver-sim.protocols.sew
     resolver-sim.protocols.sew.accounting
     resolver-sim.protocols.sew.accounting-projection
+    resolver-sim.protocols.sew.actions
     resolver-sim.protocols.sew.action-context
     resolver-sim.protocols.sew.adjudication-case
     resolver-sim.protocols.sew.adjudication-instance
@@ -192,6 +193,7 @@
    [resolver-sim.protocols.adjudication
     resolver-sim.protocols.adjudication-authentication-verification
     resolver-sim.protocols.sew
+    resolver-sim.protocols.sew.actions
     resolver-sim.protocols.sew.config
     resolver-sim.protocols.sew.yield-extension
     resolver-sim.protocols.sew.appeal-bond-projection
@@ -245,6 +247,8 @@
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/terminal_state_snapshot_contract_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/held_reconstruction_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/actions_test.clj"
      :kind :test-source}
     {:path "protocols_src/test/resolver_sim/protocols/sew/terminal_state_snapshot_test.clj"
      :kind :test-source}
