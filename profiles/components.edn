@@ -323,7 +323,11 @@
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/settlement_custody_attribution_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/terminal_reservation_test.clj"
-     :kind :test-source}]}
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/phase_m_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/reversal_fixtures.clj"
+     :kind :test-support}]}
 
   ;; Operation-limited behavior candidate aligned to the Solidity Sew Core
   ;; deployment profile. This adapts the in-tree model and therefore still
@@ -667,6 +671,8 @@
     {:path "protocols_src/test/resolver_sim/protocols/sew/extension_test.clj"
      :kind :test-source}
     {:path "extensions/sew-pro-rata-slashing/test/resolver_sim/protocols/sew/slashing_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-pro-rata-slashing/test/resolver_sim/protocols/sew/phase_k_test.clj"
      :kind :test-source}
     {:path "test/resolver_sim/yield/pro_rata_claims_test.clj"
      :kind :test-source}]}

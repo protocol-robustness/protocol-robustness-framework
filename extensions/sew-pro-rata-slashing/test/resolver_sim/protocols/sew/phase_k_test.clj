@@ -1,6 +1,7 @@
 (ns resolver-sim.protocols.sew.phase-k-test
   (:require [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
             [clojure.test :refer [deftest is testing]]
+            [resolver-sim.protocols.sew.pro-rata.evidence]
             [resolver-sim.protocols.sew.types      :as t]
             [resolver-sim.protocols.sew.lifecycle  :as lc]
             [resolver-sim.protocols.sew.resolution :as res]
