@@ -530,7 +530,6 @@
    Returns nil for legacy unkeyed rounds.
    For a 3-member round with keys 0,1,2 this returns 2."
   [round]
-  (when (and (round-uses-member-keys? round)
-             (canonical-member-keys? (:review-round/members round)))
+  (when (round-uses-member-keys? round)
     (let [max-key (apply max (map :review-member/key (:review-round/members round)))]
       (max 1 (.bitLength (biginteger max-key))))))
