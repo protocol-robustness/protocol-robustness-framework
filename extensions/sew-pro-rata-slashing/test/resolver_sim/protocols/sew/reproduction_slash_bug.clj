@@ -3,6 +3,7 @@
             [resolver-sim.protocols.sew.lifecycle :as lc]
             [resolver-sim.protocols.sew.resolution :as res]
             [resolver-sim.protocols.sew.registry :as reg]
+            [resolver-sim.protocols.sew.pro-rata.evidence]
             [resolver-sim.time.context :as time-ctx]
             [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]))
@@ -11,8 +12,8 @@
   [world workflow-id kind level]
   (get-in world [:slash-by-context (t/slash-context-key workflow-id kind level)]))
 
-(deftest test-reversal-slash-orphaned-after-fraud-slash
-  (testing "Pending reversal slash (Track 2) is cleaned up if fraud slash finalizes escrow"
+(deftest manual-fraud-slash-rejects-while-reversal-slash-is-pending
+  (testing "A second manual slash cannot be proposed while a reversal slash is pending"
     (let [gov "0xGov"
           r0 "0xRes0"
           r1 "0xRes1"
@@ -40,18 +41,13 @@
           after-l1 (:world (res/execute-resolution after-evidence workflow-id r1 false "0xhash2" nil))
 
           slash-id (slash-id-for after-l1 workflow-id :reversal 0)
-          slash-id-fraud workflow-id
 
           ;; 3. Verify Reversal slash is pending
           _ (is (= :pending (get-in after-l1 [:pending-fraud-slashes slash-id :status])))
 
-          ;; 4. Propose and Execute Fraud Slash
-          after-fraud-prop-res (res/propose-fraud-slash after-l1 workflow-id gov r0 4000)
-          _ (println "All pending fraud slashes after fraud prop:" (:pending-fraud-slashes (:world after-fraud-prop-res)))
-          after-fraud-prop (:world after-fraud-prop-res)
-          after-fraud-exec (-> (res/execute-fraud-slash after-fraud-prop workflow-id workflow-id) :world)
-
-          ;; 5. Verify fraud slash executed, and reversal slash is cleaned up
-          _ (println "All pending fraud slashes after fraud exec:" (:pending-fraud-slashes after-fraud-exec))
-          _ (is (not (nil? (get-in after-fraud-exec [:pending-fraud-slashes workflow-id :status]))) "Fraud slash should be in pending/executed")
-          _ (is (nil? (get-in after-fraud-exec [:pending-fraud-slashes slash-id :status])) "Reversal slash should be cleaned up")])))
+          ;; A manual fraud slash is rejected while this workflow already has
+          ;; an active reversal slash; the pending reversal remains intact.
+          fraud-proposal (res/propose-fraud-slash after-l1 workflow-id gov r0 4000)]
+      (is (= :pending (get-in after-l1 [:pending-fraud-slashes slash-id :status])))
+      (is (false? (:ok fraud-proposal)))
+      (is (= :slash-already-pending (:error fraud-proposal))))))
