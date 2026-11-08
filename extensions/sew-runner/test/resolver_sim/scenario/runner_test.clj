@@ -82,8 +82,8 @@
               (scenario-runner/run-paths
                ["scenarios/edn/Y02_vault-shortfall-partial-withdraw.edn"]
                {:suite-id :yield-scenarios}))]
-    (is (str/includes? out "[run:scenario]"))
-    (is (str/includes? out "protocol yield-v1"))))
+    (is (str/includes? out ":scenario-run-start"))
+    (is (str/includes? out ":protocol \"yield-v1\""))))
 
 (deftest path-run-request-captures-stable-run-metadata
   (let [{request :scenario-run/request}
@@ -337,7 +337,7 @@
                                      (= :report (first %)))
                             %)
                          @calls)))
-            (is (= "bundle-root.v1" (:bundle/schema-version payload)))
+            (is (= "bundle-root.v2" (:bundle/schema-version payload)))
             (is (= {:total 2 :passed 1 :failed 1}
                    (get-in payload [:execution/summary :totals]))))
           (is (= {:total 2 :passed 1 :failed 1}
@@ -355,7 +355,7 @@
                       {}))
             written (json/read-str (slurp output-file) :key-fn keyword)]
         (is (str/includes? result "Y02_vault-shortfall-partial-withdraw"))
-        (is (= "bundle-root.v1" (:bundle/schema-version written)))
+        (is (= "bundle-root.v2" (:bundle/schema-version written)))
         (is (string? (:bundle/hash written)))
         (is (map? (:run/request written)))
         (is (map? (:execution/summary written)))

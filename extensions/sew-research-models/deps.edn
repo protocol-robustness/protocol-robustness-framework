@@ -1,7 +1,8 @@
-{:paths ["src" "test"]
+{:paths ["src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
         ;; Local roots are intentional until PRF core and Sew model artifacts
         ;; are independently published. This remains an in-tree candidate.
         org.protocol-robustness/prf-framework {:local/root "../.."}
         org.protocol-robustness/prf-sew-protocol-model
-        {:local/root "../../packages/sew-protocol-model"}}}
+        {:local/root "../../packages/sew-protocol-model"}}
+ :aliases {:test {:extra-paths ["test"]}}}

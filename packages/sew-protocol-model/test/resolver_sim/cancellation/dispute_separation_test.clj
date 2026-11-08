@@ -27,11 +27,14 @@
 (def pending (snapshot-for :pending {:sender :none :recipient :agree-to-cancel}))
 (def disputed (snapshot-for :disputed {:sender :none :recipient :none}))
 
-(deftest disputed-state-fails-the-snapshot-guard
+(deftest disputed-state-fails-the-party-precondition
   (is (true? (snapshot/valid-snapshot? pending)) "control: pending snapshots are valid")
-  (is (false? (snapshot/valid-snapshot? disputed)))
-  (is (contains? (set (snapshot/snapshot-errors disputed)) :snapshot/not-pending)
-      "a disputed escrow is refused as not-pending, before any party logic"))
+  (is (true? (snapshot/valid-snapshot? disputed))
+      "a disputed escrow is a valid state snapshot")
+  (is (contains? (set (:preconditions/errors
+                       (party/preconditions disputed :sender "alice")))
+                 :precondition/not-pending)
+      "ordinary party cancellation refuses non-pending state"))
 
 (deftest disputed-state-cannot-reach-admissible-planning-even-with-full-agreement
   ;; Both parties agreeing + unilateral policy would make an ordinary
@@ -59,8 +62,8 @@
                                     :snapshot pending
                                     :policy policy+root
                                     :principal "alice"})]
-    (is (contains? (set errors) :precondition/invalid-snapshot)
-        "the disputed snapshot surfaces as a typed precondition error")
+    (is (contains? (set errors) :precondition/not-pending)
+        "the disputed snapshot surfaces as a typed cancellation precondition error")
     (is (:thrown plan-or-throw)
         "planning from a disputed snapshot does not produce an evaluation artifact")
     (is (.contains ^String (:message plan-or-throw) "invalid party cancellation evaluation"))

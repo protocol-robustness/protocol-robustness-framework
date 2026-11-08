@@ -68,6 +68,18 @@
                           "extensions/sew-research/test"
                           "extensions/sew-runner/test"
                           "protocols_src/test"]
+    :paths/protocols-runtime ["packages/sew-protocol-model/src"
+                              "extensions/sew-pro-rata-economics/src"
+                              "extensions/sew-analysis/src"
+                              "extensions/sew-pro-rata-slashing/src"
+                              "extensions/sew-financial-lifecycle/src"
+                              "extensions/sew-bounty-route/src"
+                              "extensions/sew-bounty/src"
+                              "extensions/sew-pro-rata-application/src"
+                              "extensions/sew-research-models/src"
+                              "extensions/sew-research/src"
+                              "extensions/sew-runner/src"
+                              "protocols_src"]
     :paths/dev           ["dev" "test"]              ;; = dev + test
      :paths/src           ["src" "yield_runtime_src"]
      :paths/pro-rata-contract ["pro-rata/contract-source"]
@@ -338,10 +350,12 @@
    :main-opts ["-m" "cljfmt.main" "check" "src" "yield_runtime_src" "test"]}
 
    :run
-   {:main-opts ["-m" "resolver-sim.core"]}
+   {:extra-paths [:paths/protocols-runtime]
+    :main-opts ["-m" "resolver-sim.core"]}
 
    :cli
-   {:main-opts ["-m" "resolver-sim.cli.main"]}
+   {:extra-paths [:paths/protocols-runtime]
+    :main-opts ["-m" "resolver-sim.cli.main"]}
 
    :cli/sew
    {:main-opts ["-m" "resolver-sim.cli.main"]

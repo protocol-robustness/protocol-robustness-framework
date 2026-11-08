@@ -17,6 +17,37 @@
     (doseq [file (reverse (file-seq root))]
       (io/delete-file file true))))
 
+(deftest classpath-directory-hash-records-symlinks-without-following-them
+  (let [root (java.nio.file.Files/createTempDirectory
+              "prf-classpath-root-"
+              (make-array java.nio.file.attribute.FileAttribute 0))
+        linked-root (java.nio.file.Files/createTempDirectory
+                     "prf-classpath-linked-"
+                     (make-array java.nio.file.attribute.FileAttribute 0))
+        link (.resolve root "linked")
+        linked-file (.resolve linked-root "dependency.clj")
+        local-file (.resolve root "local.clj")
+        hash-directory (ns-resolve 'resolver-sim.commands.simulation
+                                   'directory-content-sha256)]
+    (try
+      (spit (.toFile linked-file) "(def dependency :first)\n")
+      (spit (.toFile local-file) "(def local :first)\n")
+      (java.nio.file.Files/createSymbolicLink
+       link linked-root (make-array java.nio.file.attribute.FileAttribute 0))
+      (let [before (hash-directory (.toFile root))]
+        (spit (.toFile linked-file) "(def dependency :changed)\n")
+        (is (= before (hash-directory (.toFile root)))
+            "content behind a symlink is not part of this classpath directory")
+        (spit (.toFile local-file) "(def local :changed)\n")
+        (is (not= before (hash-directory (.toFile root)))
+            "ordinary files under the classpath root still affect its identity"))
+      (finally
+        (java.nio.file.Files/deleteIfExists link)
+        (java.nio.file.Files/deleteIfExists local-file)
+        (java.nio.file.Files/deleteIfExists linked-file)
+        (java.nio.file.Files/deleteIfExists linked-root)
+        (java.nio.file.Files/deleteIfExists root)))))
+
 (deftest simplified-run-records-input-source-runtime-and-output-identities
   (let [root (.toFile (java.nio.file.Files/createTempDirectory
                        "prf-simplified-run-"

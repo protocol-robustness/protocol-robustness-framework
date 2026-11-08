@@ -8,10 +8,15 @@
 (def preconditions-domain "SEW_PARTY_CANCELLATION_PRECONDITIONS_V1")
 (defn party-principal [s party] (case party :sender (:escrow/sender s) :recipient (:escrow/recipient s) nil))
 (defn precondition-errors [s party principal]
-  (vec (concat
-        (when-not (snapshot/valid-snapshot? s) [:precondition/invalid-snapshot])
-        (when-not (contains? #{:sender :recipient} party) [:precondition/unknown-party])
-        (when (and (contains? #{:sender :recipient} party) (not= principal (party-principal s party))) [:precondition/principal-not-party]))))
+  (let [snapshot-valid? (snapshot/valid-snapshot? s)]
+    (vec (concat
+          (when-not snapshot-valid? [:precondition/invalid-snapshot])
+          (when (and snapshot-valid? (not= :pending (:escrow/state s)))
+            [:precondition/not-pending])
+          (when-not (contains? #{:sender :recipient} party) [:precondition/unknown-party])
+          (when (and (contains? #{:sender :recipient} party)
+                     (not= principal (party-principal s party)))
+            [:precondition/principal-not-party])))))
 (defn preconditions [s party principal]
   {:preconditions/schema schema-version :workflow/id (:workflow/id s) :party party :principal principal
    :preconditions/errors (precondition-errors s party principal)})

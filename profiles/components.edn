@@ -37,7 +37,10 @@
                         :prf/sew-pro-rata-slashing-v1
                         :prf/sew-research-v1]
    :component/owned-namespaces
-   [resolver-sim.core.phases
+   [resolver-sim.core
+    resolver-sim.commands.run-simulation
+    resolver-sim.commands.simulation
+    resolver-sim.core.phases
     resolver-sim.definitions.runner-execution-registry
     resolver-sim.protocols.sew.runner-extension
     resolver-sim.protocols.sew.runner-replay
@@ -59,6 +62,11 @@
     resolver-sim.protocols.sew.dispute-context.disagree
     resolver-sim.commands.protocol-finality
     resolver-sim.commands.invariants-run
+    resolver-sim.db.sew
+    resolver-sim.generators.sew.actions
+    resolver-sim.generators.sew.adversarial
+    resolver-sim.repl.interactive-resolution
+    resolver-sim.evidence.forensic-claims
     resolver-sim.sim.fixtures
     resolver-sim.sim.reference-validation
     resolver-sim.sim.reference-validation-evidence
@@ -66,7 +74,10 @@
     resolver-sim.server.grpc
     resolver-sim.io.diff-runner]
    :component/entry-namespaces
-   [resolver-sim.core.phases
+   [resolver-sim.core
+    resolver-sim.commands.run-simulation
+    resolver-sim.commands.simulation
+    resolver-sim.core.phases
     resolver-sim.definitions.runner-execution-registry
     resolver-sim.protocols.sew.runner-extension
     resolver-sim.protocols.sew.runner-replay
@@ -78,6 +89,10 @@
     resolver-sim.protocols.sew.dispute-context.disagree
     resolver-sim.commands.protocol-finality
     resolver-sim.commands.invariants-run
+    resolver-sim.db.sew
+    resolver-sim.generators.sew.actions
+    resolver-sim.generators.sew.adversarial
+    resolver-sim.repl.interactive-resolution
     resolver-sim.sim.fixtures
     resolver-sim.sim.reference-validation
     resolver-sim.sim.reference-validation-evidence
@@ -87,9 +102,9 @@
    :component/material
    [{:path "extensions/sew-runner/deps.edn"
      :kind :package-manifest}
-    {:path "test/resolver_sim/sim/fixtures_mc_batch_test.clj"
+    {:path "extensions/sew-runner/test/resolver_sim/sim/fixtures_mc_batch_test.clj"
      :kind :test-source}
-    {:path "test/resolver_sim/sim/reference_validation_evidence_test.clj"
+    {:path "extensions/sew-runner/test/resolver_sim/sim/reference_validation_evidence_test.clj"
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/research_models/ring_batch_test.clj"
      :kind :test-source}
@@ -101,7 +116,7 @@
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/forking_strategist_expectations_test.clj"
      :kind :test-source}
-    {:path "test/resolver_sim/definitions/runner_execution_registry_test.clj"
+    {:path "extensions/sew-runner/test/resolver_sim/definitions/runner_execution_registry_test.clj"
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/extension_test.clj"
      :kind :test-source}
@@ -127,8 +142,36 @@
      :kind :test-source}
     {:path "test/resolver_sim/contract_model/replay_batch_sew_test.clj"
      :kind :test-source}
-    {:path "protocols_src/test/resolver_sim/commands/invariants_run_test.clj"
+    {:path "extensions/sew-runner/test/resolver_sim/commands/simulation_test.clj"
      :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/io/diff_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/io/scenario_runner_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/scenario/runner_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/scenario/suites_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/scenario/yield_expectations_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/scenario/golden_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/sim/fixtures_expected_outcome_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/sim/fixtures_golden_theory_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/sim/fixtures_runner_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/evidence/qol_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/commands/invariants_run_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/repl/interactive_resolution_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-runner/docs/interactive_resolution.md"
+     :kind :documentation}
+    {:path "docs/forensic/FORENSIC_CLAIMS_SPEC_V1.md"
+     :kind :documentation}
     {:path "test/resolver_sim/contract_model/replay/analysis_test.clj"
      :kind :test-source}
     {:path "test/resolver_sim/io/scenario_fixture_parity_test.clj"
@@ -142,7 +185,9 @@
     {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/trace_export_idempotency_test.clj"
      :kind :test-source}
     {:path "data/fixtures/protocol"
-     :kind :runtime-fixtures}]}
+     :kind :runtime-fixtures}
+    {:path "data/claims/sew-claims.edn"
+     :kind :protocol-claims}]}
 
   :prf/sew-protocol-model-v1
   {:component/plane :protocol
@@ -153,6 +198,10 @@
    :component/owned-namespaces
    [resolver-sim.protocols.adjudication
     resolver-sim.protocols.adjudication-authentication-verification
+    resolver-sim.cancellation.admission
+    resolver-sim.cancellation.ordinary-planner
+    resolver-sim.cancellation.party-preconditions
+    resolver-sim.cancellation.sew-escrow-snapshot
     resolver-sim.cancellation.sew-projection
     resolver-sim.protocols.sew
     resolver-sim.protocols.sew.accounting
@@ -227,6 +276,10 @@
     resolver-sim.protocols.sew.held-reconstruction
     resolver-sim.protocols.sew.terminal-evidence-publication
     resolver-sim.protocols.sew.terminal-state-snapshot
+    resolver-sim.cancellation.admission
+    resolver-sim.cancellation.ordinary-planner
+    resolver-sim.cancellation.party-preconditions
+    resolver-sim.cancellation.sew-escrow-snapshot
     resolver-sim.cancellation.sew-projection
     resolver-sim.protocols.sew.replay.appeal-bond]
    :component/material
@@ -264,6 +317,20 @@
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/cancellation/projection_conformance_test.clj"
      :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/cancellation/admission_transplant_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/cancellation/dispute_separation_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/cancellation/ordinary_admission_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/cancellation/role_substitution_probe.clj"
+     :kind :test-support}
+    {:path "packages/sew-protocol-model/test/resolver_sim/cancellation/test_support/ed25519.clj"
+     :kind :test-support}
+    {:path "packages/sew-protocol-model/test/resolver_sim/cancellation/transition_join_fixture_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/data/fixtures/golden/cancellation-transition-join-fixture.v1.edn"
+     :kind :test-fixture}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/replay/appeal_bond_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/accounting_test.clj"
@@ -351,6 +418,8 @@
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/terminal_reservation_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/research_resolution_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/economics_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/phase_m_test.clj"
      :kind :test-source}
@@ -661,16 +730,23 @@
   ;; evidence. Sew protocol model uses this integration for its allocation projection.
   :prf/sew-pro-rata-economics-v1
   {:component/plane :protocol-adapter
-   :component/requires [:prf/pro-rata-evaluation-v1]
+   :component/requires [:prf/pro-rata-evaluation-v1
+                        :prf/yield-runtime-v1]
    :component/owned-namespaces
-   [resolver-sim.protocols.sew.pro-rata.economics]
+   [resolver-sim.protocols.sew.pro-rata.economics
+    resolver-sim.test-vectors.pro-rata]
    :component/entry-namespaces
-   [resolver-sim.protocols.sew.pro-rata.economics]
+   [resolver-sim.protocols.sew.pro-rata.economics
+    resolver-sim.test-vectors.pro-rata]
    :component/material
    [{:path "extensions/sew-pro-rata-economics/deps.edn"
      :kind :package-manifest}
-    {:path "extensions/sew-pro-rata-economics/test/resolver_sim/protocols/sew/economics_test.clj"
+    {:path "extensions/sew-pro-rata-economics/test/resolver_sim/protocols/sew/pro_rata/economics_adapter_test.clj"
      :kind :test-source}
+    {:path "extensions/sew-pro-rata-economics/test/resolver_sim/test_vectors/pro_rata_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-pro-rata-economics/src/resolver_sim/test_vectors/pro_rata.clj"
+     :kind :conformance-vector}
     {:path "extensions/sew-pro-rata-economics/src/resolver_sim/protocols/sew/test_vectors/slash_allocation.clj"
      :kind :conformance-vector}]}
 
@@ -705,12 +781,18 @@
 
   :prf/sew-pro-rata-application-v1
   {:component/plane :protocol-adapter
-   :component/requires [:prf/ideal-pro-rata-v1 :prf/sew-protocol-model-v1]
+   :component/requires [:prf/framework-v1
+                        :prf/ideal-pro-rata-v1
+                        :prf/sew-protocol-model-v1]
    :component/owned-namespaces
-   [resolver-sim.protocols.sew.pro-rata-application
+   [resolver-sim.adapters.sew.aggregate-held-credit
+    resolver-sim.pro-rata.realized-allocation-aggregate-held-credit
+    resolver-sim.protocols.sew.pro-rata-application
     resolver-sim.protocols.sew.apply-slash-distribution]
    :component/entry-namespaces
-   [resolver-sim.protocols.sew.pro-rata-application
+   [resolver-sim.adapters.sew.aggregate-held-credit
+    resolver-sim.pro-rata.realized-allocation-aggregate-held-credit
+    resolver-sim.protocols.sew.pro-rata-application
     resolver-sim.protocols.sew.apply-slash-distribution]
    :component/material
    [{:path "extensions/sew-pro-rata-application/deps.edn"
@@ -718,6 +800,12 @@
     {:path "extensions/sew-pro-rata-application/test/resolver_sim/protocols/sew/pro_rata_application_test.clj"
      :kind :test-source}
     {:path "extensions/sew-pro-rata-application/test/resolver_sim/protocols/sew/apply_slash_distribution_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-pro-rata-application/test/resolver_sim/adapters/sew/aggregate_held_credit_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-pro-rata-application/test/resolver_sim/adapters/sew/aggregate_held_credit_numeric_realization_test.clj"
+     :kind :test-source}
+    {:path "extensions/sew-pro-rata-application/test/resolver_sim/pro_rata/realized_allocation_aggregate_held_credit_test.clj"
      :kind :test-source}]}
 
   :prf/bounty-v1

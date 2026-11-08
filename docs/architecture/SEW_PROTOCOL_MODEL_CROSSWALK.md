@@ -12,12 +12,12 @@ force-authorisation, slash-economics, and slash-evidence extensions. These are
 profile composition choices, not part of the protocol-model component. The
 profile is not yet a standalone package qualification.
 
-The Sew Core adapter resolves the model through the `packages/sew-protocol-model`
-subdirectory at immutable PRF Git revision `b94b091cfbaf46ec34ae2ade4920f9a3751e3097`.
-That removes the consumer's local workspace path, but it pins an earlier tree and
-does not qualify the current unpushed package-boundary changes. In the current PRF
-tree, 55 Sew model namespaces and 19 declared package contract tests live under
-the package source tree. The optional
+The model package manifest pins PRF core at immutable Git revision
+`b94b091cfbaf46ec34ae2ade4920f9a3751e3097`, but it still resolves the
+unpublished Sew pro-rata economics extension through a local-root path. The
+model package is therefore an in-tree candidate, not independently resolvable.
+The pin also predates the current unpushed package-boundary changes. Most Sew
+model namespaces and contract tests live under the package source tree. The optional
 slash-evidence adapter and its dedicated tests live in
 `extensions/sew-pro-rata-slashing`; slash economics lives separately in
 `extensions/sew-pro-rata-economics`; the analysis adapter and dedicated tests
@@ -28,12 +28,11 @@ profile. Sew pro-rata held-credit application is separately owned by
 `extensions/sew-pro-rata-application`, with its existing component and a
 candidate profile. The model-only bounty routing artifact is independently
 owned by `extensions/sew-bounty-route`, with its own canonical-hash dependency
-and candidate profile. Force-authorisation and shared adapter tests
-remain under `protocols_src`. The model package manifest no longer adds
-`protocols_src` to its classpath. It still relies on the sibling economics-extension
-source and resolves the framework from the PRF checkout. The economics extension
-resolves its evaluation API from a pinned PRF source revision until that API has
-an independent artifact. These
+and candidate profile. Force-authorization sources and related tests remain
+under `protocols_src`. The development workspace adds those test paths, but the
+model package manifest does not. The economics extension has its own manifest
+and resolves its evaluation API from a pinned PRF source revision, but that
+manifest is not present at the model package's current pinned revision. These
 are source-composition candidates, not a separate Sew repository or published
 Maven packages.
 

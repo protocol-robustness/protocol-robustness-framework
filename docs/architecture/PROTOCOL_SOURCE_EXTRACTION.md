@@ -49,10 +49,12 @@ artifact.
 ## Intermediate experiment: separate workspaces and `deps.edn`
 
 `workspaces/framework/deps.edn` and `workspaces/sew/deps.edn` select two
-workspace-local classpaths. The framework workspace still uses a local-root
-dependency. The Sew workspace adds the package's test tree and the remaining
-`protocols_src` tests; the package source itself includes the moved kernel and
-still reaches into `protocols_src` for other Sew namespaces. Run commands from the matching directory
+workspace-local classpaths. The Sew workspace uses the model package through a
+local-root development overlay and adds extension source trees plus remaining
+`protocols_src` tests. The model package manifest pins PRF core at immutable Git
+revision `b94b091cfbaf46ec34ae2ade4920f9a3751e3097`, but it still resolves the
+unpublished Sew pro-rata economics extension through a local-root path. Run
+commands from the matching directory
 with `-Srepro` so home-level Clojure configuration cannot add paths or deps:
 
 ```bash
@@ -62,11 +64,12 @@ with `-Srepro` so home-level Clojure configuration cannot add paths or deps:
 (cd workspaces/sew && clojure -Srepro -M -e "(require 'resolver-sim.protocols.sew.kernel)")
 ```
 
-This is scaffolding only: source versions and most dependency inputs remain
-coupled to the PRF checkout. The next extraction steps must move remaining
-Sew-owned production sources and tests into the package, then replace its
-framework local-root dependency with an independently resolvable framework
-package.
+The workspace overlay remains development scaffolding. The core dependency is
+independently resolvable but refers to an earlier PRF tree and does not include
+the current package-boundary changes. Replacing the economics local-root
+requires a shared immutable revision containing its package manifest. Remaining
+Force Authorization sources and tests also still live under `protocols_src` and
+need coordinated ownership before relocation.
 
 The initial namespace probe showed that `resolver-sim.core` is an application
 runner, not a framework API: it loads Sew research and simulation phases. The

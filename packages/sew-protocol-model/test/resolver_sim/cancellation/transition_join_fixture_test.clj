@@ -14,6 +14,7 @@
   different context without detection."
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [resolver-sim.cancellation.operation :as operation]
             [resolver-sim.cancellation.transition-join :as join]
             [resolver-sim.cancellation.party-command :as command]
@@ -24,7 +25,7 @@
             [resolver-sim.composition.command-lineage :as cl]
             [resolver-sim.benchmark.governed-authority-transition :as gat]
             [resolver-sim.signed-external-decision :as signed]
-            [resolver-sim.support.ed25519 :as keys]
+            [resolver-sim.cancellation.test-support.ed25519 :as keys]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]))
 
@@ -585,7 +586,7 @@ in the result. Issues: " (:issues result))))))))
 ;; ═══════════════════════════════════════════════════════════════════════
 
 (deftest golden-fixture-byte-pipeline-verified
-  (let [golden (-> "data/fixtures/golden/cancellation-transition-join-fixture.v1.edn"
+  (let [golden (-> (io/resource "data/fixtures/golden/cancellation-transition-join-fixture.v1.edn")
                    slurp edn/read-string)]
     (doseq [vector-key [:subject-vector :result-vector]
             :let [{:keys [domain-tag semantic-projection canonical-value-bytes-hex
@@ -604,8 +605,8 @@ in the result. Issues: " (:issues result))))))))
 
 (deftest golden-fixture-roots-verified
   (testing "golden fixture file has computed, self-consistent roots"
-    (let [resource-path "data/fixtures/golden/cancellation-transition-join-fixture.v1.edn"
-          golden (-> resource-path slurp edn/read-string)]
+    (let [golden (-> (io/resource "data/fixtures/golden/cancellation-transition-join-fixture.v1.edn")
+                     slurp edn/read-string)]
       (is (hash-ref/valid-sha256-ref? (:subject-root golden))
           "golden subject root is a canonical sha256 reference")
       (is (hash-ref/valid-sha256-ref? (:result-root golden))

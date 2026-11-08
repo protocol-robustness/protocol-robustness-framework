@@ -203,7 +203,7 @@
 
 (deftest static-coverage-finds-missing-evidence
   (let [report (coverage/check-evidence-coverage
-                "protocols_src/resolver_sim/protocols/sew/resolution.clj"
+                "packages/sew-protocol-model/src/resolver_sim/protocols/sew/resolution.clj"
                 :allowed-missing #{'rotate-dispute-resolver
                                    'cleanup-orphaned-slashes
                                    'update-unavailability
@@ -218,7 +218,7 @@
 
 (deftest static-coverage-allows-missing
   (let [report (coverage/check-evidence-coverage
-                "protocols_src/resolver_sim/protocols/sew/registry.clj"
+                "packages/sew-protocol-model/src/resolver_sim/protocols/sew/registry.clj"
                 :allowed-missing #{'get-stake 'get-resolver-yield-profile
                                    'resolver-in-escrow?})]
     (is (number? (:total-fns report)))
@@ -227,7 +227,7 @@
 
 (deftest static-coverage-directory-scan
   (let [reports (coverage/check-directory-coverage
-                 "protocols_src/resolver_sim/protocols/sew/")]
+                 "packages/sew-protocol-model/src/resolver_sim/protocols/sew/")]
     (is (seq reports))
     (is (some #(.endsWith (:file %) "resolution.clj") reports))
     (is (some #(.endsWith (:file %) "registry.clj") reports))

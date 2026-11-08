@@ -1,8 +1,9 @@
-{:paths ["src" "test"]
+{:paths ["src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
         ;; The Sew adapter currently uses PRF's in-tree portable evaluation
         ;; API. Pin the source dependency until that API has a published artifact.
         org.protocol-robustness/prf-core
         {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
          :git/sha "b94b091cfbaf46ec34ae2ade4920f9a3751e3097"
-         :deps/root "."}}}
+         :deps/root "."}}
+ :aliases {:test {:extra-paths ["test"]}}}

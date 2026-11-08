@@ -16,7 +16,7 @@
             [resolver-sim.cancellation.semantic :as semantic]
             [resolver-sim.cancellation.sew-escrow-snapshot :as snapshot]
             [resolver-sim.signed-external-decision :as signed]
-            [resolver-sim.support.ed25519 :as keys]))
+            [resolver-sim.cancellation.test-support.ed25519 :as keys]))
 
 (defn- sha [n] (format "sha256:%064x" n))
 

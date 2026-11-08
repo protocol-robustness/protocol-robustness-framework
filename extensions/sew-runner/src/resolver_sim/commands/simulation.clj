@@ -6,7 +6,7 @@
             [resolver-sim.io.params :as params]
             [resolver-sim.forensic.source-hash :as source-hash])
   (:import [java.io File]
-           [java.nio.file Files StandardCopyOption]
+           [java.nio.file Files FileVisitOption LinkOption Path StandardCopyOption]
            [java.security MessageDigest]
            [java.time Instant]
            [java.util UUID]))
@@ -45,17 +45,31 @@
 (defn- sha256-string [^String value]
   (sha256-bytes (.getBytes value "UTF-8")))
 
+(defn- directory-content-sha256 [^File file]
+  (let [root (.toPath file)]
+    (with-open [paths (Files/walk root (make-array FileVisitOption 0))]
+      (->> (.iterator paths)
+           iterator-seq
+           (remove #(= root %))
+           (sort-by #(.toString ^Path %))
+           (keep (fn [^Path path]
+                   (let [relative (.toString (.relativize root path))
+                         content (cond
+                                   (Files/isSymbolicLink path)
+                                   (str "symlink->" (Files/readSymbolicLink path))
+
+                                   (Files/isRegularFile path (make-array LinkOption 0))
+                                   (sha256-file (.toFile path))
+
+                                   :else nil)]
+                     (when content (str relative ":" content)))))
+           (str/join "\n")
+           sha256-string))))
+
 (defn- path-content-sha256 [^File file]
   (cond
     (.isFile file) (sha256-file file)
-    (.isDirectory file)
-    (->> (file-seq file)
-         (filter #(.isFile ^File %))
-         (sort-by #(.getPath ^File %))
-         (map (fn [^File child]
-                (str (.relativize (.toPath file) (.toPath child)) ":" (sha256-file child))))
-         (str/join "\n")
-         sha256-string)
+    (.isDirectory file) (directory-content-sha256 file)
     :else nil))
 
 (defn- runtime-provenance [source]

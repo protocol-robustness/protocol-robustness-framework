@@ -1,18 +1,19 @@
-{:paths ["src" "test"]
+{:paths ["src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        ;; These are explicit local roots while the component packages are
+        ;; unpublished. This manifest is an in-tree candidate, not a
+        ;; standalone package coordinate.
+        org.protocol-robustness/prf-core
+        {:local/root "../.."}
         org.protocol-robustness/prf-sew-protocol-model
-        {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-         :git/sha "b94b091cfbaf46ec34ae2ade4920f9a3751e3097"
-         :deps/root "packages/sew-protocol-model"}
+        {:local/root "../../packages/sew-protocol-model"}
         org.protocol-robustness/prf-sew-analysis
-        {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-         :git/sha "b94b091cfbaf46ec34ae2ade4920f9a3751e3097"
-         :deps/root "extensions/sew-analysis"}
+        {:local/root "../sew-analysis"}
         org.protocol-robustness/prf-sew-pro-rata-slashing
-        {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-         :git/sha "b94b091cfbaf46ec34ae2ade4920f9a3751e3097"
-         :deps/root "extensions/sew-pro-rata-slashing"}
+        {:local/root "../sew-pro-rata-slashing"}
         ;; Sew research is still an in-tree candidate; its local root keeps
         ;; the runner classpath honest until an immutable package revision exists.
         org.protocol-robustness/prf-sew-research
-        {:local/root "../sew-research"}}}
+        {:local/root "../sew-research"}}
+ :aliases {:test {:extra-paths ["test"]
+                  :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}}}}

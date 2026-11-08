@@ -1,7 +1,7 @@
 (ns resolver-sim.test-vectors.pro-rata-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
-            [resolver-sim.protocols.sew.economics :as sew-economics]
+            [resolver-sim.protocols.sew.pro-rata.economics :as sew-economics]
             [resolver-sim.protocols.sew.test-vectors.slash-allocation :as sew-slash]
             [resolver-sim.test-vectors.pro-rata :as sut]
             [resolver-sim.yield.partial-fill :as partial-fill]))
@@ -129,9 +129,9 @@
 
 (deftest committed-golden-fixtures-match-emitters
   (doseq [v (sut/golden-vectors)]
-    (let [path (str "resources/test-vectors/pro-rata/" (sut/vector-filename v))
-          file (io/file path)]
+    (let [path (str "test-vectors/pro-rata/" (sut/vector-filename v))
+          resource (io/resource path)]
       (testing path
-        (is (.exists file))
-        (when (.exists file)
-          (is (= (str (sut/canonical-json v) "\n") (slurp file))))))))
+        (is (some? resource))
+        (when resource
+          (is (= (str (sut/canonical-json v) "\n") (slurp resource))))))))

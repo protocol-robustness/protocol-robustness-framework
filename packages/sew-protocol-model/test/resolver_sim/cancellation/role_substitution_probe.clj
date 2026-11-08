@@ -8,7 +8,7 @@
             [resolver-sim.cancellation.sew-escrow-snapshot :as snapshot]
             [resolver-sim.assurance.canonical-force-authorisation :as cfa]
             [resolver-sim.signed-external-decision :as signed]
-            [resolver-sim.support.ed25519 :as keys]))
+            [resolver-sim.cancellation.test-support.ed25519 :as keys]))
 
 (defn sha [n] (format "sha256:%064x" n))
 
