@@ -10,6 +10,8 @@
 
 ## Unreleased
 
+- Added PRF Dispute Review V0 with per-review canonical identity, pinned subject and policy references, structured nonbinding findings, declared trust classes, and fail-closed verification for changed sources, evidence and reproduction outputs. External authentication and adjudication remain outside this review workflow.
+
 - Benchmark validation now reports framework concept-registry load failures with their validation details instead of misreporting referenced concepts as unknown.
 
 - Added `configuration-review preflight-initial-inputs`, a read-only check of reviewer-supplied source-lock, manifest, action, principal, and active approver-key bindings before initial-input signing.
