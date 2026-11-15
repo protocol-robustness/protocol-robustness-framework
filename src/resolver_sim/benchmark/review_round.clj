@@ -528,8 +528,12 @@
 (defn member-bit-width
   "Minimum bits needed to represent the largest member key.
    Returns nil for legacy unkeyed rounds.
+   Also returns nil for keyed rounds containing malformed keys.
    For a 3-member round with keys 0,1,2 this returns 2."
   [round]
-  (when (round-uses-member-keys? round)
-    (let [max-key (apply max (map :review-member/key (:review-round/members round)))]
-      (max 1 (.bitLength (biginteger max-key))))))
+  (let [members (:review-round/members round)
+        keys (map :review-member/key members)]
+    (when (and (round-uses-member-keys? round)
+               (every? valid-member-key? keys))
+      (let [max-key (apply max keys)]
+        (max 1 (.bitLength (biginteger max-key)))))))

@@ -489,20 +489,30 @@
    This is intentionally fail-closed on the exact declared member set."
   []
   (let [manifest (read-vector "manifest.edn")
+        portable-manifest (edn/read-string
+                           (slurp "pro-rata/portable-contract/manifest.edn"))
+        portable-root (:portable-contract/release-root portable-manifest)
         declared (set (map :path (:files manifest)))
         expected-members (set (concat ["SPEC.md"] positive-paths rejection-paths))
         positives (mapv read-vector positive-paths)
+        portable-contract-binding?
+        (and (= portable-root (:portable-contract/release-root manifest))
+             (every? #(= portable-root
+                         (get-in % [:semantic-authority :portable-contract/release-root]))
+                     positives))
         rejections (mapv read-vector rejection-paths)
         positive-results [(verify-all-active-vector (first positives))
                           (verify-aggregate-vector (second positives))]
         rejection-results (mapv verify-rejection-vector rejections)
         ids (map :case/id (concat positives rejections))]
     {:valid? (and (manifest-integrity-valid? manifest)
+                  portable-contract-binding?
                   (= declared expected-members)
                   (= (count ids) (count (distinct ids)))
                   (every? :valid? positive-results)
                   (every? :valid? rejection-results))
      :manifest-integrity? (manifest-integrity-valid? manifest)
+     :portable-contract-binding? portable-contract-binding?
      :members? (= declared expected-members)
      :unique-case-ids? (= (count ids) (count (distinct ids)))
      :rejections-valid? (every? :valid? rejection-results)

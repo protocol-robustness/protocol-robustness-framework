@@ -31,12 +31,6 @@
         member-count (count (rr/round-members round))
         expected-width (when (pos? member-count)
                          (ci/member-bit-width {:review-member/count member-count}))]
-    (when (and keyed? (nil? round-width))
-      (swap! violations conj
-             {:kind ::member-bit-width-mismatch
-              :round-bit-width nil
-              :artifact-bit-width nil
-              :message "bit-width is nil for a keyed review round"}))
     (when (and keyed?
                (or (not (integer? round-width))
                    (neg? round-width)
