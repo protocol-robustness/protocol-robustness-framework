@@ -22,6 +22,9 @@ bash scripts/qualify_extension_core_api_v1.sh
 
 This qualifies the current source closure only. There is no published
 `org.protocol-robustness/prf-core` artifact or immutable package coordinate.
+The source review passed, but the GitHub publisher rejected the write required
+to create a fetchable public revision because MCP approval is unavailable; no
+public revision was created.
 The force-authorisation and held-custody manifests use a local-root PRF
 dependency; Sew economics pins public PRF revision
 `b94b091cfbaf46ec34ae2ade4920f9a3751e3097`, which does not contain the new

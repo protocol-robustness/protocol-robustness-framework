@@ -148,10 +148,12 @@ consumer explicitly commits the bundle root into its own artifact.
    API and portable pro-rata API. Its source closure has 54 namespaces, and its
    isolated qualification passed 107 tests / 603 assertions at
    `sha256:a38d2a31f24f905b1717b9dffaffff136866b850a38e459f51f5aaee622f5d48`.
-   This is an in-tree source candidate, not a published core artifact. The
-   public PRF `main` revision `85983ba2766908d8c68792b090fcfafb378ea468`
-   predates the portable pro-rata API; the API-bearing candidate is not yet
-   fetchable by independent consumers.
+   Source review passed. This is still an in-tree candidate, not a published
+   core artifact. The GitHub publisher rejected the write needed to create a
+   fetchable branch because MCP approval is unavailable (`approval policy is
+   never`); no public revision was created. Public PRF `main` remains at
+   `85983ba2766908d8c68792b090fcfafb378ea468`, which predates the portable
+   pro-rata API.
 2. **Concept loader:** concept-bundle packaging and loading are now integrated
    in `agent-c-staging` at `1ef277bbb60e4660431c1753c142a221a3831220`. The
    loader tests and 50-concept validator were reported passing. Independent
@@ -185,9 +187,10 @@ consumer explicitly commits the bundle root into its own artifact.
 1. Independently review the concept loader now integrated in `agent-c-staging`,
    rerun its validation on the merged tree, and enable extension CI only against
    that reviewed immutable revision.
-2. Independently review the API source package and its full dependency closure.
-   Integrate and publish or pin an API-bearing PRF revision before updating
-   extension consumers.
+2. Publish or otherwise make the reviewed API-bearing PRF revision fetchable
+   through an authorized route. The attempted GitHub write was rejected by the
+   configured approval policy; no public revision exists. Update extension
+   consumers only after an immutable public revision is available.
 3. Make the Sew economics revision fetchable, then run the Sew model package in
    a clean consumer without local source overrides. Keep the model in PRF until
    that qualification passes.
