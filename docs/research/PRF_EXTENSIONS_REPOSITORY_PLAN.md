@@ -170,10 +170,12 @@ consumer explicitly commits the bundle root into its own artifact.
    `c6d21f852f8fbeff3d29b52c1139ad6f88ed332a`. The core pin lacks the new API,
    and the economics commit is not independently fetchable. Its test alias
    uses local PRF source, so clean-consumer qualification is pending. The
-   package README records the local test command and these limits. Keep the
-   model in PRF until both dependencies can be fetched without local source
-   overrides. See `docs/architecture/SEW_STANDALONE_BOUNDARY_AUDIT.md` for the
-   remaining source ownership and profile closure.
+   package runner passed 733 tests / 2,456 assertions on the merged candidate
+   with local overrides; this is not clean-consumer qualification. The package
+   README records the local test command and these limits. Keep the model in
+   PRF until both dependencies can be fetched without local source overrides.
+   See `docs/architecture/SEW_STANDALONE_BOUNDARY_AUDIT.md` for the remaining
+   source ownership and profile closure.
 6. **PRF migration:** do not remove the in-core concept catalogue or switch PRF
    consumers until pinned artifacts resolve and historical roots remain
    inspectable.

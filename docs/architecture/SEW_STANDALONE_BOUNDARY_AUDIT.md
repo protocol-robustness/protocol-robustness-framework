@@ -88,6 +88,16 @@ resource is runner-owned at
 `data/claims/force_authorisation_claims.edn` is a separate Force Authorization
 artifact.
 
+On the merged staging candidate, the model package test runner passes 733 tests
+and 2,456 assertions with the documented local PRF and yield overlays. This is
+in-tree package coverage, not clean-consumer qualification. The legacy
+`replay_dedupe_policy_test` also remains under `protocols_src/test`: it tests
+the model's replay policy across Force Authorization actions. A package-only
+run fails those seven action spellings because the Force Authorization
+integration is not selected there. Keep the test with the composed protocol
+tests until its model and adapter contracts are split or the Force
+Authorization package owns that integration coverage.
+
 The `sew-protocol-model-core` candidate selects Sew protocol model and slash economics without
 the optional analysis, pro-rata slash-evidence, or researcher force-authorisation adapters. `resolution` calls a core-owned
 evidence hook; the adapter installs the existing builder and artifact writer
