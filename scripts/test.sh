@@ -329,6 +329,7 @@ run_unit() {
     resolver-sim.io.scenario-runner-test \
     resolver-sim.contract-model.replay-batch-test \
     resolver-sim.contract-model.replay-batch-sew-test \
+    resolver-sim.protocols.sew.appeal-bond-projection-integration-test \
     resolver-sim.contract-model.replay-batch-appeal-test \
     resolver-sim.contract-model.replay-batch-slash-domain-test \
     resolver-sim.protocols.sew.dispute-resolution-coverage-test \

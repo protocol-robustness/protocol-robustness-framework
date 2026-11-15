@@ -146,6 +146,8 @@
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/benchmark/sew_pre_application_test.clj"
      :kind :test-source}
+    {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/appeal_bond_projection_integration_test.clj"
+     :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/research_models/ring_batch_test.clj"
      :kind :test-source}
     {:path "extensions/sew-runner/test/resolver_sim/protocols/sew/replay_test.clj"
@@ -410,6 +412,8 @@
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/appeal_bond_projection_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/registry_immutability_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/registry_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/replay_idempotency_test.clj"
      :kind :test-source}
@@ -894,9 +898,7 @@
    :component/entry-namespaces
    [resolver-sim.economics.with-bounty.composition]
    :component/material
-   [{:path "test/resolver_sim/economics/with_bounty" :kind :test-source}
-    {:path "test/resolver_sim/protocols/sew/with_bounty_test.clj"
-     :kind :test-source}]}
+   [{:path "test/resolver_sim/economics/with_bounty" :kind :test-source}]}
 
   :prf/sew-bounty-adapter-v1
   {:component/plane :protocol-adapter
@@ -912,7 +914,7 @@
      :kind :package-manifest}
     {:path "extensions/sew-bounty/test/resolver_sim/protocols/sew/with_bounty_contract_test.clj"
      :kind :test-source}
-    {:path "test/resolver_sim/protocols/sew/with_bounty_test.clj"
+    {:path "extensions/sew-bounty/test/resolver_sim/protocols/sew/with_bounty_test.clj"
      :kind :test-source}]}
 
   :prf/sew-bounty-route-v1

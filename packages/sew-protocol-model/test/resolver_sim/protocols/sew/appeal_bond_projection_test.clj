@@ -364,3 +364,13 @@
     (is (:valid? p))
     (is (= :ambiguous-bond-selector (:error result)))
     (is (= [bond-id bond-id-2] (:bond-ids result)))))
+
+(deftest ap-workflow-funder-query-preserves-round-distinct-identities
+  (let [bond-id-2 "appeal-bond:0:0xappealer:1"
+        record-2 (assoc open-record :bond/id bond-id-2 :appeal/ordinal 1)
+        p (projection/project-appeal-bonds
+           {:appeal-bond/records {bond-id open-record bond-id-2 record-2}})
+        result (projection/query-bonds-by-workflow-funder p 0 "0xappealer")]
+    (is (:valid? p))
+    (is (= [bond-id bond-id-2] (mapv :bond/id result)))
+    (is (= [0 1] (mapv :appeal/ordinal result)))))

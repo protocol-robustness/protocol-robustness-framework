@@ -159,6 +159,7 @@
 
 (def scenario-test-namespaces
   '[resolver-sim.contract-model.replay-batch-sew-test
+    resolver-sim.protocols.sew.appeal-bond-projection-integration-test
     ;; Runner extension scenarios were moved under extensions/sew-runner;
     ;; retain them in the canonical scenario lane after the source move.
     resolver-sim.commands.simulation-test
