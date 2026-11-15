@@ -1,7 +1,11 @@
 # PRF first-party extensions repository plan
 
-Status: proposed repository and package boundary. This plan does not move source,
-create a remote repository, publish artifacts, or claim package independence.
+Status: proposed architecture with an incubating source extraction in the
+separate repository `/home/user/Code/prf-extensions`. Its remote is configured
+and the initial source candidate is on `main`. The remote `main` is
+`ccd59536b072d076054fbc33db6ed63ce157d505`; the local ownership-cleanup branch
+is at `0ba7bc77c92e386f7394569d173af6f70ebf6f9b` and is not pushed. No package
+release or independent qualification is claimed.
 
 ## Decision
 
@@ -21,15 +25,13 @@ of runtime closures.
 
 ```text
 prf-extensions/
-  extensions/
-    force-authorisation-scope/
-    force-authorisation-governance/
-    held-custody/
-    governed-authority/
-  adapters/
-    sew-force-authorisation/
   packages/
-    sew-protocol-model/   # add after the portable pro-rata API is released
+    force-authorisation/
+    held-custody/
+    repairability-report/
+    sew-protocol-model/   # after its public PRF dependencies are fetchable
+  adapters/
+    sew/force-authorisation/
   concepts/
     framework/
     prf-research/
@@ -54,9 +56,12 @@ Force-authorisation remains simulation-only until a separate on-chain path is
 implemented and qualified.
 
 The Sew behavioral model belongs in `packages/sew-protocol-model/`, separate
-from PRF composition adapters. Add it only after its portable pro-rata
-dependency is available through a fetchable, versioned PRF API; the current
-economics package still uses a test-only local source overlay for that facade.
+from PRF composition adapters. The source candidate remains in the PRF
+checkout until its runtime dependencies are independently resolvable: the
+current core pin predates the pro-rata API facade, and the Sew economics
+revision is not published. The model and a Sew Core profile adapter are
+separate packages with separate contracts; do not move either by copying
+private PRF source into `prf-extensions`.
 
 ## Package manifest requirements
 
@@ -101,37 +106,110 @@ resolution, explicit ownership/mapping checks, collision checks, and determinist
 merge/root tests. It must not change execution or evidence roots unless a
 consumer explicitly commits the bundle root into its own artifact.
 
-## Migration order
+## Migration status
 
-1. Finish and qualify `prf-extension-api-v1`; publish or pin the public API
-   artifact before removing monorepo-local core dependencies.
-2. Complete the force-authorisation package contract and implementation. The
-   candidate now advertises only its implemented protocol-neutral scope
-   capability; governed permit issuance and Sew custody execution remain in the
-   PRF runtime and are not advertised by this package. The scope entrypoint now
-   invokes its verifier, and package status is incubating/source-candidate.
-   Continue treating it as unreleased until an external consumer qualifies it.
-3. Move the force-authorisation logical packages and tests into `prf-extensions`
-   as a source-layout change. Preserve schemas, semantics, and test vectors.
-4. Qualify package composition with governed-authority, held-custody, and the
-   Sew adapter through public contracts.
-5. Add concept-bundle schema and explicit validation/merge tooling. Migrate
-   stable concepts first, then PRF research, Sew, and stablecoin domain bundles.
-6. Publish packages individually only after clean consumer qualification and
-   named release ownership. Do not require one coordinated all-package release.
+### Done in the local extraction
 
-## Current status and blocker
+- Created the separate `prf-extensions` repository and configured its `origin`
+  remote. The initial source candidate is present on `main`; the newer local
+  package candidate is not. This is source publication, not a package release
+  or qualification. See that repository's `docs/EXTRACTION_STATUS.md`.
+- Copied force-authorisation scope verification, held-custody, a dependency-free
+  repairability report renderer, and three declarative concept bundles with
+  mappings. The source migration is recorded in
+  that repository's `docs/INITIAL_EXTRACTION_PLAN.md`.
+- Added independent consumer tests, public API boundary checks, package
+  manifests, manifest validation, and a package dependency composition check.
+- Added concept bundle validation against the PRF loader. The extracted
+  catalogue has a new root; it is not claimed equivalent to the old catalogue
+  root.
+- Kept the Sew-specific adapters and governed-authority out of the initial
+  extraction. The force-authorisation adapter and
+  `extensions/sew-core-model` still import PRF protocol, registry, and research
+  namespaces. The latter also depends on `packages/sew-protocol-model`, whose
+  `deps.edn` still points back to the whole PRF checkout. These are extraction
+  blockers, not standalone packages. Define a public protocol/model contract
+  and remove that private source dependency before moving them.
+- A separate local Sew Core adapter repository exists at
+  `/home/user/Code/prf-sew-core-model`, commit
+  `d02ad01d06b096e46c542698f043dc0505e70365`. Its 10 tests / 62 assertions
+  pass against its declared immutable Git dependency at PRF revision
+  `b94b091cfbaf46ec34ae2ade4920f9a3751e3097` when using a temporary writable
+  `GITLIBS` cache. Its model dependency still resolves PRF implementation
+  namespaces, and the dependency exposes `protocols_src` outside the package
+  root. It has no configured remote. Treat it as an incubating source-layout
+  candidate, not a qualified independent extension; prefer folding its package
+  into the shared extensions repository after the model contract and
+  dependency closure are made public.
 
-`packages/prf-extension-api-v1` is an in-tree, clean-room-qualified source
-candidate; it is not a published core artifact. Force-authorisation and
-held-custody still use a local-root PRF dependency. Sew economics pins public
-PRF revision `b94b091cfbaf46ec34ae2ade4920f9a3751e3097`, which predates its new
-pro-rata API facade, and uses local PRF source only in its test alias. None is
-independently consumable against the complete current API. The
-`/home/user/Code/prf-extensions` checkout exists at `ccd59536` and has no Sew
-model package; its adapter guidance requires public PRF contracts first.
-Do not move the Sew package there until an API-bearing core revision is
-fetchable and clean-consumer qualification passes. The current source closure
-qualification passes 107 tests / 603 assertions at
-`sha256:a38d2a31f24f905b1717b9dffaffff136866b850a38e459f51f5aaee622f5d48`;
-this is an in-tree source qualification, not an independently released package.
+### In progress or blocked
+
+1. **Public API package:** `packages/prf-extension-api-v1` exposes the original
+   API and portable pro-rata API. Its source closure has 54 namespaces, and its
+   isolated qualification passed 107 tests / 603 assertions at
+   `sha256:a38d2a31f24f905b1717b9dffaffff136866b850a38e459f51f5aaee622f5d48`.
+   This is an in-tree source candidate, not a published core artifact. The
+   public PRF `main` revision `85983ba2766908d8c68792b090fcfafb378ea468`
+   predates the portable pro-rata API; the API-bearing candidate is not yet
+   fetchable by independent consumers.
+2. **Concept loader:** concept-bundle packaging and loading are now integrated
+   in `agent-c-staging` at `1ef277bbb60e4660431c1753c142a221a3831220`. The
+   loader tests and 50-concept validator were reported passing. Independent
+   review, qualification against the merged candidate, and public integration
+   remain outstanding before CI or consumers can rely on that revision.
+3. **CI qualification:** extension package tests, consumers, composition, and
+   import-boundary checks passed in GitHub Actions. Manifest validation passed
+   locally but its Actions job repeatedly failed during Clojure setup. The
+   concept validation job awaits the reviewed loader integration.
+4. **Ownership and qualification:** repository remote is established; named
+   release owners/authority, independent source-closure review and artifact
+   release qualification remain outstanding.
+5. **Sew model:** the model source candidate lives at
+   `packages/sew-protocol-model/` in PRF. Its runtime manifest pins core
+   `b94b091cfbaf46ec34ae2ade4920f9a3751e3097` and Sew economics
+   `c6d21f852f8fbeff3d29b52c1139ad6f88ed332a`. The core pin lacks the new API,
+   and the economics commit is not independently fetchable. Its test alias
+   uses local PRF source, so clean-consumer qualification is pending. The
+   package README records the local test command and these limits. Keep the
+   model in PRF until both dependencies can be fetched without local source
+   overrides. See `docs/architecture/SEW_STANDALONE_BOUNDARY_AUDIT.md` for the
+   remaining source ownership and profile closure.
+6. **PRF migration:** do not remove the in-core concept catalogue or switch PRF
+   consumers until pinned artifacts resolve and historical roots remain
+   inspectable.
+
+### Next sequence
+
+1. Independently review the concept loader now integrated in `agent-c-staging`,
+   rerun its validation on the merged tree, and enable extension CI only against
+   that reviewed immutable revision.
+2. Independently review the API source package and its full dependency closure.
+   Integrate and publish or pin an API-bearing PRF revision before updating
+   extension consumers.
+3. Make the Sew economics revision fetchable, then run the Sew model package in
+   a clean consumer without local source overrides. Keep the model in PRF until
+   that qualification passes.
+4. Move the qualified model into `prf-extensions/packages/sew-protocol-model/`
+   with its incubating extension manifest, package and consumer runners,
+   validation registration, and reproducible instructions.
+5. Reconcile the local `prf-sew-core-model` candidate with the shared-repository
+   architecture only after the model contract is public; keep the Sew Core
+   profile adapter separate from model ownership.
+6. Record named package/repository owners and release authority. Publish
+   package/bundle artifacts individually after their applicable qualification
+   gates, preserving historical catalogue roots during PRF consumer migration.
+
+The local `prf-extensions` checkout contains force-authorisation,
+held-custody, and repairability-report packages; it has no Sew model package.
+Its current local branch is `agent-c-2-ownership-cleanup` at
+`0ba7bc77c92e386f7394569d173af6f70ebf6f9b`, based on remote `main` at
+`ccd59536b072d076054fbc33db6ed63ce157d505`. A separate local
+`prf-sew-core-model` candidate exists at
+`d02ad01d06b096e46c542698f043dc0505e70365`; its tests passed against core
+`b94b091cfbaf46ec34ae2ade4920f9a3751e3097`, but its dependency still exposes
+PRF implementation namespaces and `protocols_src`, and it has no remote.
+Treat it as a source-layout candidate, not an independently qualified package.
+
+The PRF API and concept-loader changes remain source candidates pending their
+applicable independent review and qualification. Source publication is not a
+package release, admission, or deployment evidence.
