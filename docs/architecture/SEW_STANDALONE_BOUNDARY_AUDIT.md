@@ -71,9 +71,10 @@ The current `sew-protocol` profile resolves 59 model-owned files under
 `packages/sew-protocol-model/src`. Sew analysis, slash economics, slash
 evidence, and yield integration have separate extension source roots. The
 model package manifest does not include `protocols_src`; the composed profile
-still selects the Force Authorization component, whose two production files
-remain there for the other agent's extraction. The 103 `src/` files in the
-closure are shared PRF dependencies, not Sew-owned implementation files.
+currently resolves two Force Authorization production files from that tree.
+Related sources and tests remain there for the other agent's extraction. The
+103 `src/` files in the closure are shared PRF dependencies, not Sew-owned
+implementation files.
 
 The `sew-protocol-model-core` candidate selects Sew protocol model and slash economics without
 the optional analysis, pro-rata slash-evidence, or researcher force-authorisation adapters. `resolution` calls a core-owned
