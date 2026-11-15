@@ -72,9 +72,21 @@ The current `sew-protocol` profile resolves 59 model-owned files under
 evidence, and yield integration have separate extension source roots. The
 model package manifest does not include `protocols_src`; the composed profile
 currently resolves two Force Authorization production files from that tree.
-Related sources and tests remain there for the other agent's extraction. The
-103 `src/` files in the closure are shared PRF dependencies, not Sew-owned
-implementation files.
+All five production files under `protocols_src/resolver_sim/protocols/sew`
+support Force Authorization (its implementation and extension, procedure
+evidence, overflow capability, and effect correlation). Authorization-specific
+tests remain under `protocols_src/test` with their current owner; the other
+legacy protocol tests there still need their own ownership and relocation
+review. The 103 `src/` files in the closure are shared PRF dependencies, not
+Sew-owned implementation files.
+
+The Sew developer overlay at `workspaces/sew/deps.edn` selects the in-tree
+model package, optional integrations, and remaining protocol tests. It is
+development scaffolding, not a runtime package dependency. The Sew claims
+resource is runner-owned at
+`extensions/sew-runner/resources/data/claims/sew-claims.edn`; the remaining
+`data/claims/force_authorisation_claims.edn` is a separate Force Authorization
+artifact.
 
 The `sew-protocol-model-core` candidate selects Sew protocol model and slash economics without
 the optional analysis, pro-rata slash-evidence, or researcher force-authorisation adapters. `resolution` calls a core-owned
@@ -116,7 +128,7 @@ candidate's isolated load check resolves the repository's accounting package.
 
 ### Integration-heavy root namespace
 
-`protocols_src/resolver_sim/protocols/sew.clj` directly assembles Sew state and
+`packages/sew-protocol-model/src/resolver_sim/protocols/sew.clj` directly assembles Sew state and
 actions with held accounting, DB access, temporal state, replay/idempotency,
 yield, benchmark/research assignment, governed authority, force-authorisation
 extensions, semantic composition, evidence capture, and hashing. Requiring this
