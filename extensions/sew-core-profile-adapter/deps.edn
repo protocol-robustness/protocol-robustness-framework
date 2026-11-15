@@ -12,6 +12,8 @@
            {:replace-deps {org.clojure/clojure {:mvn/version "1.12.0"}
                            org.protocol-robustness/prf-sew-protocol-model
                            {:local/root "../../packages/sew-protocol-model"}}
+             :override-deps {org.protocol-robustness/prf-sew-pro-rata-economics
+                             {:local/root "../../extensions/sew-pro-rata-economics"}}
             :extra-paths ["test" "../../extensions/sew-yield-integration/src"]}
            ;; Keep the historical dependency baseline explicit; it does not
            ;; qualify the extracted model.
