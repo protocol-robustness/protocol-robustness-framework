@@ -1,0 +1,76 @@
+{:mapping-set/protocol :protocol/prf,
+ :mapping-set/version 1,
+ :mappings [
+  {:concept/id :framework/privacy-policy,
+   :mapping/category :concept/actions,
+   :mapping/id :evaluate-privacy-request,
+   :mapping/values {:maps-to [:protocol.action/verify]}}
+  {:concept/id :framework/privacy-policy,
+   :mapping/category :concept/actions,
+   :mapping/id :bind-privacy-policy,
+   :mapping/values {:maps-to [:protocol.action/authorize]}}
+  {:concept/id :framework/privacy-policy,
+   :mapping/category :concept/entities,
+   :mapping/id :privacy-policy,
+   :mapping/values {:maps-to [:protocol.entity/governance-policy]}}
+  {:concept/id :framework/privacy-policy,
+   :mapping/category :concept/entities,
+   :mapping/id :privacy-request,
+   :mapping/values {:maps-to [:protocol.entity/request]}}
+  {:concept/id :framework/privacy-policy,
+   :mapping/category :concept/outcomes,
+   :mapping/id :privacy-allowed,
+   :mapping/values {:maps-to [:protocol.outcome/accepted]}}
+  {:concept/id :framework/privacy-policy,
+   :mapping/category :concept/outcomes,
+   :mapping/id :privacy-denied,
+   :mapping/values {:maps-to [:protocol.outcome/rejected]}}
+  {:concept/id :framework/privacy-policy,
+   :mapping/category :concept/outcomes,
+   :mapping/id :privacy-indeterminate,
+   :mapping/values {:maps-to [:protocol.outcome/inconclusive]}}
+  {:concept/id :framework/privacy-policy,
+   :mapping/category :concept/roles,
+   :mapping/id :policy-authority,
+   :mapping/values {:maps-to [:protocol.actor/governance]}}
+  {:concept/id :framework/privacy-policy,
+   :mapping/category :concept/roles,
+   :mapping/id :policy-evaluator,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/current-privacy-policy,
+   :mapping/category :concept/actions,
+   :mapping/id :resolve-current-privacy-policy,
+   :mapping/values {:maps-to [:protocol.action/verify]}}
+  {:concept/id :framework/current-privacy-policy,
+   :mapping/category :concept/actions,
+   :mapping/id :verify-historical-privacy-policy,
+   :mapping/values {:maps-to [:protocol.action/verify]}}
+  {:concept/id :framework/current-privacy-policy,
+   :mapping/category :concept/entities,
+   :mapping/id :policy-binding,
+   :mapping/values {:maps-to [:protocol.entity/governance-policy]}}
+  {:concept/id :framework/current-privacy-policy,
+   :mapping/category :concept/entities,
+   :mapping/id :head-observation,
+   :mapping/values {:maps-to [:protocol.entity/evidence]}}
+  {:concept/id :framework/current-privacy-policy,
+   :mapping/category :concept/outcomes,
+   :mapping/id :current-observed,
+   :mapping/values {:maps-to [:protocol.outcome/verified]}}
+  {:concept/id :framework/current-privacy-policy,
+   :mapping/category :concept/outcomes,
+   :mapping/id :historical-verified,
+   :mapping/values {:maps-to [:protocol.outcome/verified]}}
+  {:concept/id :framework/current-privacy-policy,
+   :mapping/category :concept/outcomes,
+   :mapping/id :currentness-unknown,
+   :mapping/values {:maps-to [:protocol.outcome/inconclusive]}}
+  {:concept/id :framework/current-privacy-policy,
+   :mapping/category :concept/roles,
+   :mapping/id :head-observer,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+  {:concept/id :framework/current-privacy-policy,
+   :mapping/category :concept/roles,
+   :mapping/id :policy-resolver,
+   :mapping/values {:maps-to [:protocol.role/verifier]}}
+ ]}

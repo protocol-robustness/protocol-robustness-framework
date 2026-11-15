@@ -172,16 +172,16 @@
                             :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
                             :review-round/policy-root "sha256:policy"})))))
 
-(deftest non-dense-keys-valid-in-builder
-  (let [round (rr/build-review-round
-               {:benchmark/content-root "sha256:abc"
-                :review-round/purpose :model-admission
-                :review-round/members [{:review-member/key 0, :researcher/id "a", :role :model-steward}
-                                       {:review-member/key 2, :researcher/id "b", :role :independent-reproducer}
-                                       {:review-member/key 3, :researcher/id "c", :role :adversarial-reviewer}]
-                :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
-                :review-round/policy-root "sha256:policy"})]
-    (is (rr/round-valid? round) "builder accepts non-dense keys; density validated by canonical-indices artifact")))
+(deftest non-canonical-keys-rejected-by-builder
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"canonical researcher indices"
+                        (rr/build-review-round
+                         {:benchmark/content-root "sha256:abc"
+                          :review-round/purpose :model-admission
+                          :review-round/members [{:review-member/key 0, :researcher/id "a", :role :model-steward}
+                                                 {:review-member/key 2, :researcher/id "b", :role :independent-reproducer}
+                                                 {:review-member/key 3, :researcher/id "c", :role :adversarial-reviewer}]
+                          :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                          :review-round/policy-root "sha256:policy"}))))
 
 (deftest duplicate-researcher-id-under-different-keys-rejected-via-validate
   (let [bad-members [{:review-member/key 0, :researcher/id "a", :role :model-steward}
@@ -298,3 +298,15 @@
                 :review-round/policy-root "sha256:policy"})]
     (is (nil? (rr/member-bit-width round))
         "legacy unkeyed round must return nil for bit-width")))
+
+(deftest member-bit-width-nil-for-malformed-truthy-key
+  (let [round (assoc-in (rr/build-review-round
+                         {:benchmark/content-root "sha256:abc"
+                          :review-round/purpose :model-admission
+                          :review-round/members keyed-members
+                          :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                          :review-round/policy-root "sha256:policy"})
+                        [:review-round/members 2 :review-member/key]
+                        "not-an-integer")]
+    (is (nil? (rr/member-bit-width round))
+        "malformed keyed rounds must not throw while deriving width")))

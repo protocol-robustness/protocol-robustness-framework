@@ -1,0 +1,27 @@
+{:schema-version "artifact-bundle.v1"
+ :members [{:member/role "allocation-request"
+            :artifact/id "pro-rata-allocation-request.v1"
+            :artifact/schema "pro-rata-allocation-request.v1"
+            :hash/scheme "canonical-hash-scheme.v1"
+            :hash/algorithm "sha256"
+            :hash/domain "PROJECTION_ARTIFACT_V1"
+            :commitment/status :recompute
+            :artifact/data {:schema-version "pro-rata-allocation-request.v1"
+                            :mechanism/version 1
+                            :allocation/id :portable/rounding
+                            :available 5N
+                            :rows [{:row/id :row/a :obligation/id :ob/a
+                                    :requested 5N :weight 1N :cap nil}
+                                   {:row/id :row/b :obligation/id :ob/b
+                                    :requested 5N :weight 1N :cap nil}]
+                            :rounding-policy :largest-remainder
+                            :tie-break-policy :canonical-row-id
+                            :redistribution-policy :unallocated}}
+           {:member/role "related-observation"
+            :artifact/id "example-reserve-observation.v1"
+            :artifact/schema "example-reserve-observation.v1"
+            :hash/scheme "canonical-hash-scheme.v1"
+            :hash/algorithm "sha256"
+            :hash/domain "EXAMPLE_RESERVE_OBSERVATION_V1"
+            :commitment/status :opaque
+            :commitment/root "1111111111111111111111111111111111111111111111111111111111111111"}]}

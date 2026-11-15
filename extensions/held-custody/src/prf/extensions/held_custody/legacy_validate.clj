@@ -30,10 +30,7 @@
      - any form under protocols_src/
      - resolver-sim.evidence.force-authorisation (deleted legacy core domain)"
   (:require [clojure.string :as str]
-            [resolver-sim.hash.canonical :as hash]
-            [resolver-sim.hash.reference :as hash-ref]
-            [resolver-sim.evidence.artifact :as artifact]
-            [resolver-sim.assurance.force-authorisation :as fa]))
+            [resolver-sim.extensions.api.v1 :as api]))
 
 (declare normalize-direction
          valid-held-direction?)
@@ -125,7 +122,7 @@
 (defn valid-force-auth-add-held?
   "Re-verify a force-auth-add-held evidence artifact (v1)."
   [report]
-  (artifact/valid-artifact? report add-held-schema-version add-held-kind
+  (api/valid-artifact? report add-held-schema-version add-held-kind
                             add-held-verifier-id))
 
 (defn force-auth-add-held-scope-verifies?
@@ -147,7 +144,7 @@
          (map? (:authorization/scope-projection m))
          (string? (:authorization/scope-hash m))
          (= (:authorization/scope-hash m)
-            (fa/force-authorisation-scope-hash (:authorization/scope-projection m))))
+            (api/force-authorisation-scope-hash (:authorization/scope-projection m))))
     (true? (:authorization/scope-verifies? m))))
 
 (defn valid-force-auth-add-held-v2?
@@ -159,7 +156,7 @@
    direction and the committed projection direction. Also rejects any member
    that stores an :authorization/scope-verifies? boolean, which must be derived."
   [report]
-  (and (artifact/valid-artifact? report add-held-v2-schema-version add-held-kind
+  (and (api/valid-artifact? report add-held-v2-schema-version add-held-kind
                                 add-held-v2-verifier-id)
        (= add-held-scope-derivation-id (:authorization/scope-derivation report))
        (map? (:authorization/scope-projection report))
@@ -171,7 +168,7 @@
           (normalize-direction (get-in report [:authorization/scope-projection
                                                :held/direction])))
        (= (:authorization/scope-hash report)
-          (fa/force-authorisation-scope-hash (:authorization/scope-projection report)))))
+          (api/force-authorisation-scope-hash (:authorization/scope-projection report)))))
 
 (defn exact-force-auth-add-held?
   "EXACT-kind predicate for the :force-auth-add-held member artifact: the
@@ -208,7 +205,7 @@
    checks."
   [report]
   (and (map? report)
-       (artifact/preimage-and-hash-valid? report)))
+       (api/preimage-and-hash-valid? report)))
 
 (defn- member-family-version?
   "True when a schema-version string belongs to the force-auth-add-held member
@@ -513,7 +510,7 @@
                                    add-held-summary-v1-category-keys)
         stripped (reduce dissoc
                          (reduce dissoc report add-held-summary-v2-only-keys)
-                         artifact/artifact-envelope-keys)]
+                         api/artifact-envelope-keys)]
     (assoc stripped
            :schema-version add-held-summary-v1-schema-version
            :artifact/kind add-held-summary-kind
@@ -569,7 +566,7 @@
    key, and category keys within the v1 category set."
   [report]
   (and (map? report)
-       (let [body (artifact/artifact-body report)
+       (let [body (api/artifact-body report)
              v1-category-set (set add-held-summary-v1-category-keys)]
          (and (every? (fn [k] (not (contains? body k))) add-held-summary-v2-only-keys)
               (every? (fn [k] (contains? add-held-summary-v1-body-keys k)) (keys body))
@@ -582,7 +579,7 @@
    category keys within the v1 ∪ v2 category set."
   [report]
   (and (map? report)
-       (let [body (artifact/artifact-body report)
+       (let [body (api/artifact-body report)
              v2-body-keys (into add-held-summary-v1-body-keys add-held-summary-v2-only-keys)
              v2-category-set (set (into add-held-summary-v1-category-keys
                                         add-held-summary-v2-category-keys))]
@@ -651,7 +648,7 @@
    and v2 summary shapes do NOT commit this root, so it cannot be verified
    against the artifact — it is surfaced for machine-readable diagnostics."
   [members]
-  (hash/domain-hash :evidence-collection
+  (api/domain-hash :evidence-collection
                     (vec (sort-by (fn [m] (or (:artifact/hash m) "")) members))))
 
 (defn- resolve-summary-version
@@ -693,7 +690,7 @@
         body (if (= version :v1)
                (summary-body-v1 members)
                (summary-body-v2 members))]
-    (artifact/finalize-artifact body)))
+    (api/finalize-artifact body)))
 
 (defn check-aggregate
   "Historical aggregate checker for force-auth-add-held-summary.v1 / .v2 only
@@ -836,7 +833,7 @@
    predicate: delegates to check-aggregate for the v2 target. True only when
    the summary is a well-formed v2 aggregate consistent with the member set."
   ([report]
-   (artifact/valid-artifact? report add-held-summary-schema-version
+   (api/valid-artifact? report add-held-summary-schema-version
                              add-held-summary-kind add-held-summary-verifier-id))
   ([summary members options]
    (:valid? (check-aggregate summary members
@@ -859,7 +856,7 @@
   ([report]
    (and (map? report)
         (v1-summary-shape-valid? report)
-        (artifact/valid-artifact? report add-held-summary-v1-schema-version
+        (api/valid-artifact? report add-held-summary-v1-schema-version
                                   add-held-summary-kind add-held-summary-verifier-id)))
   ([summary members options]
    (:valid? (check-aggregate summary members options))))
@@ -883,4 +880,4 @@
        (string? (:artifact/preimage report))
        (let [v1-body (downgrade-add-held-summary-v2->v1 report)]
          (= (:artifact/hash report)
-            (hash-ref/sha256-ref (hash/domain-hash :evidence-record v1-body))))))
+            (api/sha256-ref (api/domain-hash :evidence-record v1-body))))))

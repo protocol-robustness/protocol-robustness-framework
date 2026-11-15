@@ -139,8 +139,8 @@
         current-snapshot (some #(when (= snapshot-root (:sew/adjudication-snapshot-root %)) %)
                                (get-in world [:adjudication-snapshots 0]))
         target (sew-ratification/build-target basis current-snapshot (:policy/root policy))
-        key-path "test-keys/test-researcher-signing-key"
-        public-path "test-keys/test-researcher-signing-key.pub"
+        key-path "test/fixtures/signing-keys/test-researcher-signing-key"
+        public-path "test/fixtures/signing-keys/test-researcher-signing-key.pub"
         contributions
         (mapv (fn [[researcher principal]]
                 (let [subject-root
@@ -1222,6 +1222,21 @@
     (is (= :policy/sew-research (:policy/id policy)))
     (is (= 2 (count contributions)))
     (is (= 2 (count key-bindings)))))
+
+(deftest sew-rejects-ratified-label-without-policy-quorum-inputs
+  (let [{:keys [world basis]} (high-assurance-inputs :release)
+        {:keys [ratification-result current-snapshot] :as package}
+        (sew-research-ratification-inputs world basis)
+        verified (sew-ratification/verify-ratification
+                  (assoc package
+                         :sew-basis basis
+                         :adjudication-snapshot current-snapshot
+                         :contributions []))]
+    (is (false? (:valid? verified)))
+    (is (= [:ratification-result-mismatch] (:errors verified)))
+    (is (= :contested-unresolved
+           (get-in verified [:ratification :ratification/status]))
+        "SEW reconstructs policy quorum instead of accepting a stored ratified label")))
 
 (deftest fenced-ratification-and-settlement-use-one-authoritative-state-fence
   (let [{:keys [world basis artifact verification finality]} (high-assurance-inputs :release)

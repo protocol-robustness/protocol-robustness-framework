@@ -208,21 +208,27 @@ leaf(C)          = f08fd8ef2d0ea21606cc29d5ccfb387800f0fa09d79858ee4432e903ed98e
 `prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/tests/realized_execution_test.rs` asserts the complete
 384-byte public-value hex vector, not only its component fields. The shared canonical fixture is
 `prf-coprocessor@e2e4e9b25622c52eb028fc373a66e81b3982e933/core/tests/fixtures/realized-execution-all-active.json`. To execute
-the SP1 guest without proving, use:
+the SP1 guest without proving, prepare and resolve the pinned checkout first:
 
 ```bash
-cd coprocessor
-cargo run --locked --release -p allocation-sp1-script --bin realized-execution-prove -- \
-  --input core/tests/fixtures/realized-execution-all-active.json --execute
+make setup-coprocessor
+coprocessor_root="$(./scripts/resolve-prf-coprocessor.sh)"
+cargo run --manifest-path "$coprocessor_root/Cargo.toml" --locked --release \
+  -p allocation-sp1-script --bin realized-execution-prove -- \
+  --input "$coprocessor_root/core/tests/fixtures/realized-execution-all-active.json" --execute
 ```
 
 To export the real EVM Groth16 fixture, use the locked SP1 6.3.1 toolchain and
-the same input:
+the same input. Set `PRF_EVM_ROOT` to the local `prf-evm` checkout:
 
 ```bash
-cargo run --locked --release -p allocation-sp1-script --bin realized-execution-evm -- \
-  --input core/tests/fixtures/realized-execution-all-active.json \
-  --fixture ../../prf-evm/src/fixtures/realized-execution-proof-fixture.json
+: "${PRF_EVM_ROOT:?Set PRF_EVM_ROOT to the local prf-evm checkout}"
+make setup-coprocessor
+coprocessor_root="$(./scripts/resolve-prf-coprocessor.sh)"
+cargo run --manifest-path "$coprocessor_root/Cargo.toml" --locked --release \
+  -p allocation-sp1-script --bin realized-execution-evm -- \
+  --input "$coprocessor_root/core/tests/fixtures/realized-execution-all-active.json" \
+  --fixture "$PRF_EVM_ROOT/fixtures/realized-execution-proof-fixture.json"
 ```
 
 The exporter rejects any difference between native derivation, actual guest

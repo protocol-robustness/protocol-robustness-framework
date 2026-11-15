@@ -1,0 +1,125 @@
+{:schema "prf-pro-95-stage-c-demo-status.v1"
+ :classification :demonstration-only-not-pre-mainnet-release
+ :network {:name "Base Sepolia" :chain-id 84532}
+ :status :not-run
+ :public-chain-qualified? false
+ :transaction-submitted? false
+ :deployment
+ {:status :not-run
+  :reason :no-reviewed-base-sepolia-demo-deployment-package
+  :template-status :owner-approval-required}
+ :artifact-bundle
+ {:status :local-review-candidate-not-pinned-release
+  :package "@protocol-robustness/prf-evm-deployables"
+  :version "0.4.3"
+  :bundle-root "d416816527400fcc7bc7455a1486c1bc20cb94ed556473d0c695a83ea09e2dba"
+  :source-revision "f23fcfc2d0f58e2be5732c0c37ddb179c323d513"
+  :source-commit-source :env
+  :source-commit-override? true
+  :source-published? false
+  :contains-v3-reserve-artifact? true
+  :nonlocal-deployment-eligible? false}
+ :canonical-roots
+ {:status :candidate-roots-derived
+  :qualification :derived-only-not-approved
+  :execution-chain-id 84532
+  :initial-configuration-root "sha256:f36913f0fb319e80aee3a1b795bd31a94486d08d51aa27df825277050e4768cb"
+  :authority-state-root "sha256:36a912294511057638de9d8a155f0a659413a3e242ca6bc76c877d5e3d6eb1a2"
+  :chain-instance-genesis-root :not-derived
+  :derivation-artifact "configuration-root-derivation.json"}
+ :asset
+ {:kind :circle-base-sepolia-testnet-usdc
+  :address "0x036cbd53842c5426634e7929541ec2318f3dcf7e"
+  :decimals 6
+  :demo-minting? false
+  :historical-source-parity-artifact "protocol-deployments/config/pro-rata-v2-entitlement/circle-base-sepolia-usdc-source-parity.v1.json"
+  :implementation-observation
+  {:status :matching-cross-provider-read-only-observation-not-qualified
+   :block 50091313
+   :block-hash "0x6f025c552b5df58108ae1bd753a511d3f87c0804005abcf948a2e0541816334c"
+   :proxy-code-keccak256 "0xedc5281a85c0efecd49999a1ef668390c59b88702f2d4a07029d7f5d63059d6c"
+   :implementation "0xd74cc5d436923b8ba2c179b4bca2841d8a52c5b5"
+   :implementation-code-keccak256 "0x1254951e5483b882fd5def9452f58fe786eb3380c0bf9bb2744fa21a0a97a16c"
+   :name "USDC"
+   :symbol "USDC"
+   :decimals 6
+   :paused? false
+   :transfer-behavior :not-tested
+   :source-authentication :not-performed
+   :artifact "protocol-deployments/config/pro-95-base-sepolia-demo/observations/usdc-read-only-20261025.json"}
+  :payer-balance-and-allowance
+  {:usdc-balance-base-units "0"
+   :eth-balance-wei "0"
+   :balance-block 50204763
+   :nonce 0
+   :observation-artifact "protocol-deployments/config/pro-95-base-sepolia-demo/observations/usdc-funding-preflight-20261025-50204763.json"
+   :observation-sha256 "b9889d3d187a9a0d09d0a358261d76089138e698d0e611b1a4b76d1e825b90fc"
+   :observation-block-hash "0x0472d6d8d50c6e5b6f9370340ec2c0a197c154df69165a0238a97bd387e2d4c8"
+   :allowance :not-observed}}
+ :signer
+ {:status :generated-test-only
+  :address "0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4"
+  :key-storage :encrypted-foundry-keystore-outside-repository
+  :passphrase-storage :local-system-keyring
+  :run-approval? false
+  :eth-funding-status :zero-at-observation
+  :funding-currentness :unknown
+  :observed-balance-wei 0
+  :balance-observation-block 50204763
+  :balance-observation-source "Base public RPC and PublicNode; matching read-only observations, not independent trust anchors"}
+ :rpc
+ {:candidate-endpoints ["https://sepolia.base.org" "https://base-sepolia-rpc.publicnode.com"]
+  :status :matching-cross-provider-read-only-observed-not-independently-reviewed
+  :chain-id 84532
+  :head-numbers {:base-rpc 50210714 :publicnode 50210721}
+  :observation-block-number 50204763
+  :observation-block-hash "0x0472d6d8d50c6e5b6f9370340ec2c0a197c154df69165a0238a97bd387e2d4c8"
+  :capture-artifacts ["protocol-deployments/config/pro-95-base-sepolia-demo/observations/usdc-read-only-20261025.json"
+                      "protocol-deployments/config/pro-95-base-sepolia-demo/observations/usdc-funding-preflight-20261025-50204763.json"]
+  :selected-block-is-below-capture-heads? true
+  :independent-trust? false
+  :provider-independence-reviewed? false
+  :finality-established? false}
+ :beneficiaries
+ {:status :owner-approved-test-only-pseudonyms-pending-package-binding
+  :addresses {
+   :alice "0x8bDd01C7DEad0AbE3e855b458B820D9d727bCCBF"
+   :bob "0x867Caab852f942Ff80B6409109F1DB76D4ecB36B"
+   :carol "0xA57F019D83d1fbbc48500047bA27d21523fE55A8"}
+  :balance-observation
+  {:status :zero-native-eth-at-unpinned-latest-single-provider-query
+   :captured-at "2026-10-23T19:19:58Z"
+   :endpoint "https://sepolia.base.org"
+   :artifact "rpc-preflight-20261023.json"
+   :token-balances :not-observed
+   :current-balance :unknown}
+  :identity-authentication :not-performed}
+ :receipt-inclusion
+ {:status :not-run
+  :reason :no-base-sepolia-demo-transactions-or-receipt-proofs}
+ :header-trust
+ {:status :candidate-sources-awaiting-independent-review
+  :reason :source-independence-genesis-ancestry-and-freshness-reorg-policy-unreviewed}
+ :finality
+ {:status :unverified
+  :qualification-plan "FINALITY_QUALIFICATION.md"
+  :maximum-intended-demo-claim :receipt-inclusion-under-external-header-pin
+  :base-safe-l2 :not-implemented-or-qualified
+  :base-finalized-l2 :not-implemented-or-qualified
+  :l1-withdrawal-output-finalization :out-of-scope
+  :reason :no-public-transaction-no-independent-header-pin-no-base-l1-derivation-verifier}
+ :remaining-evidence
+ [:reviewed-base-sepolia-demo-deployment-and-verifier-identities
+  :approved-transaction-count-and-numeric-eth-spend-cap
+  :funded-base-sepolia-demo-signer
+  :current-usdc-proxy-implementation-and-transfer-observation
+  :usdc-payer-balance-and-exact-allowance
+  :base-bound-beneficiary-commitments-and-authorizations
+  :base-sepolia-derived-source-witness-and-proof
+  :reviewed-base-sepolia-deployment-and-operation-runner
+  :raw-signed-transactions-and-mined-receipts
+  :contract-code-identities-and-operation-state
+  :independently-selected-base-header-pin-and-freshness-reorg-policy
+  :base-l2-to-l1-finality-path-only-if-safe-finalized-claim-is-requested]
+ :release-boundary
+ "This is a public testnet demonstration scope only and is not a pre-mainnet release qualification."}

@@ -149,8 +149,9 @@
 (defn- compute-registry-hash
   "Hash the current execution registry for snapshot binding."
   []
-  (try (hc/hash-with-intent {:hash/intent :registry}
-                            (requiring-resolve 'resolver-sim.definitions.passive-registries/execution-registry))
+  (try (let [registry (requiring-resolve
+                       'resolver-sim.definitions.passive-registries/resolved-execution-registry)]
+         (hc/hash-with-intent {:hash/intent :registry} (registry)))
        (catch Exception _ (hc/domain-hash :registry {:registry-version passive-registries/registry-version :executions []}))))
 
 (defn- read-benchmark-claims

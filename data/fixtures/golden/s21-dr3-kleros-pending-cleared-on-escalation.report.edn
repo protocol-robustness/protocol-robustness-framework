@@ -1,5 +1,5 @@
 {:golden-schema-version "2.0",
- :suite-id :suites/all-invariants,
+ :suite-id :suites/dr3-critical,
  :trace-id "s21-dr3-kleros-pending-cleared-on-escalation",
  :final-state-hash
  "d542d35cdb1ed4d0c6071776fa5f6cc1ebccbfbb4bd143bc9a8b5cce173e02e1",

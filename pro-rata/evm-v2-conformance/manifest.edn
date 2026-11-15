@@ -1,0 +1,13 @@
+{:artifact/schema "pro-rata-evm-v2-conformance-manifest.v1"
+ :conformance/id :pro-rata-evm-v2
+ :conformance/version 1
+ :portable-contract/release-root "7f879b3491262f62e1fcad94ce6692bd6c605bc6727e3e57d20cb6bea97dc0f3"
+ :files
+ [{:path "SPEC.md" :sha256 "f6e7aa91a549957b7c838ea8ff231bc398439b1d42d146343561fd29ac22c3d5" :normative? true}
+  {:path "vectors/all-active-60-40.edn" :sha256 "ee67c1f8e72c373551a9850e4ebf5f9c38877b7a51d3404084d58b4d3c8b34d9" :normative? true}
+  {:path "vectors/aggregate-held-credit-60-40.edn" :sha256 "b3d6cf0613cc8715845a2ca0c85e1680a21ab7ce46fbb4fdf759ee31a3e0aaff" :normative? true}
+  {:path "rejection-vectors/forged-post-state.edn" :sha256 "fbfa6b64f348ea0dbef149aaba39ec722c4854399cf5ee9557ec9a5c762ede36" :normative? true}
+  {:path "rejection-vectors/effect-substitution.edn" :sha256 "a552daccd873de99ccc9c2b48e740665fbd12458b9ae67d0a26226b4f89c808c" :normative? true}
+  {:path "rejection-vectors/retained-body-substitution.edn" :sha256 "a3fd8841bb114f75c9d542b9391a9aaf63b8033a127efdb9dd1c4626836909d1" :normative? true}]
+ :package/root "1b4b11b796e77f8d66062431845ef4cbbfb44439d8e4dd4174dd23b7e7a29936"
+}

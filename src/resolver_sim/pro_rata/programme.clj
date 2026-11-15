@@ -91,6 +91,10 @@
                 (when-not (#{:requested :not-requested} v)
                   (throw (ex-info "Stage flag must be :requested or :not-requested"
                                   {:stage k :value v})))
+                (when (and (contains? (set required-stage-keys) k)
+                           (= :not-requested v))
+                  (throw (ex-info "Required programme stage cannot be :not-requested"
+                                  {:stage k :value v})))
                 (assoc acc k v)))
             {}
             programme-stage-keys)))
@@ -101,17 +105,65 @@
 
 (def ^:const plan-schema-version "programme-plan.v1")
 
+(defn- valid-root? [value]
+  (and (string? value) (boolean (re-matches #"[0-9a-f]{64}" value))))
+
+(defn- canonical-scalar? [value]
+  (or (keyword? value) (string? value) (symbol? value) (integer? value)))
+
+(defn- validate-identity-plan-fields!
+  "Fail closed on malformed identity-mode plans before idempotence checks.
+   Re-normalizing arbitrary values must not turn them into accepted identity."
+  [plan]
+  (let [expected-keys #{:schema-version :programme/id :allocation-request-root
+                        :semantic-ids :stages :validation-profile-root
+                        :statement-profile-root :proof-profile-id
+                        :admission-profile-id}]
+    (when-not (= expected-keys (set (keys plan)))
+      (throw (ex-info "Canonical programme plan has an invalid field set"
+                      {:expected expected-keys :actual (set (keys plan))}))))
+  (when-not (= plan-schema-version (:schema-version plan))
+    (throw (ex-info "Unsupported programme plan schema version"
+                    {:schema-version (:schema-version plan)
+                     :expected plan-schema-version})))
+  (when-not (valid-root? (:allocation-request-root plan))
+    (throw (ex-info "Canonical programme plan requires a valid allocation request root"
+                    {:allocation-request-root (:allocation-request-root plan)})))
+  (when-not (and (vector? (:semantic-ids plan))
+                 (every? canonical-scalar? (:semantic-ids plan)))
+    (throw (ex-info "Canonical programme plan requires semantic IDs as a vector of canonical scalars"
+                    {:semantic-ids (:semantic-ids plan)})))
+  (when-not (and (map? (:stages plan))
+                 (= (set programme-stage-keys) (set (keys (:stages plan)))))
+    (throw (ex-info "Canonical programme plan requires the complete stage map"
+                    {:stages (:stages plan)})))
+  (doseq [key [:validation-profile-root :statement-profile-root]]
+    (when-not (or (nil? (get plan key)) (valid-root? (get plan key)))
+      (throw (ex-info "Canonical programme profile root must be nil or a valid root"
+                      {:field key :value (get plan key)}))))
+  (doseq [key [:proof-profile-id :admission-profile-id]]
+    (when-not (or (nil? (get plan key)) (canonical-scalar? (get plan key)))
+      (throw (ex-info "Canonical programme profile ID must be nil or a canonical scalar"
+                      {:field key :value (get plan key)}))))
+  (when (some? (:validation-profile-root plan))
+    (throw (ex-info "Validation profiles are not supported until profile selection is implemented"
+                    {:validation-profile-root (:validation-profile-root plan)})))
+  plan)
+
 (defn allocation-request-root
   "Root identity of the exact allocation request. Frozen and independent of any
    execution state (no parallelism/progress/budget/timestamps)."
-  [{:keys [schema-version amount participants policy use-case unit]}]
+  [{:keys [schema-version allocation/id amount participants policy use-case unit source metadata]}]
   (hc/domain-hash :programme-allocation-request-v1
                   {:schema-version (or schema-version 1)
+                   :allocation/id id
                    :amount amount
                    :participants (mapv #(select-keys % [:id :weight :cap]) participants)
                    :policy (or policy {})
                    :use-case use-case
-                   :unit unit}))
+                   :unit unit
+                   :source (or source {})
+                   :metadata (or metadata {})}))
 
 (defn semantic-allocation-ids
   "The semantic allocation set/order: participant IDs in request order."
@@ -138,8 +190,13 @@
    worker pools, host, timestamps, paths, cancel atom) are deliberately dropped."
   [plan]
   (let [has-request (some? (:request plan))
+        _profile-check (when (and has-request (some? (:validation-profile plan)))
+                         (throw (ex-info "Validation profiles are not supported until profile selection is implemented"
+                                         {:validation-profile (:validation-profile plan)})))
+        _identity-check (when-not has-request (validate-identity-plan-fields! plan))
         cid (or (:programme/id plan) (get-in plan [:request :programme/id]))
-        stages (normalize-stages (:stages plan))]
+        stages (normalize-stages (:stages plan))
+        normalized-plan (assoc plan :stages stages)]
     (when (nil? cid)
       (throw (ex-info "Programme requires :programme/id" {})))
     (when-not (or (keyword? cid) (string? cid) (symbol? cid) (integer? cid))
@@ -157,11 +214,11 @@
                      (:semantic-ids plan))
      :stages stages
      :validation-profile-root (if has-request
-                                (profile-root plan :validation-profile :validation
+                                (profile-root normalized-plan :validation-profile :validation
                                               "PROGRAMME_VALIDATION_PROFILE_V1")
                                 (:validation-profile-root plan))
      :statement-profile-root (if has-request
-                               (profile-root plan :statement-profile :statement
+                               (profile-root normalized-plan :statement-profile :statement
                                              "PROGRAMME_STATEMENT_PROFILE_V1")
                                (:statement-profile-root plan))
      :proof-profile-id (if has-request
@@ -308,6 +365,8 @@
    Returns {:semantic/status :programme/status :summary {...} :exact-set-complete?}."
   [{:keys [stage-statuses reconciliation]}]
   (let [required [:allocation :validation :evidence]
+        optional-pending? (some #(not= :not-requested (get stage-statuses %))
+                                optional-stage-keys)
         status-of (fn [stage] (get stage-statuses stage))
         successes (filterv (fn [stage] (= (stage-success-status stage) (status-of stage)))
                            required)
@@ -315,7 +374,9 @@
         cancelled (filterv (fn [stage] (= :cancelled (status-of stage))) required)
         validation-status (status-of :validation)
         exact-set-complete (= :passed (:status reconciliation))
-        complete? (and (= (count required) (count successes)) exact-set-complete)
+        complete? (and (= (count required) (count successes))
+                       exact-set-complete
+                       (not optional-pending?))
         semantic-status (cond
                           (= :unsupported validation-status) :unsupported
                           (= :error validation-status) :error
@@ -390,62 +451,154 @@
            (hc/domain-hash :programme-receipt-v1 (dissoc base :receipt-hash)))))
 
 (defn verify-programme-receipt
-  "Independently derive the receipt's semantic fields AND its aggregate verdict
-   from the execution artifacts, then compare both against the recorded claim.
-   Built before the runner, so the runner must produce something this accepts.
+  "Independently reconstruct the complete receipt from its plan and execution
+   artifacts. The plan must include its original request. Receipt hashes,
+   stage IDs, optional stages, and aggregate claims are checked against that
+   reconstruction.
 
-   `artifacts` is {:request ... :evaluation ... :evidence-artifact ...}.
-   Returns {:status :passed|:failed :mismatches [...]}."
+   The artifacts map contains :plan, :request, :evaluation, and
+   :evidence-artifact. Returns {:status :passed|:failed :mismatches [...]} and
+   never throws."
   [artifacts receipt]
-  (let [{:keys [request evaluation]} artifacts
-        derived-request-root (allocation-request-root request)
-        derived-result-root (hc/domain-hash :pro-rata-evaluation-v1
-                                            (get-in evaluation [:result :artifact/value]))
-        derived-verdict (programme-validation-result evaluation)
-        derived-validation-status (:status derived-verdict)
-        derived-validation-details (:details derived-verdict)
-        expected-evidence (programme-evidence-artifact
-                           {:programme/id (:programme/id receipt)
-                            :request request
-                            :evaluation evaluation
-                            :validation-status derived-validation-status
-                            :validation-details derived-validation-details})
-        ;; reconstruct stage statuses strictly from what the artifacts prove
-        reconstructed-stages (merge {:allocation :completed
-                                     :validation derived-validation-status
-                                     :evidence :completed}
-                                    {:statement (or (:statement (:stages receipt)) :not-requested)
-                                     :proof (or (:proof (:stages receipt)) :not-requested)
-                                     :verification (or (:verification (:stages receipt)) :not-requested)
-                                     :admission (or (:admission (:stages receipt)) :not-requested)})
-        reconstructed-reconciliation (reconcile-programme-ids
-                                      {:planned (:stage-ids receipt)
-                                       :executed (:stage-ids receipt)
-                                       :recorded (:stage-ids receipt)})
-        derived-verdict-aggregate (derive-programme-verdict
-                                   {:stage-statuses reconstructed-stages
-                                    :reconciliation reconstructed-reconciliation})
-        mismatch (fn [label expected actual]
-                   (when-not (= expected actual)
-                     {:field label :expected expected :actual actual}))
-        mismatches (vec (remove nil?
-                                [(mismatch :request-root derived-request-root (:request-root receipt))
-                                 (mismatch :result-root derived-result-root (:result-root receipt))
-                                 (mismatch :validation-status derived-validation-status (:validation-status receipt))
-                                 (mismatch :validation-details derived-validation-details (:validation-details receipt))
-                                 (mismatch :evidence-root (:evidence/hash expected-evidence) (:evidence-root receipt))
-                                 (mismatch :evidence-id (:evidence/id expected-evidence) (:evidence-id receipt))
-                                 (mismatch :stages reconstructed-stages (:stages receipt))
-                                 (mismatch :semantic/status (:semantic/status derived-verdict-aggregate) (:semantic/status receipt))
-                                 (mismatch :programme/status (:programme/status derived-verdict-aggregate) (:programme/status receipt))
-                                 (mismatch :summary (:summary derived-verdict-aggregate) (:summary receipt))
-                                 (mismatch :exact-set-complete (:exact-set-complete derived-verdict-aggregate) (:exact-set-complete receipt))]))]
-    (if (seq mismatches)
+  (try
+    (let [{:keys [plan request evaluation evidence-artifact]} artifacts
+          canonical-plan (canonical-programme-plan plan)
+          plan-request-root (allocation-request-root (:request plan))
+          request-root (allocation-request-root request)
+          requested-optional (filterv #(= :requested (get-in canonical-plan [:stages %]))
+                                      optional-stage-keys)]
+      (cond
+        (nil? (:request plan))
+        {:status :failed
+         :mismatches [{:field :plan :reason :original-request-required}]}
+
+        (not= plan-request-root request-root)
+        {:status :failed
+         :mismatches [{:field :plan/request-root
+                       :expected plan-request-root
+                       :actual request-root}]}
+
+        (seq requested-optional)
+        {:status :failed
+         :mismatches [{:field :stages
+                       :reason :requested-stage-not-implemented
+                       :stages requested-optional}]}
+
+        :else
+        (let [derived-result-root (hc/domain-hash :pro-rata-evaluation-v1
+                                                  (get-in evaluation [:result :artifact/value]))
+              evaluation-result-root (get-in evaluation [:result :artifact/hash])
+              derived-verdict (programme-validation-result evaluation)
+              validation-status (:status derived-verdict)
+              validation-details (:details derived-verdict)
+              expected-evidence (programme-evidence-artifact
+                                 {:programme/id (:programme/id canonical-plan)
+                                  :request request
+                                  :evaluation evaluation
+                                  :validation-status validation-status
+                                  :validation-details validation-details})
+              expected-evaluation
+              (pro-rata-evaluation/evaluate-pro-rata-allocation request)
+              expected-evaluation-request
+              (get-in expected-evaluation [:result :artifact/value :canonical-request])
+              evaluation-request
+              (get-in evaluation [:result :artifact/value :canonical-request])
+              expected-projection (get expected-evaluation :projection)
+              evaluation-projection (get evaluation :projection)
+              expected-result-value
+              (get-in expected-evaluation [:result :artifact/value])
+              evaluation-result-value
+              (get-in evaluation [:result :artifact/value])
+              expected-result-projection-hash
+              (get-in expected-evaluation [:result :artifact/value :projection-hash])
+              evaluation-result-projection-hash
+              (get-in evaluation [:result :artifact/value :projection-hash])
+              evaluation-allocation
+              (get-in evaluation [:result :artifact/value :allocation])
+              expected-stage-ids {:allocation request-root
+                                  :validation request-root
+                                  :evidence (:evidence/id expected-evidence)}
+              expected-stages {:allocation :completed
+                               :validation validation-status
+                               :evidence :completed
+                               :statement :not-requested
+                               :proof :not-requested
+                               :verification :not-requested
+                               :admission :not-requested}
+              reconciliation (reconcile-programme-ids
+                              {:planned expected-stage-ids
+                               :executed expected-stage-ids
+                               :recorded expected-stage-ids})
+              expected-receipt (build-programme-receipt
+                                {:programme/id (:programme/id canonical-plan)
+                                 :programme-plan-root (programme-plan-root canonical-plan)
+                                 :request request
+                                 :evaluation evaluation
+                                 :stages expected-stages
+                                 :stage-ids expected-stage-ids
+                                 :validation-status validation-status
+                                 :validation-details validation-details
+                                 :evidence-artifact expected-evidence
+                                 :reconciliation reconciliation})
+              all-fields (sort-by str (set (concat (keys expected-receipt)
+                                                   (keys receipt))))
+              receipt-mismatches
+              (vec (keep (fn [field]
+                           (let [expected? (contains? expected-receipt field)
+                                 actual? (contains? receipt field)
+                                 expected (get expected-receipt field)
+                                 actual (get receipt field)]
+                             (when (or (not= expected? actual?)
+                                       (not= expected actual))
+                               {:field field :expected expected :actual actual})))
+                         all-fields))
+              artifact-mismatches
+              (cond-> []
+                (not= derived-result-root evaluation-result-root)
+                (conj {:field :evaluation/result-root
+                       :expected derived-result-root
+                       :actual evaluation-result-root})
+
+                (not= expected-evaluation-request evaluation-request)
+                (conj {:field :evaluation/request-root
+                       :expected expected-evaluation-request
+                       :actual evaluation-request})
+
+                (not= expected-projection evaluation-projection)
+                (conj {:field :evaluation/projection
+                       :expected expected-projection
+                       :actual evaluation-projection})
+
+                (not= expected-result-value evaluation-result-value)
+                (conj {:field :evaluation/result
+                       :expected expected-result-value
+                       :actual evaluation-result-value})
+
+                (not= expected-result-projection-hash evaluation-result-projection-hash)
+                (conj {:field :evaluation/result-projection-hash
+                       :expected expected-result-projection-hash
+                       :actual evaluation-result-projection-hash})
+
+                (not= evaluation-allocation (:allocation evaluation))
+                (conj {:field :evaluation/allocation
+                       :expected evaluation-allocation
+                       :actual (:allocation evaluation)})
+
+                (not= expected-evidence evidence-artifact)
+                (conj {:field :evidence-artifact
+                       :expected expected-evidence
+                       :actual evidence-artifact}))
+              mismatches (into artifact-mismatches receipt-mismatches)]
+          (if (seq mismatches)
+            {:status :failed :mismatches mismatches}
+            {:status :passed
+             :programme-plan-root (:programme-plan-root expected-receipt)
+             :semantic/status (:semantic/status expected-receipt)}))))
+    (catch Exception e
       {:status :failed
-       :mismatches mismatches}
-      {:status :passed
-       :programme-plan-root (:programme-plan-root receipt)
-       :semantic/status (:semantic/status receipt)})))
+       :mismatches [{:field :verification-inputs
+                     :reason :invalid
+                     :error (.getMessage e)}]})))
 
 ;; ---------------------------------------------------------------------------
 ;; SP-C.4 — runner (allocate -> validate -> evidence -> complete)
@@ -465,15 +618,17 @@
 (defn- execute-required-stages
   [plan canonical opts on-complete]
   (let [request (:request plan)]
-    (emit opts {:event :phase-started :phase :allocating :total 3})
+    (emit opts {:event :phase-started :phase :allocating
+                :status :running :current 0 :total 4})
     (let [evaluation (pro-rata-evaluation/evaluate-pro-rata-allocation request)]
-      (emit opts {:event :allocation-completed :phase :allocating})
+      (emit opts {:event :phase-completed :phase :allocating
+                  :status :running :current 1})
       (emit opts {:event :phase-started :phase :validating})
       (let [verdict (programme-validation-result evaluation)
             validation-status (:status verdict)
             validation-details (:details verdict)]
         (emit opts {:event :phase-completed :phase :validating
-                    :validation-status validation-status})
+                    :validation-status validation-status :status :running :current 2})
         (emit opts {:event :phase-started :phase :evidence})
         (let [evidence (programme-evidence-artifact
                         {:programme/id (:programme/id canonical)
@@ -481,8 +636,8 @@
                          :evaluation evaluation
                          :validation-status validation-status
                          :validation-details validation-details})]
-          (emit opts {:event :phase-completed :phase :evidence})
-          (emit opts {:event :phase-completed :phase :completed :status :completed})
+          (emit opts {:event :phase-completed :phase :evidence
+                      :status :running :current 3})
           (let [stage-ids {:allocation (:allocation-request-root canonical)
                            :validation (:allocation-request-root canonical)
                            :evidence (:evidence/id evidence)}]
@@ -501,39 +656,58 @@
    Operational options (excluded from identity): :on-progress (SP-A typed event
    callback), :progress-atom, :budget-permits (execution budget)."
   [plan & {:keys [on-progress progress-atom budget-permits]}]
-  (let [opts {:on-progress on-progress :progress-atom progress-atom}
-        canonical (canonical-programme-plan plan)
-        stages (:stages canonical)
-        run (fn []
-              (let [execution (execute-required-stages plan canonical opts identity)
-                    programme-plan-root (programme-plan-root canonical)
-                    finished-stages (merge stages
-                                           {:allocation :completed
-                                            :validation (:validation-status execution)
-                                            :evidence :completed})
-                    stage-ids (:stage-ids execution)
-                    reconciliation (reconcile-programme-ids
-                                    {:planned stage-ids
-                                     :executed stage-ids
-                                     :recorded stage-ids})
-                    receipt (build-programme-receipt
-                             (assoc execution
-                                    :programme/id (:programme/id canonical)
-                                    :programme-plan-root programme-plan-root
-                                    :stages finished-stages
-                                    :reconciliation reconciliation))
-                    verification (verify-programme-receipt
-                                  {:request (:request execution)
-                                   :evaluation (:evaluation execution)
-                                   :evidence-artifact (:evidence-artifact execution)}
-                                  receipt)]
-                {:canonical-plan canonical
-                 :stages finished-stages
-                 :evaluation (:evaluation execution)
-                 :evidence-artifact (:evidence-artifact execution)
-                 :reconciliation reconciliation
-                 :receipt receipt
-                 :verification verification}))]
-    (if (and budget-permits (pos? budget-permits))
-      (budget/with-execution-budget budget-permits (run))
-      (run))))
+  (let [opts {:on-progress on-progress :progress-atom progress-atom}]
+    (emit opts {:event :phase-started :phase :preparing
+                :status :running :current 0 :total 4})
+    (try
+      (let [canonical (canonical-programme-plan plan)
+            requested-optional (filterv #(= :requested (get-in canonical [:stages %]))
+                                        optional-stage-keys)
+            _ (when (seq requested-optional)
+                (throw (ex-info "Requested programme stage is not implemented"
+                                {:unsupported-stages requested-optional})))
+            stages (:stages canonical)
+            run (fn []
+                  (let [execution (execute-required-stages plan canonical opts identity)
+                        programme-plan-root (programme-plan-root canonical)
+                        finished-stages (merge stages
+                                               {:allocation :completed
+                                                :validation (:validation-status execution)
+                                                :evidence :completed})
+                        stage-ids (:stage-ids execution)
+                        reconciliation (reconcile-programme-ids
+                                        {:planned stage-ids
+                                         :executed stage-ids
+                                         :recorded stage-ids})
+                        receipt (build-programme-receipt
+                                 (assoc execution
+                                        :programme/id (:programme/id canonical)
+                                        :programme-plan-root programme-plan-root
+                                        :stages finished-stages
+                                        :reconciliation reconciliation))
+                        _ (emit opts {:event :phase-started :phase :verifying
+                                      :status :running :current 3})
+                        verification (verify-programme-receipt
+                                      {:plan plan
+                                       :request (:request execution)
+                                       :evaluation (:evaluation execution)
+                                       :evidence-artifact (:evidence-artifact execution)}
+                                      receipt)
+                        completed? (and (= :passed (:status verification))
+                                        (= :completed (:programme/status receipt)))]
+                    (emit opts {:event :phase-completed :phase :completed
+                                :status (if completed? :completed :failed)
+                                :current (if completed? 4 3)})
+                    {:canonical-plan canonical
+                     :stages finished-stages
+                     :evaluation (:evaluation execution)
+                     :evidence-artifact (:evidence-artifact execution)
+                     :reconciliation reconciliation
+                     :receipt receipt
+                     :verification verification}))]
+        (if (and budget-permits (pos? budget-permits))
+          (budget/with-execution-budget budget-permits (run))
+          (run)))
+      (catch Exception e
+        (emit opts {:event :phase-completed :status :failed})
+        (throw e)))))

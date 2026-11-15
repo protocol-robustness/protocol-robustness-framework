@@ -19,10 +19,12 @@ must not import its implementation namespaces.
 ## Extension registration
 
 An extension registers an adapter symbol with
-`resolver-sim.protocols.registry/register-extension!`. Registration does not
-load the adapter. `get-protocol` resolves the registered adapter only when a
-caller explicitly requests that protocol. Core callers should handle an absent
-extension as an unavailable capability rather than assuming Sew is installed.
+`resolver-sim.protocols.registry/register-extension!`. `get-protocol` attempts
+the conventional optional bootstrap namespace for the requested protocol before
+resolving its adapter. Sew's bootstrap loads the pro-rata slash-evidence adapter
+as well as registering the protocol. Core-only profiles omit that bootstrap;
+attempts to execute slash transitions that require its evidence fail visibly
+before applying slash side effects.
 
 ## Verification
 
@@ -70,5 +72,6 @@ pro-rata test vectors. Their namespace names are unchanged for `:with-sew`
 callers.
 
 A Sew runtime can explicitly register itself by requiring
-`resolver-sim.protocols.sew.extension`. That bootstrap is intentionally not
-required by the core distribution.
+`resolver-sim.protocols.sew.extension`. The Sew protocol registry also loads
+that bootstrap on `get-protocol "sew-v1"` when it is present on the selected
+classpath. The bootstrap remains outside the core distribution.

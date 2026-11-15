@@ -1,0 +1,366 @@
+{:schema-version "partial-fill-recovery-game-fixtures.v2"
+ :description "Explicitly parameterized bounded recovery-game fixtures. Parallel execution dimensions describe model inputs only: same-block transaction metadata is not on-chain inclusion evidence, and listed deviations are not claims of protocol permission or equilibrium. Shortfall observations are separately source-referenced evidence and require external source authentication."
+ :defaults
+ {:schema-version "partial-fill-recovery-game.v2"
+  :players [{:player/id :alice :role :claimant}
+            {:player/id :bob :role :claimant}
+            {:player/id :carol :role :claimant}]
+  :entitlements [{:entitlement/id :alice-right :player/id :alice
+                  :beneficiary :alice-wallet :amount 10000}
+                 {:entitlement/id :bob-right :player/id :bob
+                  :beneficiary :bob-wallet :amount 10000}
+                 {:entitlement/id :carol-right :player/id :carol
+                  :beneficiary :carol-wallet :amount 10000}]
+  :rounds [{:round/index 0
+            :available-liquidity 20000
+            :incoming [:alice-right :bob-right :carol-right]
+            :requested-by-entitlement {:alice-right 10000 :bob-right 10000
+                                       :carol-right 10000}
+            :recovery-events []}
+           {:round/index 1
+            :available-liquidity 5000
+            :incoming [:alice-right :bob-right :carol-right]
+            :requested-by-entitlement {:alice-right 3333 :bob-right 3333
+                                       :carol-right 3334}
+            :recovery-events [{:event/id :recovery-5000
+                               :amount 5000
+                               :source :modeled-recovery
+                               :evidence-class :modeled-assumption}]}]
+  :candidate-deviations [:claim-now :defer :split-claim :merge-claims
+                         :delay-arrival :reorder-arrival :increase-request
+                         :change-cap]
+  :candidate-action-profiles []
+  :action-timing {:decision-point :after-round-state-announcement
+                  :simultaneous? true
+                  :can-defer? true}
+  :execution-model
+  {:parallelism {:submission-boundary :independent-transactions
+                 :inclusion :same-block
+                 :ordering :transaction-index
+                 :ordering-control :sequencer-determined
+                 :submission-time-model :concurrent-arrival
+                 :arrival-time-unit :seconds
+                 :contention :shared-liquidity
+                 :duplicate-entitlement-policy :single-settlement-per-entitlement
+                 :submission-atomicity :per-submission
+                 :failed-submission-effect :no-state-change
+                 :retry-policy :same-entitlement-idempotent
+                 :submissions [{:transaction/id "claim-alice" :block/id "block-1" :liquidity-pool/id "shared-claim-pool" :arrival-time 100 :transaction/index 0
+                                :round/index 0 :caller/id :alice-caller :entitlement/id :alice-right}
+                               {:transaction/id "claim-bob" :block/id "block-1" :liquidity-pool/id "shared-claim-pool" :arrival-time 100 :transaction/index 1
+                                :round/index 0 :caller/id :bob-caller :entitlement/id :bob-right}
+                               {:transaction/id "claim-carol" :block/id "block-1" :liquidity-pool/id "shared-claim-pool" :arrival-time 100 :transaction/index 2
+                                :round/index 0 :caller/id :carol-caller :entitlement/id :carol-right}]}}
+  :information-model {:visibility :public
+                      :known-at-round :round-boundary
+                      :recovery-known-before-action? true
+                      :assumption "all claimants observe prior settlements and announced recovery"}
+  :recovery-process {:kind :deterministic-scenario
+                     :probability-model :none
+                     :flow-attribution :modeled-assumption}
+  :payoff-parameters
+  {:unit :integer-utility-points
+   :amount-unit :usd
+   :aggregation :linear-additive-per-round
+   :by-player
+   {:alice {:amount-value 1 :delay-cost-per-round 10 :fee-cost-per-unit 0
+            :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0
+            :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}
+    :bob {:amount-value 1 :delay-cost-per-round 10 :fee-cost-per-unit 0
+          :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0
+          :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}
+    :carol {:amount-value 1 :delay-cost-per-round 10 :fee-cost-per-unit 0
+            :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0
+            :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}}}
+  :mechanism {:allocation-mode :pro-rata
+              :rounding-policy :largest-remainder
+              :residual-treatment :defer
+              :identity-binding :entitlement-beneficiary-fixed}
+  :terminal {:horizon-round 1
+             :condition :fixed-horizon
+             :continuation-value-by-player {:alice 0 :bob 0 :carol 0}}}
+ :cases
+ [{:game/id "partial-recovery-concurrent-claims"
+   :expected {:initial-shortfall 10000 :recovered-amount 5000
+              :outstanding-after-round [10000 5000]
+              :same-terminal-as ["late-recovery"]}}
+  {:game/id "same-block-parallel-submissions"
+   :execution-model {:parallelism
+                     {:submission-boundary :independent-transactions
+                      :inclusion :same-block
+                      :ordering :transaction-index
+                      :ordering-control :sequencer-determined
+                      :submission-time-model :concurrent-arrival
+                      :arrival-time-unit :seconds
+                      :contention :shared-liquidity
+                      :duplicate-entitlement-policy :single-settlement-per-entitlement
+                      :submission-atomicity :per-submission
+                      :failed-submission-effect :no-state-change
+                      :retry-policy :same-entitlement-idempotent
+                     :submissions [{:transaction/id "tx-alice" :block/id "block-2" :liquidity-pool/id "shared-claim-pool" :arrival-time 200 :transaction/index 2 :round/index 1
+                                     :caller/id :alice-caller :entitlement/id :alice-right}
+                                    {:transaction/id "tx-bob" :block/id "block-2" :liquidity-pool/id "shared-claim-pool" :arrival-time 200 :transaction/index 0 :round/index 1
+                                     :caller/id :bob-caller :entitlement/id :bob-right}
+                                    {:transaction/id "tx-carol" :block/id "block-2" :liquidity-pool/id "shared-claim-pool" :arrival-time 200 :transaction/index 1 :round/index 1
+                                     :caller/id :carol-caller :entitlement/id :carol-right}]}}
+   :expected {:independent-transactions? true
+              :transaction-order-evidence-required? true
+              :foundry-single-transaction-call-sequence-counts-as-same-block-evidence? false}}
+  {:game/id "duplicate-entitlement-competing-callers"
+   :execution-model {:parallelism
+                     {:submission-boundary :independent-transactions
+                      :inclusion :same-block
+                      :ordering :transaction-index
+                      :ordering-control :sequencer-determined
+                      :submission-time-model :concurrent-arrival
+                      :arrival-time-unit :seconds
+                      :contention :shared-liquidity
+                      :duplicate-entitlement-policy :single-settlement-per-entitlement
+                      :submission-atomicity :per-submission
+                      :failed-submission-effect :no-state-change
+                      :retry-policy :same-entitlement-idempotent
+                     :submissions [{:transaction/id "tx-alice-owner" :block/id "block-3" :liquidity-pool/id "shared-claim-pool" :arrival-time 300 :transaction/index 0 :round/index 1
+                                     :caller/id :alice-caller :entitlement/id :alice-right}
+                                    {:transaction/id "tx-alice-relayer" :block/id "block-3" :liquidity-pool/id "shared-claim-pool" :arrival-time 300 :transaction/index 1 :round/index 1
+                                     :caller/id :relayer-caller :entitlement/id :alice-right}]}}
+   :expected {:one-settlement-per-entitlement? true
+              :second-submission-outcome-must-be-explicit? true
+              :rejected-submission-state-must-be-unchanged? true}}
+  {:game/id "incoming-entitlement-during-open-shortfall"
+   :players [{:player/id :alice :role :claimant}
+             {:player/id :bob :role :claimant}
+             {:player/id :carol :role :claimant}
+             {:player/id :dave :role :claimant}]
+   :entitlements [{:entitlement/id :alice-right :player/id :alice :beneficiary :alice-wallet :amount 10000}
+                  {:entitlement/id :bob-right :player/id :bob :beneficiary :bob-wallet :amount 10000}
+                  {:entitlement/id :carol-right :player/id :carol :beneficiary :carol-wallet :amount 10000}
+                  {:entitlement/id :dave-right :player/id :dave :beneficiary :dave-wallet :amount 10000}]
+   :rounds [{:round/index 0 :available-liquidity 20000
+             :incoming [:alice-right :bob-right :carol-right]
+             :requested-by-entitlement {:alice-right 10000 :bob-right 10000 :carol-right 10000}
+             :recovery-events []}
+            {:round/index 1 :available-liquidity 5000
+             :incoming [:alice-right :bob-right :carol-right :dave-right]
+             :requested-by-entitlement {:alice-right 3333 :bob-right 3333
+                                        :carol-right 3334 :dave-right 10000}
+             :recovery-events [{:event/id :recovery-5000-before-new-claims
+                                :amount 5000 :source :modeled-recovery
+                                :evidence-class :modeled-assumption}]}]
+   :execution-model
+   {:parallelism {:submission-boundary :independent-transactions
+                  :inclusion :same-block :ordering :transaction-index
+                  :ordering-control :sequencer-determined
+                  :submission-time-model :concurrent-arrival
+                  :arrival-time-unit :seconds :contention :shared-liquidity
+                  :duplicate-entitlement-policy :single-settlement-per-entitlement
+                  :submission-atomicity :per-submission
+                  :failed-submission-effect :no-state-change
+                  :retry-policy :same-entitlement-idempotent
+                  :submissions [{:transaction/id "round-1-alice" :block/id "block-6"
+                                 :liquidity-pool/id "shared-claim-pool" :arrival-time 400
+                                 :transaction/index 0 :round/index 1
+                                 :caller/id :alice-caller :entitlement/id :alice-right}
+                                {:transaction/id "round-1-bob" :block/id "block-6"
+                                 :liquidity-pool/id "shared-claim-pool" :arrival-time 400
+                                 :transaction/index 1 :round/index 1
+                                 :caller/id :bob-caller :entitlement/id :bob-right}
+                                {:transaction/id "round-1-carol" :block/id "block-6"
+                                 :liquidity-pool/id "shared-claim-pool" :arrival-time 400
+                                 :transaction/index 2 :round/index 1
+                                 :caller/id :carol-caller :entitlement/id :carol-right}
+                                {:transaction/id "round-1-dave" :block/id "block-6"
+                                 :liquidity-pool/id "shared-claim-pool" :arrival-time 400
+                                 :transaction/index 3 :round/index 1
+                                 :caller/id :dave-caller :entitlement/id :dave-right}]}}
+   :payoff-parameters
+   {:unit :integer-utility-points :amount-unit :usd :aggregation :linear-additive-per-round
+    :by-player
+    {:alice {:amount-value 1 :delay-cost-per-round 10 :fee-cost-per-unit 0 :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0 :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}
+     :bob {:amount-value 1 :delay-cost-per-round 10 :fee-cost-per-unit 0 :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0 :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}
+     :carol {:amount-value 1 :delay-cost-per-round 10 :fee-cost-per-unit 0 :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0 :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}
+     :dave {:amount-value 1 :delay-cost-per-round 10 :fee-cost-per-unit 0 :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0 :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}}}
+   :terminal {:horizon-round 1 :condition :fixed-horizon
+              :continuation-value-by-player {:alice 0 :bob 0 :carol 0 :dave 0}}
+   :expected {:initial-shortfall 10000 :recovered-amount 5000
+              :outstanding-after-round [10000 15000]
+              :new-entitlement :dave-right :new-entitlement-arrival-round 1
+              :parallel-submission-count 4}}
+  {:game/id "staggered-multi-block-submissions"
+   :execution-model {:parallelism
+                     {:submission-boundary :independent-transactions
+                      :inclusion :multiple-blocks
+                      :ordering :transaction-index
+                      :ordering-control :sequencer-determined
+                      :submission-time-model :staggered-arrival
+                      :arrival-time-unit :seconds
+                      :contention :shared-liquidity
+                      :duplicate-entitlement-policy :single-settlement-per-entitlement
+                      :submission-atomicity :per-submission
+                      :failed-submission-effect :no-state-change
+                      :retry-policy :new-transaction
+                     :submissions [{:transaction/id "tx-alice-later" :block/id "block-5"
+                                     :liquidity-pool/id "shared-claim-pool"
+                                     :arrival-time 105 :transaction/index 0 :round/index 1 :caller/id :alice-caller
+                                     :entitlement/id :alice-right}
+                                    {:transaction/id "tx-bob-earlier" :block/id "block-4"
+                                     :liquidity-pool/id "shared-claim-pool"
+                                     :arrival-time 100 :transaction/index 0 :round/index 0 :caller/id :bob-caller
+                                     :entitlement/id :bob-right}
+                                    {:transaction/id "tx-carol-later" :block/id "block-5"
+                                     :liquidity-pool/id "shared-claim-pool"
+                                     :arrival-time 110 :transaction/index 1 :round/index 1 :caller/id :carol-caller
+                                     :entitlement/id :carol-right}]}}
+   :expected {:multi-block-order-observation-required? true
+              :same-shared-pool-contention? true
+              :new-transaction-retry-is-model-input-only? true}}
+  {:game/id "no-recovery"
+   :rounds [{:round/index 0 :available-liquidity 20000
+             :incoming [:alice-right :bob-right :carol-right]
+             :requested-by-entitlement {:alice-right 10000 :bob-right 10000 :carol-right 10000}
+             :recovery-events []}
+            {:round/index 1 :available-liquidity 0
+             :incoming [:alice-right :bob-right :carol-right]
+             :requested-by-entitlement {:alice-right 3333 :bob-right 3333 :carol-right 3334}
+             :recovery-events []}]
+   :expected {:initial-shortfall 10000 :recovered-amount 0
+              :outstanding-after-round [10000 10000]}}
+  {:game/id "full-recovery"
+   :rounds [{:round/index 0 :available-liquidity 20000
+             :incoming [:alice-right :bob-right :carol-right]
+             :requested-by-entitlement {:alice-right 10000 :bob-right 10000 :carol-right 10000}
+             :recovery-events []}
+            {:round/index 1 :available-liquidity 10000
+             :incoming [:alice-right :bob-right :carol-right]
+             :requested-by-entitlement {:alice-right 3333 :bob-right 3333 :carol-right 3334}
+             :recovery-events [{:event/id :recovery-10000 :amount 10000
+                                :source :modeled-recovery
+                                :evidence-class :modeled-assumption}]}]
+   :expected {:initial-shortfall 10000 :recovered-amount 10000
+              :outstanding-after-round [10000 0]}}
+  {:game/id "early-recovery"
+   :rounds [{:round/index 0 :available-liquidity 25000
+             :incoming [:alice-right :bob-right :carol-right]
+             :requested-by-entitlement {:alice-right 10000 :bob-right 10000 :carol-right 10000}
+             :recovery-events [{:event/id :recovery-5000-early :amount 5000
+                                :source :modeled-recovery
+                                :evidence-class :modeled-assumption}]}
+            {:round/index 1 :available-liquidity 0
+             :incoming [:alice-right :bob-right :carol-right]
+             :requested-by-entitlement {:alice-right 1666 :bob-right 1667 :carol-right 1667}
+             :recovery-events []}]
+   :expected {:initial-shortfall 10000 :recovered-amount 5000
+              :outstanding-after-round [5000 5000]}}
+  {:game/id "late-recovery"
+   :expected {:initial-shortfall 10000 :recovered-amount 5000
+              :outstanding-after-round [10000 5000]}}
+  {:game/id "arrival-order-permutation"
+   :candidate-action-profiles [{:player/id :alice :action :reorder-arrival
+                               :round/index 1
+                               :arrival-sequence [:bob-right :carol-right :alice-right]}]
+   :rounds [{:round/index 0 :available-liquidity 20000
+             :incoming [:alice-right :bob-right :carol-right]
+             :arrival-sequence [:carol-right :alice-right :bob-right]
+             :requested-by-entitlement {:alice-right 10000 :bob-right 10000 :carol-right 10000}
+             :recovery-events []}
+            {:round/index 1 :available-liquidity 5000
+             :incoming [:alice-right :bob-right :carol-right]
+             :arrival-sequence [:bob-right :carol-right :alice-right]
+             :requested-by-entitlement {:alice-right 3333 :bob-right 3333 :carol-right 3334}
+             :recovery-events [{:event/id :recovery-5000 :amount 5000
+                                :source :modeled-recovery
+                                :evidence-class :modeled-assumption}]}]
+   :expected {:terminal-projection-keyed-by-entitlement? true
+              :compare-with "partial-recovery-concurrent-claims"}}
+  {:game/id "claim-splitting-candidate"
+   :candidate-deviations [:claim-now :defer :split-claim :merge-claims]
+   :candidate-action-profiles [{:player/id :alice :action :split-claim
+                               :entitlement/id :alice-right :parts [5000 5000]}]
+   :expected {:candidate-action :split-claim
+              :entitlement-beneficiary-binding-preserved? true}}
+  {:game/id "request-and-cap-manipulation-candidates"
+   :candidate-deviations [:claim-now :defer :increase-request :change-cap]
+   :candidate-action-profiles [{:player/id :bob :action :increase-request
+                               :entitlement/id :bob-right :requested-amount 12000}
+                              {:player/id :carol :action :change-cap
+                               :entitlement/id :carol-right :requested-cap 12000}]
+   :expected {:candidate-actions [:increase-request :change-cap]
+              :economic-entitlements-immutable? true}}
+  {:game/id "liquidity-provider-withholding-candidate"
+   :players [{:player/id :alice :role :claimant}
+             {:player/id :bob :role :claimant}
+             {:player/id :carol :role :claimant}
+             {:player/id :liquidity-provider :role :liquidity-provider}]
+   :candidate-deviations [:claim-now :defer :withhold-liquidity]
+   :candidate-action-profiles [{:player/id :liquidity-provider
+                               :action :withhold-liquidity :amount 5000}]
+   :payoff-parameters
+   {:unit :integer-utility-points :amount-unit :usd
+    :aggregation :linear-additive-per-round
+    :by-player
+    {:alice {:amount-value 1 :delay-cost-per-round 10 :fee-cost-per-unit 0
+             :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0
+             :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}
+     :bob {:amount-value 1 :delay-cost-per-round 10 :fee-cost-per-unit 0
+           :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0
+           :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}
+     :carol {:amount-value 1 :delay-cost-per-round 10 :fee-cost-per-unit 0
+             :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0
+             :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}
+     :liquidity-provider {:amount-value 1 :delay-cost-per-round 0 :fee-cost-per-unit 0
+                          :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0
+                          :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}}}
+   :terminal {:horizon-round 1 :condition :fixed-horizon
+              :continuation-value-by-player {:alice 0 :bob 0 :carol 0
+                                             :liquidity-provider 0}}
+   :expected {:withholding-is-modeled-candidate-only? true
+              :protocol-permission-established? false}}
+  {:game/id "high-delay-cost-sensitivity"
+   :candidate-action-profiles [{:player/id :alice :action :delay-arrival
+                               :delay-rounds 1}]
+   :payoff-parameters
+   {:unit :integer-utility-points :amount-unit :usd
+    :aggregation :linear-additive-per-round
+    :by-player
+    {:alice {:amount-value 1 :delay-cost-per-round 1000 :fee-cost-per-unit 0
+             :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0
+             :penalty-cost 0 :continuation-value 0 :discount-factor-bps 9000}
+     :bob {:amount-value 1 :delay-cost-per-round 1000 :fee-cost-per-unit 0
+           :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0
+           :penalty-cost 0 :continuation-value 0 :discount-factor-bps 9000}
+     :carol {:amount-value 1 :delay-cost-per-round 1000 :fee-cost-per-unit 0
+             :recovery-risk-cost-per-unit 0 :priority-externality-cost-per-unit 0
+             :penalty-cost 0 :continuation-value 0 :discount-factor-bps 9000}}}
+   :expected {:sensitivity-dimension :delay-cost-and-discounting
+              :compare-with "partial-recovery-concurrent-claims"}}
+  {:game/id "recovery-risk-sensitivity"
+   :payoff-parameters
+   {:unit :integer-utility-points :amount-unit :usd
+    :aggregation :linear-additive-per-round
+    :by-player
+    {:alice {:amount-value 1 :delay-cost-per-round 10 :fee-cost-per-unit 0
+             :recovery-risk-cost-per-unit 25 :priority-externality-cost-per-unit 0
+             :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}
+     :bob {:amount-value 1 :delay-cost-per-round 10 :fee-cost-per-unit 0
+           :recovery-risk-cost-per-unit 25 :priority-externality-cost-per-unit 0
+           :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}
+     :carol {:amount-value 1 :delay-cost-per-round 10 :fee-cost-per-unit 0
+             :recovery-risk-cost-per-unit 25 :priority-externality-cost-per-unit 0
+             :penalty-cost 0 :continuation-value 0 :discount-factor-bps 10000}}}
+   :expected {:sensitivity-dimension :recovery-risk-cost
+              :compare-with "partial-recovery-concurrent-claims"}}
+  {:game/id "recovery-probability-assumption-sensitivity"
+   :recovery-process {:kind :stochastic-process
+                      :probability-model :explicit-probabilities
+                      :probability-basis {:source :explicit-scenario-assumption
+                                          :description "Illustrative sensitivity inputs only; not calibrated or observed frequencies."}
+                      :flow-attribution :modeled-assumption
+                      :outcomes [{:outcome/id :no-recovery :probability-bps 5000
+                                  :recovery-amount 0}
+                                 {:outcome/id :partial-recovery :probability-bps 3000
+                                  :recovery-amount 5000}
+                                 {:outcome/id :full-recovery :probability-bps 2000
+                                  :recovery-amount 10000}]}
+   :expected {:probabilities-sum-bps 10000
+              :probabilities-are-calibrated? false
+              :compare-with ["no-recovery" "partial-recovery-concurrent-claims"
+                             "full-recovery"]}}]}

@@ -126,12 +126,16 @@
     resolver-sim.evidence.staged-capture-test
     resolver-sim.io.content-addressed-store-test
     resolver-sim.benchmark.game-theory-validation-test
+    resolver-sim.benchmark.research-conclusion-test
+    resolver-sim.research.policy-approval-test
+    resolver-sim.commands.researcher-ux-test
     resolver-sim.benchmark.force-authorisation-consumption-v2-test
     resolver-sim.benchmark.force-authorised-execution-evidence-v2-test
     resolver-sim.benchmark.sew-pre-application-test
     resolver-sim.protocols.sew.slashing-test
     resolver-sim.protocols.sew.evidence.slashing-test
     resolver-sim.pro-rata.semantic-admission-test
+    resolver-sim.pro-rata.vector-drift-test
     resolver-sim.validation.validator-descriptor-test
     resolver-sim.validation.strategic-registry-test
     resolver-sim.validation.game-theory-profile-test
@@ -262,6 +266,11 @@
       (require sym)
       (catch Throwable t
         (println "WARN: failed to load" sym ":" (.getMessage t))))))
+
+(def unit-runtime-preload-namespaces
+  '[resolver-sim.stochastic.dispute
+    camel-snake-kebab.internals.string-separator
+    camel-snake-kebab.internals.misc])
 
 ;; ── Execution modes ─────────────────────────────────────────────────────────
 
@@ -806,6 +815,14 @@
     ;; Load namespaces sequentially first (root-level side effects are
     ;; legitimate here), THEN snapshot default state so the leak tripwire only
     ;; sees test-execution-time changes to root registries/artifact locations.
+    ;; Load runtime-only dependencies before the unit namespace pool starts.
+    ;; Governance tests reach the stochastic dispute path and camel-snake-kebab
+    ;; dynamically; loading these for the first time concurrently can expose
+    ;; partially initialized vars in Clojure's shared namespace registry.
+    (when (some #(= "unit" (first %)) groups)
+      (println "Preloading" (count unit-runtime-preload-namespaces)
+               "runtime namespaces...")
+      (load-all! unit-runtime-preload-namespaces))
     (doseq [[_ syms _] groups]
       (println "Loading" (count syms) "namespaces...")
       (load-all! syms))

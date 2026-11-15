@@ -155,7 +155,8 @@
                   commitment (observation-v2/economic-state-commitment base)]
               (assoc base :reserve-state-commitment commitment
                      :authoritative-observation-root
-                     (observation-v2/solidity-observation-root commitment 1 42)))
+                     (observation-v2/solidity-observation-root
+                      (:prepared-operation-root base) commitment 1 42)))
         obs (observation-v2/build-observation raw)
         context-input (assoc (dissoc (fixture/shortfall-input 49) :asset/id :asset/unit)
                              :asset/root asset-root

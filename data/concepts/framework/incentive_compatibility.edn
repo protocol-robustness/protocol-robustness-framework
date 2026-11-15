@@ -19,33 +19,33 @@
 
  :concept/roles
  {:incentive-evaluator {:description "Entity that runs incentive-compatibility evaluation and interprets its result."
-                        :maps-to [:protocol.role/verifier]}
+                        }
   :incentive-designer {:description "Entity that defines the incentive-compatibility criteria for a benchmark."
-                       :maps-to [:protocol.actor/resolution-module]}
+                       }
   :reviewer {:description "Entity that assesses whether incentive compatibility was actually demonstrated in a researcher position."
-             :maps-to [:protocol.role/verifier]}}
+             }}
 
  :concept/entities
  {:incentive-compatibility-evaluation {:description "Result of evaluating the incentive-compatibility property from scenario outcomes. Reports attack attempts, successes, and funds lost; a positive success or loss count is a misalignment."
-                                       :maps-to [:protocol.entity/evidence]}
+                                       }
   :incentive-compatibility-root {:description "Content root for the incentive-compatibility evaluation result, committed as :outcomes/incentive-compatibility-root in the benchmark outcome manifest. The incentive-compatibility concept owns which fields and values enter this root's canonical projection; the generic canonical encoding of the resulting hash-preimage follows the verifiable-assurance canonical serialization rules."
-                                 :maps-to [:protocol.entity/canonical-hash]}}
+                                 }}
 
  :concept/actions
  {:evaluate-incentive-compatibility {:description "Evaluate whether any adversarial action yields equal or better payoff than the honest baseline for a declared deviation domain."
-                                     :maps-to [:protocol.action/check-invariant]}
+                                     }
   :compute-incentive-margin {:description "Compute U_honest - max(U_deviation) over the declared deviation types actually supplied. A positive margin supports alignment only relative to that declared deviation domain; it does not by itself establish compatibility across all possible deviations."
-                             :maps-to [:protocol.action/check-invariant]}}
+                             }}
 
  :concept/outcomes
  {:incentives-aligned {:description "No adversarial action produced equal or better payoff than the honest baseline on the evaluated trace."
-                       :maps-to [:protocol.outcome/released]}
+                       }
   :incentives-misaligned {:description "An adversarial action produced equal or better payoff than the honest baseline."
-                          :maps-to [:protocol.outcome/adversarial-resolution]}
+                          }
   :incentives-inconclusive {:description "Incentive compatibility could not be determined because no adversarial actors were present or the required evidence was absent."
-                            :maps-to [:protocol.outcome/deferred]}
+                            }
   :incentive-compatibility-root-committed {:description "The incentive-compatibility evaluation result root is committed in the outcome manifest."
-                                           :maps-to [:protocol.outcome/released]}}
+                                           }}
 
  :concept/failure-modes
  [{:failure/id :incentive-compatibility-untested

@@ -1,0 +1,25 @@
+;; Local-only fixture for resolver-sim.research.ratification-http.
+;; The roots are illustrative, and the identity/token/key are test-only.
+{:demo-only? true
+ :host "127.0.0.1"
+ :port 8787
+ :state-path "/tmp/prf-research-ratification-demo.edn"
+ :policy {:id :research-resolution/demo-policy-v1
+          :authority-root "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+          :eligible-principals [:researcher/demo]
+          :threshold 1
+          :allow-dissent? true
+          :challenges-block? false}
+ :target {:domain :research-resolution/demo-v1
+          :subject-root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          :evidence-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          :round-root "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          :schema "prf/research-resolution-demo.v1"}
+ :claim-assessment {:status :not-established
+                    :method-verification :unavailable
+                    :explanation "Fixture assertion only: no analytical method verifier is connected. Ratification does not establish this claim."}
+ :researchers [{:researcher/id "researcher-demo-1"
+                :principal/id :researcher/demo
+                :signing-key/id "test-researcher-signer"
+                :token "demo-researcher-token"
+                :public-key-path "../test/fixtures/signing-keys/test-researcher-signing-key.pub"}]}

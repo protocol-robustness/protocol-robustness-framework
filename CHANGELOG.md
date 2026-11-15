@@ -10,11 +10,99 @@
 
 ## Unreleased
 
-- Added PRF Dispute Review V0 with per-review canonical identity, pinned subject
-  and policy references, structured nonbinding findings, declared trust classes,
-  and fail-closed verification for changed sources, evidence and reproduction
-  outputs. External authentication and adjudication remain outside this review
-  workflow.
+- Added PRF Dispute Review V0 with per-review canonical identity, pinned subject and policy references, structured nonbinding findings, declared trust classes, and fail-closed verification for changed sources, evidence and reproduction outputs. External authentication and adjudication remain outside this review workflow.
+
+- Benchmark validation now reports framework concept-registry load failures with their validation details instead of misreporting referenced concepts as unknown.
+
+- Added `configuration-review preflight-initial-inputs`, a read-only check of reviewer-supplied source-lock, manifest, action, principal, and active approver-key bindings before initial-input signing.
+
+- Added a read-only deployment utility that compares an external validator keystore UUID and its derived EVM address with the bounded local-authority policy; it does not sign approvals or transitions.
+
+- Added an unsigned authority-transition request builder that reuses the canonical PRF envelope derivation and semantic validator. It writes only to a new output path and does not sign or submit the transition.
+
+- Added `allocation-matches-request?` to independently recompute a committed
+  pro-rata allocation from its canonical request. Hash integrity and
+  mathematical correctness remain separate checks; neither establishes
+  request authority or settlement admission. V3 effect compilation now rejects
+  internally rehashed allocation bodies that do not match their retained
+  canonical request.
+
+- `verify-package` now executes each declared Pro-rata EVM V2 negative mutation
+  against its named positive vector and fails closed when a mutation is
+  unsupported or no longer rejected. Added a distinct assurance concept that
+  states the V2 reconstruction, configuration-binding, and native-execution
+  boundaries.
+
+- Added a diagnostic dependency-closure report for retained local
+  pro-rata execution evidence. It reuses the existing receipt reconstruction,
+  requires an out-of-band report digest, and reports missing approval/current
+  state as unknown; it does not qualify a deployment or establish public-chain
+  finality. The CLI can also invoke the existing pinned local Groth16 verifier;
+  it binds contract addresses to validated creation receipts where available
+  and can consume the existing block-pinned terminal-state observation. Proof
+  and local state results remain distinct from admission and deployment
+  qualification.
+
+- Added `bb pro-rata-vectors:check` to compare the PRF frozen allocation and
+  transition vectors with extracted package mirrors and Rust conformance-test
+  roots and rejection outcomes. The command reports source revisions and tool
+  versions; it rejects extra transition records and fingerprints Rust source
+  and test inputs, failing closed when required fingerprint inputs are missing.
+  It does not constitute admission or deployment qualification.
+
+- Added model-only `sew-bounty-escrow-route.v1` routing metadata and a
+  fail-closed check for independently reconstructed Sew withdrawal categories.
+  Workflow attribution remains unqualified pending a controlled Sew contract
+  path and a reviewed settlement-interface binding.
+
+- Added model-only `bounty-shortfall-policy.v1` and
+  `bounty-shortfall-allocation.v1`. Shortfall evidence separates approved
+  liability, backed unpaid claims, unfunded liability and verified payment,
+  preserves funded claim history across recovery, and delegates payout
+  verification to `obligation-settlement.v1`.
+
+- Replaced the hardcoded Y05 `gen-yield` script with seeded multi-scenario
+  generation and read-only verification commands (`bb yield:generate` and
+  `bb yield:verify`) that emit materialized and generation-provenance roots.
+  Generated scenarios declare `yield-v1` so the standard runner selects the
+  yield replay path.
+
+- Updated the PRF allocator dependency pin to the immutable revision that
+  exposes the package-owned allocation fixtures as classpath resources; PRF
+  adapter parity now reads those pinned fixtures instead of the local mixed
+  contract bundle.
+
+- Pro-rata programme receipt verification now reconstructs the receipt from the
+  source plan and execution artifacts, checking plan/root binding, stage IDs,
+  evidence, and the receipt hash. The current runner rejects requests for
+  statement, proof, verification, or admission stages until their adapters are
+  implemented; such stages can no longer appear complete without execution.
+
+- Adopted the 36-entry canonical artifact identity and ownership inventory as a
+  non-runtime PRF review baseline; existing artifact meanings and roots remain
+  unchanged, and implementation gaps remain explicit.
+
+- Confirmed step 2 of canonical repository extraction: PRF consumes the standalone
+  `prf-canonical` compatibility-qualified candidate at its immutable dependency
+  pin. The candidate remains unpublished; PRF domain, intent, and scheme policy
+  stay in the compatibility layer.
+
+- Confirmed the allocation semantics extraction is already consumed at its
+  immutable dependency pin. The candidate remains partially conformant; a
+  described Jujutsu change updates its release metadata to the adopted 36-entry
+  baseline, pending remote publication and a matching PRF dependency-pin update.
+
+- Added versioned canonical materialized-yield scenario and generation-provenance commitments. Scenario identity excludes generator IDs/seeds; provenance separately binds the scenario root, generator/source identity, RNG algorithm, actual seed, and normalized options.
+
+- Canonical yield scenario validation now rejects distinct map keys or set members that would collide during scenario normalization, before the normalizer can overwrite or discard either value.
+
+- Sew transition-assurance state projection now encodes rational values with the canonical exact numerator/denominator representation, allowing yield scenarios with ratios to produce deterministic commitments without float conversion.
+
+- Added `bb canonical-artifacts` commands for explicit artifact derivation, structural `artifact-bundle.v1` commitments, realized-allocation-statement composition, and narrow commitment verification. Verification reports recomputed matches, mismatches, invalid inputs, or opaque unrecomputed commitments; it does not establish source authenticity, statement truth, proof validity, or authority admission.
+
+- EF review packet generation now builds the Sew runner from the identified source tree, emits its README and complete input references, and verifies manifest outcomes and distribution provenance against packaged artifacts. Scenario diagnostic summaries bind the scenario ID from execution identity.
+
+- Benchmark CLI runs now bind preflight to the packaged runner JAR. Benchmark evidence preserves integer-keyed replay state maps using the canonical `prf/map-entries.v1` representation.
 
 - V2 partial-fill application profiles now fail integrity validation when verification findings have invalid boolean, violation-list, or continuity-field shapes, even when the profile hash is recomputed.
 

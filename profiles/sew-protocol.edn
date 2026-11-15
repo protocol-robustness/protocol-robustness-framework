@@ -1,0 +1,9 @@
+{:profile/id :prf/sew-protocol-candidate-v1
+ :profile/version 1
+ :profile/status :candidate
+ :profile/protocol :prf.protocol/sew
+ :profile/extends :prf/framework-v1
+ :profile/components [:prf/sew-protocol-model-v1
+                      :prf/sew-analysis-v1
+                      :prf/sew-force-authorisation-v1
+                      :prf/sew-pro-rata-slashing-v1]}

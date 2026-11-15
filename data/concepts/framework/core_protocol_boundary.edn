@@ -27,35 +27,35 @@
 
  :concept/roles
  {:framework-owner {:description "Entity or layer responsible for generic policies, artifacts, and verification."
-                    :maps-to [:protocol.actor/resolution-module]}
+                    }
   :extension-owner {:description "Protocol extension layer responsible for translating protocol state to/from generic inputs and effects."
-                  :maps-to [:protocol.actor/resolution-module]}
+                  }
   :accounting-owner {:description "Layer responsible for concrete protocol-ledger mutation."
-                     :maps-to [:protocol.actor/resolution-module]}}
+                     }}
 
  :concept/entities
  {:generic-framework {:description "Protocol-independent layer owning abstract policies, artifacts, and verification."
-                      :maps-to [:protocol.entity/module]}
+                      }
   :protocol-extension {:description "Protocol extension layer translating protocol-specific state to/from generic inputs and effects."
-                     :maps-to [:protocol.entity/module]}
+                     }
   :concrete-accounting {:description "Layer owning concrete protocol-ledger mutation."
-                        :maps-to [:protocol.entity/module]}
+                        }
   :binding-receipt {:description "Artifact binding an abstract effect to a concrete state change."
-                    :maps-to [:protocol.entity/evidence]}}
+                    }}
 
  :concept/actions
  {:enforce-boundary {:description "Enforce the import/ownership boundary between layers."
-                     :maps-to [:protocol.action/check-invariant]}
+                     }
   :verify-ownership {:description "Verify that each responsibility is held by the correct layer."
-                     :maps-to [:protocol.action/verify-allocation]}
+                     }
   :translate-state {:description "Translate protocol state to/from generic inputs and effects via an adapter."
-                    :maps-to [:protocol.action/parameterise]}}
+                    }}
 
  :concept/outcomes
  {:boundary-respected {:description "Responsibilities are held by the intended layers."
-                       :maps-to [:protocol.outcome/released]}
+                       }
   :boundary-violated {:description "A layer took on a responsibility outside its ownership."
-                      :maps-to [:protocol.outcome/adversarial-resolution]}}
+                      }}
 
  :concept/failure-modes
  [{:failure/id :framework-protocol-extension-coupling

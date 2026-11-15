@@ -15,8 +15,8 @@
             [resolver-sim.io.content-addressed-store :as cas]
             [resolver-sim.research.ratification :as ratification]))
 
-(def ^:private private-key "test-keys/test-researcher-signing-key")
-(def ^:private public-key "test-keys/test-researcher-signing-key.pub")
+(def ^:private private-key "test/fixtures/signing-keys/test-researcher-signing-key")
+(def ^:private public-key "test/fixtures/signing-keys/test-researcher-signing-key.pub")
 (def ^:private round-root (ref/sha256-ref (canonical/domain-hash :evidence-record {:round :one})))
 (def ^:private evidence-root (ref/sha256-ref (canonical/domain-hash :evidence-record {:evidence :claim})))
 (def ^:private authority-root (ref/sha256-ref (canonical/domain-hash :evidence-record {:authority :local-test})))
@@ -153,7 +153,9 @@
            (get-in saved [:artifact/ratification :ratification/status])))
     (is (false? (:artifact/authority-issued? saved)))
     (is (false? (:artifact/rewards-created? saved)))
-    (is (= :externally-anchored (:verification/trust-roots verification)))))
+    (is (= :unverified (:verification/trust-roots verification)))
+    (is (= :unverified (:verification/authority verification)))
+    (is (= :unverified (:verification/history-completeness verification)))))
 
 (deftest tampering-and-incentive-links-do-not-create-authority-or-payment
   (let [inputs (bundle)

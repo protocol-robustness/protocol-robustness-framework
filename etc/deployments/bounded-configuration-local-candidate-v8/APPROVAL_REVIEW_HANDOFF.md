@@ -131,8 +131,26 @@ clojure -M:test -m scripts.deployment.successor-transition-review sign \
 ```
 
 The policy-v3 EIP-191 signature must be produced by the key whose address is
-`0xc78884593859e84524e41ce94cce38fbcb58c5f8`. From a local terminal, Cast can
-sign the exact commitment above without putting the key in this repository:
+`0xc78884593859e84524e41ce94cce38fbcb58c5f8`. The reported external encrypted
+`transition-validator` keystore was checked using the read-only checker. Its
+UUID `c3d8fc61-2476-4529-a608-0837af69bb13` matched the expected file UUID, but
+Cast derived `0xc0e09b04327fe31061cb1e7b869ba274d3a90c6c`, so the result was
+`FAIL` against the policy address. The UUID is a keystore file identifier, not
+the policy's `bounded-local-transition-validator-v1` key ID. This keystore
+cannot authorize the transition; obtain a key matching the pinned address.
+The checker does not print key material or create a signature:
+
+```sh
+clojure -M:test -m scripts.deployment.transition-validator-key-check \
+  etc/deployments/bounded-configuration-local-candidate-v8/local-authority-policy-package.edn \
+  <path-to-external-transition-validator-keystore> \
+  c3d8fc61-2476-4529-a608-0837af69bb13
+```
+
+For a replacement keystore, require `PASS` and the policy-pinned address before
+signing. That check establishes address control only; it is not an approval or
+proof of custody controls. From a local terminal, Cast can then sign the exact
+commitment above without putting the key in this repository:
 
 ```sh
 cast wallet sign --interactive \

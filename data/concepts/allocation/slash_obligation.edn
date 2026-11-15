@@ -27,67 +27,67 @@
  :concept/roles
  {:resolution-module
   {:description "Entity that determines the slash obligation and liable parties."
-   :maps-to [:protocol.actor/resolution-module]}
+   }
   :liable-party
   {:description "Resolver or actor whose stake is subject to slashing."
-   :maps-to [:protocol.actor/resolver]}
+   }
   :allocation-engine
   {:description "Protocol logic that computes pro-rata shares of the obligation."
-   :maps-to [:protocol.actor/resolution-module]}
+   }
   :verifier
   {:description "Party checking that allocation was performed correctly."
-   :maps-to [:protocol.actor/verifier]}}
+   }}
 
  :concept/entities
  {:slash-obligation
   {:description "Total penalty amount to be recovered from liable parties."
-   :maps-to [:protocol.entity/obligation]}
+   }
   :liable-party-set
   {:description "Ordered list of resolvers subject to the slash."
-   :maps-to [:protocol.entity/participant-set]}
+   }
   :allocation-table
   {:description "Complete mapping from liable parties to debited and unmet amounts."
-   :maps-to [:protocol.entity/allocation]}
+   }
   :weight-basis
   {:description "Stake metric (e.g. slashable stake) used to compute proportional shares."
-   :maps-to [:protocol.entity/weight-basis]}
+   }
   :cap-limit
   {:description "Maximum amount that can be debited from a single liable party."
-   :maps-to [:protocol.entity/cap]}
+   }
   :unmet-remainder
   {:description "Portion of the slash obligation not recovered due to caps or rounding."
-   :maps-to [:protocol.entity/unmet-remainder]}}
+   }}
 
  :concept/actions
  {:assess-slash-obligation
   {:description "Determine the total penalty amount and identify liable parties."
-   :maps-to [:protocol.action/calculate-shortfall]}
+   }
   :allocate-pro-rata
   {:description "Divide the obligation proportionally among liable parties by weight."
-   :maps-to [:protocol.action/calculate-pro-rata-allocation]}
+   }
   :apply-caps
   {:description "Limit each party's debit to their available stake; excess becomes unmet."
-   :maps-to [:protocol.action/cap-allocation]}
+   }
   :verify-allocation
   {:description "Check that debited + unmet equals the total obligation and allocations are non-negative."
-   :maps-to [:protocol.action/verify-allocation :protocol.action/check-invariant]}
+   }
   :record-unmet
   {:description "Persist unmet amounts for future recovery or write-off."
-   :maps-to [:protocol.action/record-shortfall]}}
+   }}
 
  :concept/outcomes
  {:obligation-fully-recovered
   {:description "Total slash obligation is recovered within liable-party caps."
-   :maps-to [:protocol.outcome/released]}
+   }
   :obligation-partially-recovered
   {:description "Caps prevent full recovery; unmet remainder is recorded."
-   :maps-to [:protocol.outcome/deferred]}
+   }
   :obligation-unrecovered
   {:description "No liable parties have stake; entire obligation is unmet."
-   :maps-to [:protocol.outcome/adversarial-resolution]}
+   }
   :allocation-incorrect
   {:description "Debited amounts do not sum to the obligation or violate pro-rata rules."
-   :maps-to [:protocol.outcome/adversarial-resolution]}}
+   }}
 
  :concept/failure-modes
  [{:failure/id :non-conservation

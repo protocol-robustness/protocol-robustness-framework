@@ -17,7 +17,7 @@
 (def data-file "data/notebooks.edn")
 (def scan-dirs
   "Source directories to scan for notebook file references."
-  ["src" "protocols_src" "scripts" "docs"])
+  ["src" "yield_runtime_src" "protocols_src" "scripts" "docs"])
 (def archived-ids
   ;; IDs that were once active and are now retired.
   ;; Entries with :notebook/status :archived may exist in the registry

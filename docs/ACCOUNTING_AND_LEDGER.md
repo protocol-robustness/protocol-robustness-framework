@@ -190,7 +190,7 @@ lost:
   custody account and scope; an entry cannot place funds in a policy-violating
   bucket. Enforced at write time and **re-verified by replay**
   (`:held-custody/reason-position-policy`, see §7).
-- **Yield lineage conservation** (`src/resolver_sim/yield/conservation.clj`) — a
+- **Yield lineage conservation** (`yield_runtime_src/resolver_sim/yield/conservation.clj`) — a
   deferred-yield position's committed origin obligation must equal the sum of its
   disposition buckets:
   `original = fulfilled + active-deferred + reversed + written-down`.
@@ -305,7 +305,7 @@ Be explicit about what these ids prove and do **not** prove:
 
 ## 9. Yield accounting (position level)
 
-`src/resolver_sim/yield/accounting.clj` handles yield-bearing positions using a
+`yield_runtime_src/resolver_sim/yield/accounting.clj` handles yield-bearing positions using a
 **share-price model** (module-agnostic; applies to Aave liquidity indices,
 ERC-4626 share prices, etc.):
 
@@ -336,6 +336,6 @@ held-custody architecture into the yield section.
 | Held-adjustment value projection | `src/resolver_sim/accounting/held_adjustment.clj` |
 | Held-position policy (reason → account/scope + committed policy-exempt reasons) | `src/resolver_sim/accounting/held_position_policy.clj` |
 | Replay, artifacts, closed-form checks, summaries | `src/resolver_sim/assurance/custody.clj` |
-| Position-level yield accounting | `src/resolver_sim/yield/accounting.clj` |
-| Yield lineage conservation | `src/resolver_sim/yield/conservation.clj` |
+| Position-level yield accounting | `yield_runtime_src/resolver_sim/yield/accounting.clj` |
+| Yield lineage conservation | `yield_runtime_src/resolver_sim/yield/conservation.clj` |
 | Accounting tests | `protocols_src/test/.../sew/accounting_test.clj`, `test/resolver_sim/accounting/held_ledger_index_test.clj`, `test/resolver_sim/accounting/held_position_policy_test.clj`, `test/resolver_sim/assurance/custody_summary_test.clj` |

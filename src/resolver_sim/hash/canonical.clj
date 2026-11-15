@@ -87,6 +87,7 @@
    :projection-definition "PROJECTION_DEFINITION_V1"
    :projection-definition-registry "PROJECTION_DEFINITION_REGISTRY_V1"
    :projection-artifact "PROJECTION_ARTIFACT_V1"
+   :artifact-bundle-v1 "PRF_ARTIFACT_BUNDLE_V1"
    :claim-definition "CLAIM_DEFINITION"
    :claim-definition-conceptual "CONCEPT_CLAIM_DEFINITION_V1"
    :attestor "ATTESTOR"
@@ -198,6 +199,20 @@
    :research-contribution-v1 "RESEARCH_CONTRIBUTION_V1"
    :research-ratification-v1 "RESEARCH_RATIFICATION_V1"
    :research-ratification-artifact-v1 "RESEARCH_RATIFICATION_ARTIFACT_V1"
+   :research-dependency-impact-report-v1 "RESEARCH_DEPENDENCY_IMPACT_REPORT_V1"
+   :research-dependency-observation-v1 "RESEARCH_DEPENDENCY_OBSERVATION_V1"
+   :research-dependency-observation-comparison-v1 "RESEARCH_DEPENDENCY_OBSERVATION_COMPARISON_V1"
+   :research-dependency-temporal-assessment-v1 "RESEARCH_DEPENDENCY_TEMPORAL_ASSESSMENT_V1"
+   :research-integer-sum-evidence-v1 "RESEARCH_INTEGER_SUM_EVIDENCE_V1"
+   :research-method-verifier-descriptor-v1 "RESEARCH_METHOD_VERIFIER_DESCRIPTOR_V1"
+   :research-ratification-policy-approval-v1 "RESEARCH_RATIFICATION_POLICY_APPROVAL_V1"
+   :research-dependency-metadata-v1 "RESEARCH_DEPENDENCY_METADATA_V1"
+   :prf-research-subject "PRF_RESEARCH_SUBJECT_V1"
+   :prf-research-resolution-view-v1 "PRF_RESEARCH_RESOLUTION_VIEW_V1"
+   :network-checkpoint-v1 "prf.network-checkpoint.v1"
+   :checkpoint-event-manifest-v1 "prf.checkpoint-event-manifest.v1"
+   :checkpoint-certificate-v1 "prf.checkpoint-certificate.v1"
+   :head-observation-v1 "prf.head-observation.v1"
    :sew-dispute-case-bundle-v1 "SEW_DISPUTE_CASE_BUNDLE_V1"
    :sew-dispute-case-research-history-v1 "SEW_DISPUTE_CASE_RESEARCH_HISTORY_V1"
    :sew-dispute-case-current-pointer-v1 "SEW_DISPUTE_CASE_CURRENT_POINTER_V1"
@@ -655,7 +670,9 @@
    :prf-yield-effective-policy-v1 "PRF_YIELD_EFFECTIVE_POLICY_V1"
    :prf-yield-transition-event-v1 "PRF_YIELD_TRANSITION_EVENT_V1"
    :prf-yield-transition-basis-v1 "PRF_YIELD_TRANSITION_BASIS_V1"
-   :prf-yield-withdrawal-ledger-state-cutpoint-v2 "PRF_YIELD_WITHDRAWAL_LEDGER_STATE_CUTPOINT_V2"})
+   :prf-yield-withdrawal-ledger-state-cutpoint-v2 "PRF_YIELD_WITHDRAWAL_LEDGER_STATE_CUTPOINT_V2"
+   :yield-materialized-scenario-v1 "YIELD_MATERIALIZED_SCENARIO_V1"
+   :yield-generation-provenance-v1 "YIELD_GENERATION_PROVENANCE_V1"})
 
 ;; The byte-level codec lives in the standalone canonical package. This namespace
 ;; remains the PRF compatibility facade for hashing and semantic projections.

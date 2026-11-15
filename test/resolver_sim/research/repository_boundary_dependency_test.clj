@@ -2,6 +2,7 @@
   "A small extraction guard over the current direct namespace requires."
   (:require [clojure.test :refer [deftest is]]
             [clojure.set :as set]
+            [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]))
 
@@ -24,6 +25,8 @@
    "src/resolver_sim/research/native_accounting_work.clj"
    'resolver-sim.research.runner-transport
    "src/resolver_sim/research/runner_transport.clj"
+   'resolver-sim.research.runner-transport.work-types
+   "src/resolver_sim/research/runner_transport/work_types.clj"
    'resolver-sim.benchmark.research-analysis
    "src/resolver_sim/benchmark/research_analysis.clj"
    'resolver-sim.benchmark.research-claim-acceptance
@@ -113,6 +116,33 @@
 (defn- read-edn-file [path]
   (with-open [reader (java.io.PushbackReader. (io/reader path))]
     (binding [*read-eval* false] (read reader))))
+
+(deftest extracted-package-catalog-matches-authoritative-pins
+  (let [contract (module-contract)
+        deps (read-edn-file "deps.edn")
+        external-repositories (json/read-str (slurp "data/prf/external-repositories.json")
+                                             :key-fn keyword)
+        build-source (slurp "scripts/build.clj")
+        canonical (get-in contract [:package-contracts :prf-canonical])
+        allocation (get-in contract [:package-contracts :prf-pro-rata-allocation])
+        coprocessor (get-in contract [:package-contracts :prf-coprocessor])
+        canonical-dep (get-in deps [:deps 'prf/canonical])
+        allocation-dep (get-in deps [:deps 'prf/pro-rata-allocation])]
+    (is (= (:git/sha canonical) (:git/sha canonical-dep)))
+    (is (= (:git/sha allocation) (:git/sha allocation-dep)))
+    (is (= (:git/url allocation) (:git/url allocation-dep)))
+    (is (= (:git/sha allocation-dep)
+           (second (re-find #"(?s)prf/pro-rata-allocation \{.*?:git/sha \"([0-9a-f]{40})\""
+                            build-source))))
+    (is (= (:git/sha coprocessor)
+           (get-in external-repositories [:prf-coprocessor :revision])))
+    (is (= :exploratory-public-git-candidate-unpinned-by-prf
+           (get-in contract [:package-contracts :prf-effect-transition-contract :status])))
+    (is (nil? (get-in deps [:deps 'prf/effect-transition-contract])))
+    (is (= :implemented-at-pinned-revision
+           (get-in contract [:canonical-api-requests :status])))
+    (is (= (:git/sha canonical)
+           (get-in contract [:canonical-api-requests :pinned-revision])))))
 
 (defn- module-owners [contract]
   (into {'resolver-sim.accounting.reductions :accounting
@@ -205,6 +235,8 @@
     (is (contains? (graph 'resolver-sim.research.native-accounting-work)
                    'resolver-sim.accounting.reductions))
     (is (contains? (graph 'resolver-sim.research.runner-transport)
+                   'resolver-sim.research.runner-transport.work-types))
+    (is (contains? (graph 'resolver-sim.research.runner-transport.work-types)
                    'resolver-sim.research.native-accounting-work))
     (is (not (contains? (graph 'resolver-sim.network.researcher-challenges)
                         'resolver-sim.research.shortfall-pilot)))))
@@ -242,7 +274,7 @@
                                       [package (:depends-on descriptor)]))
                             (:package-contracts contract))]
     (is (= "prf-module-boundaries.v1" (:schema contract)))
-    (is (= 40 (count source-closure)) "the audited transitive source closure is explicit")
+    (is (= 51 (count source-closure)) "the audited transitive source closure is explicit")
     (is (= actual-closure source-closure)
         "closure changes require ownership/classification review")
     (is (every? #(contains? graph %) source-closure)
@@ -324,8 +356,8 @@
     (is (= (set (:current-transitive-source-closure incentives))
            (closure 'resolver-sim.incentives.api))
         "incentive dependency manifest tracks the actual in-tree source closure")
-    (is (= 23 (count (:current-transitive-source-closure research))))
-    (is (= 26 (count (:current-transitive-source-closure incentives))))
+    (is (= 36 (count (:current-transitive-source-closure research))))
+    (is (= 39 (count (:current-transitive-source-closure incentives))))
     (doseq [[manifest actual] [[research (closure 'resolver-sim.research.api)]
                                [incentives (closure 'resolver-sim.incentives.api)]]
             :let [owned (mapcat identity (vals (:closure-ownership manifest)))]]

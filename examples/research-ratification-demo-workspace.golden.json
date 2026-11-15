@@ -1,0 +1,46 @@
+{
+  "demoOnly": true,
+  "policyApprovalStatus": "not-approved",
+  "target": {
+    "schemaVersion": "prf/research-target.v1",
+    "domain": "research-resolution/demo-v1",
+    "subjectRoot": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "evidenceRoot": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "roundRoot": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "policyRoot": "sha256:c2d19ca79da3355696f48b80a39ff85baff8e3e12e60642bcdf18aa58b1dc4df",
+    "targetSchema": "prf/research-resolution-demo.v1",
+    "root": "sha256:cb29c7fc01a70e678a296ec83dd228576b1aea61ee562afe8ec28f9189995bd4"
+  },
+  "policy": {
+    "schemaVersion": "prf/research-ratification-policy.v1",
+    "id": "research-resolution/demo-policy-v1",
+    "authorityRoot": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "eligiblePrincipals": [
+      "researcher/demo"
+    ],
+    "threshold": 1,
+    "allowDissent": true,
+    "challengesBlock": false,
+    "root": "sha256:c2d19ca79da3355696f48b80a39ff85baff8e3e12e60642bcdf18aa58b1dc4df"
+  },
+  "contributions": [],
+  "ratification": {
+    "verification": "verified",
+    "operationalAuthority": false,
+    "root": "sha256:a6775d53ded14032fa0c97c2103eb8cfb84a38824c1e117b89e1f3901aba21b6",
+    "policyRoot": "sha256:c2d19ca79da3355696f48b80a39ff85baff8e3e12e60642bcdf18aa58b1dc4df",
+    "challengeRoots": [],
+    "approvalCount": 0,
+    "status": "contested-unresolved",
+    "contributionRoots": [],
+    "dissentCount": 0,
+    "schemaVersion": "prf/research-ratification.v1",
+    "targetRoot": "sha256:cb29c7fc01a70e678a296ec83dd228576b1aea61ee562afe8ec28f9189995bd4"
+  },
+  "claimAssessment": {
+    "assessmentSource": "demo-fixture",
+    "status": "not-established",
+    "methodVerification": "unavailable",
+    "explanation": "Fixture assertion only: no analytical method verifier is connected. Ratification does not establish this claim."
+  }
+}

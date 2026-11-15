@@ -1,0 +1,12 @@
+{:package/schema "eae-controlled-entitlement-demo.authority-state-package.v1"
+ :package/status :candidate-owner-approval-required
+ :package/notes "The test-only profile and principal were approved in the 2026-10-23 owner decision record; this package and derived root remain candidates pending digest-specific review."
+ :authority-state
+ {:authority-state/schema "eae-controlled-entitlement-demo.authority-state.v1"
+  :protocol/genesis-root "sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775"
+  :execution/chain-id 84532
+  :authority/profile "pro-95-single-test-only-principal-base-sepolia.v1"
+  :authority/principal "0xdd82cceb1d515f2e4fb0432fb5d53138813945d4"
+  :authority/initial-epoch 0
+  :authority/initial-decisions []}
+ :authority-state/root "sha256:36a912294511057638de9d8a155f0a659413a3e242ca6bc76c877d5e3d6eb1a2"}

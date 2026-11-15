@@ -1,0 +1,6 @@
+;; In-tree distributable boundary for the PRF Sew protocol model.
+;; Publish this package under org.protocol-robustness/prf-sew-protocol-model
+;; before replacing the relative framework dependency with its released coordinate.
+{:paths ["../../protocols_src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        prf/framework {:local/root "../.."}}}

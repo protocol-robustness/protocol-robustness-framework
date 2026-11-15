@@ -1,0 +1,115 @@
+{
+  "schema": "prf-local-demo-live-chain-readback.v1",
+  "qualification": "current-state-and-runtime-identity-readback-only",
+  "observedAt": {
+    "chainId": 31337,
+    "blockNumber": 147,
+    "blockNumberHex": "0x93",
+    "blockHash": "0xf3b0851892c3fbffc964fd9710e25c627178fc6c92478e52159130e42e786afc",
+    "parentHash": "0x7c6d46276a53bb1966227cf5196864a3a8df930467fb05931d6b003c9eede175"
+  },
+  "deploymentManifest": {
+    "sha256": "51a96b72f3a6473492cbce94d79523e5a78332f06100602bb36c2f62e7a481a9",
+    "deploymentId": "a784fb3c-094c-4a35-8b3c-b863ccaa64af",
+    "planExecutionSha256": "599c0ffd15fc3fc643a5549fe79183d1de6416fd8851f9c62793f79263dffb69",
+    "previousReadbackSha256": "9af5fead79a308d6317b479dd4a2e5bf348659dc6e62b278563c417494422bdc"
+  },
+  "genesis": {
+    "address": "0x2a590c461db46bca129e8dbe5c3998a8ff402e76",
+    "sealed": true,
+    "chainInstanceGenesisRoot": "0x2a19747a3680218c7654011fa6a8c711c6f24344992194841977dae8e236299f",
+    "localProjectionHash": "0x0481049cec34dc8805c7f6896c8176b2b30812ebcc890d604d4b65cab24c1027"
+  },
+  "configurationExecutor": {
+    "address": "0x9849832a1d8274aaedb1112ad9686413461e7101",
+    "configurationRoot": "0xf8fa9013e9ba64dac0215844f95aee2b32adecaba7402ec5fcc428b0c0349f71",
+    "epoch": 1,
+    "verifierRegistryRoot": "0x58c69021c3658afc12e24e4d739e397d584b580359715a19fcf505280e757cbf"
+  },
+  "authority": {
+    "address": "0x7cf4be31f546c04787886358b9486ca3d62b9acf",
+    "stateRoot": "0x78277b8aa5323319d8b142a88ef13b1046b98fc85b3bece4db37056ab481141f",
+    "revision": 1,
+    "transitionsEnabled": true
+  },
+  "registry": {
+    "address": "0x33e45b187da34826abceda1039231be46f1b05af",
+    "root": "0x58c69021c3658afc12e24e4d739e397d584b580359715a19fcf505280e757cbf",
+    "sealed": true
+  },
+  "admission": {
+    "address": "0x5ffe31e4676d3466268e28a75e51d1efa4298620",
+    "chainInstanceGenesisRoot": "0x2a19747a3680218c7654011fa6a8c711c6f24344992194841977dae8e236299f",
+    "expectedConfigurationRoot": "0xf8fa9013e9ba64dac0215844f95aee2b32adecaba7402ec5fcc428b0c0349f71",
+    "expectedConfigurationEpoch": 1,
+    "admittedCount": 0
+  },
+  "verifier": {
+    "adapterAddress": "0xa21ddc1f17df41589bc6a5209292aed2df61cc94",
+    "effectiveVerifierAddress": "0x0c626fc4a447b01554518550e30600136864640b",
+    "programVKey": "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9",
+    "programElfSha256": "0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8",
+    "statementSchemaVersion": "0x71fc0589dce6888fb7c2da5ddd88275753cf9f9de0aca477f307bd96de8660de",
+    "publicValuesSchema": "0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde",
+    "adapterRuntimeCodeKeccak256Now": "0xe15235039ec7ce68c695d4c049d296662e8a7a52488d865c07266c53e46e83d5",
+    "verifierRuntimeCodeKeccak256Now": "0xd50f7978fa1b090c48efcacce364a5ff91f4514e5d8886f9533257ba2cf79b4f",
+    "retainedDeploymentClosure": {
+      "adapter": {
+        "logicalId": "prf/source-bound-entitlement-verifier-adapter-v1",
+        "address": "0xa21ddc1f17df41589bc6a5209292aed2df61cc94",
+        "transactionHash": "0x1c5e97ac6d7b92b2ef595ff428faeaeca1925a3d72b7884918510ddce4fc47d0",
+        "blockNumber": "126",
+        "blockHash": "0x65c3d104b9c0b19bb7c3b3342e28c7d05e737a5b07731a74fca21ffea73896c7",
+        "runtimeCodeKeccak256AtDeployment": "0xe15235039ec7ce68c695d4c049d296662e8a7a52488d865c07266c53e46e83d5",
+        "runtimeCodeKeccak256Now": "0xe15235039ec7ce68c695d4c049d296662e8a7a52488d865c07266c53e46e83d5"
+      },
+      "verifier": {
+        "logicalId": "prf/sp1-verifier-groth16",
+        "address": "0x0c626fc4a447b01554518550e30600136864640b",
+        "transactionHash": "0xc74e2ce4868d7f24b71ec754ef544ad8d0770e9aeac114e5c79a665b295efaf8",
+        "blockNumber": "125",
+        "blockHash": "0x3a1a6985fa624b68ddb28d446f93c8a9df7ce419675ee7d26520f5d563c11b15",
+        "runtimeCodeKeccak256AtDeployment": "0xd50f7978fa1b090c48efcacce364a5ff91f4514e5d8886f9533257ba2cf79b4f",
+        "runtimeCodeKeccak256Now": "0xd50f7978fa1b090c48efcacce364a5ff91f4514e5d8886f9533257ba2cf79b4f"
+      },
+      "effectiveVerifier": {
+        "atDeployment": "0x0c626FC4A447b01554518550e30600136864640B",
+        "now": "0x0c626FC4A447b01554518550e30600136864640B"
+      },
+      "metadata": {
+        "programVKey": {
+          "atDeployment": "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9",
+          "now": "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9"
+        },
+        "programElfSha256": {
+          "atDeployment": "0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8",
+          "now": "0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8"
+        },
+        "statementSchemaVersion": {
+          "atDeployment": "0x71fc0589dce6888fb7c2da5ddd88275753cf9f9de0aca477f307bd96de8660de",
+          "now": "0x71fc0589dce6888fb7c2da5ddd88275753cf9f9de0aca477f307bd96de8660de"
+        },
+        "publicValuesSchema": {
+          "atDeployment": "0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde",
+          "now": "0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde"
+        }
+      }
+    }
+  },
+  "checks": {
+    "chainIdIs31337": true,
+    "genesisSealedAndMatchesApprovedInstance": true,
+    "configurationIsC1AtEpoch1": true,
+    "successorRegistrySealedAndCanonical": true,
+    "authorityTransitionStateApplied": true,
+    "admissionBoundToInstanceAndC1": true,
+    "effectiveVerifierMatchesApprovedEntry": true,
+    "verifierMetadataMatchesRetainedClosure": true,
+    "adapterRuntimeMatchesRetainedDeploymentObservation": true,
+    "effectiveVerifierRuntimeMatchesRetainedDeploymentObservation": true
+  },
+  "historicalReplay": {
+    "status": "incomplete",
+    "detail": "Anvil retains the seal transaction receipt but reports BlockOutOfRangeError for eth_getCode at pre-seal block 128 after state reload; this record does not replace historical state replay."
+  }
+}

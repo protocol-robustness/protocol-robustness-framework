@@ -1,0 +1,9 @@
+{:schema-version "pro-rata-allocation-request.v1"
+ :mechanism/version 1
+ :allocation/id :portable/rounding
+ :available 5N
+ :rows [{:row/id :row/a :obligation/id :ob/a :requested 5N :weight 1N :cap nil}
+         {:row/id :row/b :obligation/id :ob/b :requested 5N :weight 1N :cap nil}]
+ :rounding-policy :largest-remainder
+ :tie-break-policy :canonical-row-id
+ :redistribution-policy :unallocated}

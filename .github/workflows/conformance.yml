@@ -33,7 +33,10 @@ jobs:
         run: cargo fmt --manifest-path "$PRF_COPROCESSOR_ROOT/Cargo.toml" --all -- --check
 
       - name: Rust clippy
-        run: cargo clippy --locked --manifest-path "$PRF_COPROCESSOR_ROOT/Cargo.toml" --all-targets --all-features -- -D warnings
+        # The conformance workflow tests and builds allocation-kernel only. Pin 80b8247
+        # has one useless_format in core/src/controlled_entitlement_source.rs and
+        # items_after_test_module in core/src/source_bound.rs; allow only those two.
+        run: cargo clippy --locked --manifest-path "$PRF_COPROCESSOR_ROOT/Cargo.toml" -p allocation-kernel --all-targets --all-features -- -D warnings -A clippy::useless_format -A clippy::items_after_test_module
 
       - name: Rust unit tests (core kernel only)
         run: cargo test --locked --manifest-path "$PRF_COPROCESSOR_ROOT/Cargo.toml" -p allocation-kernel
