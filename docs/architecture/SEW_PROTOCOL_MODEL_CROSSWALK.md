@@ -85,7 +85,7 @@ The adapter and model remain unqualified for clean-clone resolution until the
 candidate revisions are published and the default dependency path is verified.
 The model package's in-tree test command is
 `clojure -M:test -m resolver-sim.protocols.sew.package-test-runner`; it loads
-the sibling yield integration test fixture and passes 731 tests with 2,448
+the sibling yield integration test fixture and passes 733 tests with 2,456
 assertions in this checkout.
 Its current closure is 196 source files because it still requires the full model, including
 shared yield runtime; it is not an independently extracted or Solidity
