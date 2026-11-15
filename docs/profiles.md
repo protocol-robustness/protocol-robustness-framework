@@ -124,7 +124,7 @@ source component.
 
 `sew-protocol` is an extraction-preparation view, not a release-qualified
 package. It removes runner entrypoints from the composition, but its current
-transitive source closure is 199 files. Moving Sew analysis behind an optional
+transitive source closure is 202 files. Moving Sew analysis behind an optional
 component reduced it from 239 files; the remaining closure includes Sew
 research, yield, benchmark, a small scenario subset, and shared PRF framework
 internals.
@@ -133,7 +133,7 @@ internals.
 root; 28 are in Sew's current dependency closure. Its standalone candidate
 profile resolves 69 Clojure source files with zero declared component crossings
 and passes its isolated profile load check. Sew still depends on this component,
-so the model-core source closure is 175 files. The Sew model component owns its
+so the model-core source closure is 144 files. The Sew model component owns its
 yield capability adapter and explicitly requires the shared yield runtime.
 
 `sew-kernel` is a smaller candidate view of the escrow state model and guarded

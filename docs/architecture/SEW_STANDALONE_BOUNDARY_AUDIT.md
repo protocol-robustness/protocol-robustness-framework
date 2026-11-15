@@ -7,14 +7,14 @@ model-core candidate omits the Sew yield adapter and shared yield runtime.
 ## Summary
 
 The current `sew-protocol-model` profile is not a standalone package boundary.
-`bb profile:check sew-protocol-model` resolves 419 Clojure source files; it
+`bb profile:check sew-protocol-model` resolves 420 Clojure source files; it
 selects the runner, model, yield integration, force-authorisation, analysis,
 and slash-evidence components. The runner-free `sew-protocol` candidate selects
 the model, yield integration, force-authorisation, and slash-evidence components.
-It resolves 201 files, passes boundary/load checks, and reports zero component
+It resolves 202 files, passes boundary/load checks, and reports zero component
 crossings. The candidate remains too broad to count as a standalone package.
 
-The `sew-protocol-model-core` candidate resolves 143 files and excludes the
+The `sew-protocol-model-core` candidate resolves 144 files and excludes the
 yield integration and shared yield runtime, as well as the analysis,
 force-authorisation, and slash-evidence adapters. With no yield state, its model
 invariants retain empty-state results. Configured yield profiles or existing
@@ -56,7 +56,7 @@ not a standalone package manifest. The shared framework API, benchmark
 dependencies, and exact-verifier dependency still need further review.
 
 The `sew-protocol-model-core` candidate excludes all shared yield runtime files
-and all Sew yield adapter files. Its 143-file closure is a useful smaller model
+and all Sew yield adapter files. Its 144-file closure is a useful smaller model
 boundary, but still includes shared framework code and the in-tree economics
 adapter dependency.
 
@@ -152,7 +152,7 @@ protocol behavior from supporting integrations and is not a package manifest.
 
 Replay orchestration, batch summarization, researcher validation, and analysis
 now live behind optional runner or protocol capabilities. The runner-free
-candidate resolves to 201 files; the model-core candidate resolves to 143.
+candidate resolves to 202 files; the model-core candidate resolves to 144.
 Scenario and replay source files are absent from the runner-free closure. The
 yield adapter and runtime remain optional at the component boundary. Further
 repository preparation should define the public PRF APIs used by the 103 shared
@@ -237,7 +237,7 @@ and a complete test/fixture closure.
    namespace's dependencies. Replay, batch summarization, researcher
    force-authorisation, and analysis are optional components; Sew yield
    operations are behind model-owned capabilities over the required runtime.
-3. Continue reducing the `sew-protocol` candidate's 201-file closure by
+3. Continue reducing the `sew-protocol` candidate's 202-file closure by
    defining the PRF framework API it needs and reviewing the 14 benchmark and
    exact-verifier dependencies. Keep the yield integration selectable and
    preserve its explicit fail-closed contract. Leave Force Authorization with

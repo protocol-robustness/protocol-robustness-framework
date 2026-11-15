@@ -103,8 +103,8 @@ boundary/load check without runner or yield integration sources. This check
 does not qualify all model-only runtime behavior; no-yield fallback and
 fail-closed yield capability behavior have focused contract coverage.
 
-The runner-free `sew-protocol` candidate resolves to 201 files with no
-component crossings. The `sew-protocol-model-core` profile resolves to 143 files
+The runner-free `sew-protocol` candidate resolves to 202 files with no
+component crossings. The `sew-protocol-model-core` profile resolves to 144 files
 and excludes the Sew yield integration and shared yield runtime. Full Sew
 profiles select `sew-yield-integration`, which has an in-tree manifest with a
 local model dependency. Replay and batch reporting are runner capabilities;
