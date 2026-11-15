@@ -99,7 +99,7 @@
  :qualification
  {:command "bash scripts/qualify_extension_core_api_v1.sh"
   :isolated-source-closure
-  {:source-content-set "sha256:1eeb2192c85234dbd65fecfeec0e4de1bce884a07fcfa436f56c8fbe3bed438c"
+  {:source-content-set "sha256:a38d2a31f24f905b1717b9dffaffff136866b850a38e459f51f5aaee622f5d48"
    :tests 107
    :assertions 603
    :result :passed}

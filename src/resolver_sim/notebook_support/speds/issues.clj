@@ -2,11 +2,10 @@
   "Issue-contract generation for SPEDS.
    Converts trial artifacts into deterministic issue bundles used by story rendering."
   (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
             [clojure.string :as str]
             [malli.core :as m]
             [malli.error :as me]
-            [resolver-sim.logging :as log]
+            [resolver-sim.io.atomic-file :as atomic-file]
             [resolver-sim.definitions.registry :as defs]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.notebook-support.common :as common]
@@ -14,7 +13,7 @@
             [resolver-sim.notebook-support.speds.findings :as findings]
             [resolver-sim.notebook-support.speds.config :as config]))
 
-(def issues-path (evcfg/artifact-path :issues))
+(def issues-path (evcfg/artifact-path :speds-issues))
 (def comparator-shadow-path (str (evcfg/artifact-dir) "/comparator-shadow.json"))
 
 (def required-issue-keys
@@ -91,16 +90,17 @@
                   :trace-digest (get-in finding [:provenance :trace_digest])}}))
 
 (defn generate-issues-bundle
-  "Builds actionable issues from findings + issue policy."
+  "Build actionable issues from freshly generated findings and issue policy.
+
+   Published findings are not reused as a cache: their freshness depends on
+   coverage, traces, golden reports, definitions, and comparator policy, not
+   only on the test-summary modification time."
   ([artifacts] (generate-issues-bundle artifacts default-issue-policy {}))
   ([artifacts policy] (generate-issues-bundle artifacts policy {}))
   ([artifacts policy {:keys [comparator-config]}]
-   (let [findings-bundle (let [cached (findings/load-findings)]
-                           (if (and cached (findings/findings-fresh?))
-                             cached
-                             (findings/generate-findings-bundle
-                              artifacts
-                              {:comparator-config (or comparator-config findings/default-comparator-config)})))
+   (let [findings-bundle (findings/generate-findings-bundle
+                          artifacts
+                          {:comparator-config (or comparator-config findings/default-comparator-config)})
          run-id (get-in findings-bundle [:run :run_id])
          comparator-config (get findings-bundle :comparator_config findings/default-comparator-config)
          findings-list (or (:findings findings-bundle) [])
@@ -136,22 +136,19 @@
     [:policy :map]]))
 
 (defn- validate-issues-bundle!
-  "Validate issues bundle against schema. Logs and returns bundle."
+  "Validate issues bundle against schema, failing before publication."
   [bundle]
   (if-let [errors (m/explain issues-bundle-schema bundle)]
-    (let [msg (str "Issues bundle schema validation failed: " (me/humanize errors))]
-      (log/warn! msg {:errors errors})
-      bundle)
+    (let [message (str "Issues bundle schema validation failed: " (me/humanize errors))]
+      (throw (ex-info message {:schema "speds-issues-v1" :errors errors})))
     bundle))
 
 (defn save-issues!
-  "Writes issues bundle to results/test-artifacts/issues.json"
+  "Validate and atomically publish the SPEDS issues bundle."
   ([] (save-issues! (data/load-run-artifacts)))
   ([artifacts]
    (let [bundle (-> artifacts generate-issues-bundle validate-issues-bundle!)]
-     (.mkdirs (java.io.File. (evcfg/artifact-dir)))
-     (with-open [w (clojure.java.io/writer issues-path)]
-       (json/write bundle w :indent true))
+     (atomic-file/write-text! issues-path (json/write-str bundle :indent true))
      bundle)))
 
 (defn load-issues []

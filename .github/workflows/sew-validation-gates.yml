@@ -45,6 +45,9 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install artifact registry validator
+        run: python3 -m pip install --quiet jsonschema
+
       - name: Install Babashka
         run: |
           curl -fsSL https://raw.githubusercontent.com/babashka/babashka/master/install -o /tmp/install-bb.sh

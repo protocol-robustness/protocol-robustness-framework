@@ -150,6 +150,7 @@
   (let [result (sut/verify-package)]
     (is (:valid? result))
     (is (:manifest-integrity? result))
+    (is (:portable-contract-binding? result))
     (is (= 3 (:rejection-count result)))
     (is (every? :valid? (:positive-results result)))
     (is (= 3 (count (:rejection-results result))))

@@ -17,7 +17,7 @@
       (println "- finding-count:" (count (:findings findings-bundle)))
       (println "Generated issues bundle:")
       (println "- path:" issues/issues-path)
-      (println "- run:" (:run/id bundle))
+      (println "- run:" (:run_id bundle))
       (println "- issue-count:" (:issue-count bundle)))
     (catch Exception e
       (println "Failed to generate SPEDS artifacts:" (.getMessage e))

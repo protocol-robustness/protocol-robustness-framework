@@ -519,19 +519,21 @@
 (defn member-keys
   "Return a vector of member keys for all members.
    Returns nil when the round is not keyed (no member has a key).
-   Returns a vector when all members have keys, including sparse or invalid
-   keys so aggregate validators can report the inconsistency."
+   Returns a vector only when all members have keys."
   [round]
-  (when (round-uses-member-keys? round)
+  (when (and (round-uses-member-keys? round)
+             (canonical-member-keys? (:review-round/members round)))
     (mapv :review-member/key (:review-round/members round))))
 
 (defn member-bit-width
   "Minimum bits needed to represent the largest member key.
    Returns nil for legacy unkeyed rounds.
-   For a 3-member round with keys 0,1,2 this returns 2. Sparse keyed rounds
-   report their actual width so aggregate checks can reject excess width."
+   Also returns nil for keyed rounds containing malformed keys.
+   For a 3-member round with keys 0,1,2 this returns 2."
   [round]
-  (when-let [keys (member-keys round)]
-    (when (every? #(and (integer? %) (not (neg? %))) keys)
+  (let [members (:review-round/members round)
+        keys (map :review-member/key members)]
+    (when (and (round-uses-member-keys? round)
+               (every? valid-member-key? keys))
       (let [max-key (apply max keys)]
         (max 1 (.bitLength (biginteger max-key)))))))

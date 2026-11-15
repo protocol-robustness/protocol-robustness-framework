@@ -147,6 +147,19 @@
       (is (not (:holds? result)))
       (is (some #(= ::rac/non-dense-member-keys (:kind %)) (:violations result))))))
 
+(deftest aggregate-runner-returns-violations-for-malformed-truthy-keys
+  (let [round (assoc-in (make-keyed-round)
+                        [:review-round/members 2 :review-member/key]
+                        "not-an-integer")
+        result (rac/run-review-aggregate-checks round)
+        width-check (:member-bit-width (:checks result))
+        density-check (:member-key-density (:checks result))]
+    (is (not (:holds? result)))
+    (is (some #(= ::rac/member-bit-width-mismatch (:kind %))
+              (:violations width-check)))
+    (is (some #(= ::rac/non-dense-member-keys (:kind %))
+              (:violations density-check)))))
+
 ;; ── check-aggregate-three-member-standard tests ─────────────────────────────
 
 (deftest three-member-standard-holds-for-3-distinct-members

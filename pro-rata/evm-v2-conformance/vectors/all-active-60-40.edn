@@ -2,7 +2,7 @@
  :case/id :all-active-two-claim-60-40
  :profile :all-active
  :semantic-authority
- {:portable-contract/release-root "b863e04a61d0dded845dc3351626ebf57c4d5abea7e18ea19a89cacf4b1ad12a"
+ {:portable-contract/release-root "7f879b3491262f62e1fcad94ce6692bd6c605bc6727e3e57d20cb6bea97dc0f3"
   :configuration/root "sha256:0000000000000000000000000000000000000000000000000000000000000001"}
  :inputs
  {:state-before

@@ -298,6 +298,11 @@
       (catch Throwable t
         (println "WARN: failed to load" sym ":" (.getMessage t))))))
 
+(def unit-runtime-preload-namespaces
+  '[resolver-sim.stochastic.dispute
+    camel-snake-kebab.internals.string-separator
+    camel-snake-kebab.internals.misc])
+
 ;; ── Execution modes ─────────────────────────────────────────────────────────
 
 (def execution-modes
@@ -841,6 +846,14 @@
     ;; Load namespaces sequentially first (root-level side effects are
     ;; legitimate here), THEN snapshot default state so the leak tripwire only
     ;; sees test-execution-time changes to root registries/artifact locations.
+    ;; Load runtime-only dependencies before the unit namespace pool starts.
+    ;; Governance tests reach the stochastic dispute path and camel-snake-kebab
+    ;; dynamically; loading these for the first time concurrently can expose
+    ;; partially initialized vars in Clojure's shared namespace registry.
+    (when (some #(= "unit" (first %)) groups)
+      (println "Preloading" (count unit-runtime-preload-namespaces)
+               "runtime namespaces...")
+      (load-all! unit-runtime-preload-namespaces))
     (doseq [[_ syms _] groups]
       (println "Loading" (count syms) "namespaces...")
       (load-all! syms))
