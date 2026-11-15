@@ -1,0 +1,35 @@
+#:bundle{:schema "prf.concept-bundle.v1",
+         :id :prf.concepts/sew-v1,
+         :version "0.1.0",
+         :catalogue-schema-version 1,
+         :status :incubating,
+         :owner :protocol/sew-v1,
+         :dependencies [#:bundle{:id :prf.concepts/foundation,
+                                 :version "0.1.0"}],
+         :concepts
+         [#:concept{:id :allocation/deferred-class,
+                    :file
+                    "data/concepts/allocation/deferred_class.edn"}
+          #:concept{:id :allocation/fractional-remainder,
+                    :file
+                    "data/concepts/allocation/fractional_allocation.edn"}
+          #:concept{:id :allocation/slash-obligation,
+                    :file
+                    "data/concepts/allocation/slash_obligation.edn"}
+          #:concept{:id :concept/confidence,
+                    :file "data/concepts/framework/confidence.edn"}
+          #:concept{:id :concept/configuration,
+                    :file "data/concepts/framework/configuration.edn"}
+          #:concept{:id :concept/conservation,
+                    :file "data/concepts/framework/conservation.edn"}
+          #:concept{:id :decision-quality/solvency-status,
+                    :file
+                    "data/concepts/decision-quality/solvency.edn"}
+          #:concept{:id :mechanism/pro-rata-allocation,
+                    :file
+                    "data/concepts/mechanism/pro_rata_allocation.edn"}
+          #:concept{:id :yield/yield-bearing,
+                    :file "data/concepts/yield/yield_bearing.edn"}],
+         :mapping-files
+         [#:mapping{:protocol :protocol/sew-v1,
+                    :file "data/concept-mappings/sew-v1.edn"}]}

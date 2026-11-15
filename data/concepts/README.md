@@ -19,6 +19,30 @@ set of applicable `:concept/protocols`. Stakeholder definitions live under
 The shared mapping set supplies common mappings, and a protocol mapping set may
 override those mappings for that protocol.
 
+## Bundle extraction status
+
+`data/concept-bundles/registry.edn` and its manifests define an **incubating
+extraction inventory** grouped by current semantic owner: shared foundation,
+PRF, and Sew V1. `scripts/concepts_validate.clj` checks that this inventory
+covers each existing concept and mapping file exactly once. The current
+`data/concepts/registry.edn` and file locations remain runtime authority; the
+bundle manifests are not loaded by the compatibility registry. The opt-in
+`resolver-sim.concepts.bundles/load-bundles` API validates pinned dependencies,
+loads an explicit bundle catalogue, and computes bundle and catalogue roots
+over the manifest data and source-file bytes. File paths are confined to the
+selected root (the current directory by default); callers loading an external
+registry should pass its trusted root explicitly. Absolute paths, traversal,
+and symlink escapes are rejected. These roots are local candidate identities,
+not publication or authority claims. No concept content has been copied or
+relocated.
+
+This staging avoids duplicate sources and preserves existing source-tree
+commitments while bundle APIs are qualified. Before these manifests become
+runtime authority, a follow-up must define explicit composition with the
+compatibility registry and resource packaging behavior. Consumers that need
+to retain an explanatory interpretation must bind the exact returned bundle
+or catalogue root into their own artifact.
+
 Use-cases are not a framework registry category. Supply them explicitly through
 an external `:prf/use-case-registry.v1` registry; PRF never searches the
 classpath, current directory, or a default use-case location. The shipped
