@@ -1,21 +1,30 @@
 # PRF extension API v1 package candidate
 
 This candidate records the source boundary consumed by the
-`force-authorisation` and `held-custody` extension packages. The authoritative
-API facade remains at `src/resolver_sim/extensions/api/v1.clj`; this directory
-does not copy or fork its implementation.
+`force-authorisation`, `held-custody`, and Sew pro-rata economics packages. It
+contains two versioned facades: the general extension API at
+`src/resolver_sim/extensions/api/v1.clj`, and the portable pro-rata API at
+`src/resolver_sim/extensions/api/pro_rata/v1.clj`. Neither implementation is
+copied or forked into this directory.
 
-Status: in-tree source candidate. The dependency manifest pins its external
-canonical-codec source and records the complete PRF source closure. The
-clean-room qualification script stages that closure, excludes repository
-source paths and protocol code, and runs both package test suites.
+Status: in-tree source candidate. The dependency manifest pins the external
+canonical-codec and pro-rata allocation sources, records the complete PRF
+source closure, and includes the data JSON, SLF4J, and Buddy dependencies
+needed by registry and evidence startup. The clean-room qualification script
+stages that closure, excludes unrelated repository source paths and protocol
+code, and runs the isolated consumer contract plus the force-authorisation and
+held-custody package suites. Sew economics has a separate in-tree test alias
+because its pinned public PRF revision predates the pro-rata API.
 
 ```sh
 bash scripts/qualify_extension_core_api_v1.sh
 ```
 
 This qualifies the current source closure only. There is no published
-`org.protocol-robustness/prf-core` artifact or immutable package coordinate, so
-the extension `deps.edn` files continue to use the explicit monorepo local
-dependency. Do not treat this candidate as independently released until a
-core artifact is published and consumers pass against that pinned artifact.
+`org.protocol-robustness/prf-core` artifact or immutable package coordinate.
+The force-authorisation and held-custody manifests use a local-root PRF
+dependency; Sew economics pins public PRF revision
+`b94b091cfbaf46ec34ae2ade4920f9a3751e3097`, which does not contain the new
+facade, and adds the in-tree source only in its test alias. The candidate is
+not independently consumable until an API-bearing core revision is made
+fetchable and consumers pass against that pinned revision.
