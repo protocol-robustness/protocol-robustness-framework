@@ -15,5 +15,7 @@
  :aliases {:test {:override-deps
                   {org.protocol-robustness/prf-sew-pro-rata-economics
                    {:local/root "../../extensions/sew-pro-rata-economics"}}
-                  :extra-paths ["test" "../../extensions/sew-yield-integration/src"]
+                  :extra-paths ["test"
+                                "../../extensions/sew-yield-integration/src"
+                                "../../src"]
                   :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}}}}

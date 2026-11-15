@@ -1,6 +1,7 @@
 (ns resolver-sim.protocols.sew.pro-rata.economics-adapter-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.extensions.api.pro-rata.v1 :as pro-rata-api]
             [resolver-sim.pro-rata.allocation :as pro-rata]
             [resolver-sim.pro-rata.evidence :as mechanism-evidence]
             [resolver-sim.protocols.sew.pro-rata.economics :as sew-econ]))
@@ -20,8 +21,8 @@
       (is (= [300 100] (mapv :basis-amount (:allocations result))))
       (is (= [3/4 1/4] (mapv :share (:allocations result))))
       (is (= [300 100] (mapv :cap (:allocations result))))
-      (is (empty? (mechanism-evidence/evidence-violations
-                   (:mechanism/evidence result))))
+      (is (true? (pro-rata-api/evidence-valid?
+                  (:mechanism/evidence result))))
       (is (= (:evidence/hash (:mechanism/evidence result))
              (get-in result [:mechanism/evidence-reference :evidence/hash]))))))
 

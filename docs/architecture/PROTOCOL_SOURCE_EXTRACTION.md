@@ -137,6 +137,65 @@ the lowest-level stable package before the split. CI should test the framework
 alone, then test Sew against a pinned framework version, and finally run an
 explicit compatibility/conformance job.
 
+### Candidate move to `prf-extensions`
+
+The initial destination for PRF's Sew behavioral model is
+`packages/sew-protocol-model/` in `~/Code/prf-extensions`. This repository
+currently has no Sew model package. Keep `adapters/sew/` for PRF-specific
+adapters; the behavioral model is a package-level implementation, not an
+adapter. Move the model only after its current package qualification and
+dependency blockers are resolved.
+
+The destination repository's package contract requires more than `deps.edn`
+and source files. The moved package must add an incubating `extension.edn`
+whose capabilities and runtime dependencies match its runtime manifest, a
+package test runner, and an independent `consumer-test` runner. Register the
+manifest and runtime implementation in `tooling/validate_packages.clj`, add
+the package to the repository's validation and CI classpaths, and include a
+README with reproducible `-Srepro` commands. Keep package tests and consumer
+tests separate: the former exercise implementation behavior, while the latter
+prove use through the declared API.
+
+Before moving the model source:
+
+1. Replace its economics dependency on unpublished PRF candidate revision
+   `c6d21f852f8fbeff3d29b52c1139ad6f88ed332a` with an independently resolvable
+   economics package revision. Do not leave a local workspace override in the
+   runtime dependency graph. The PRF core pin
+   `b94b091cfbaf46ec34ae2ade4920f9a3751e3097` is publicly reachable; the
+   economics pin is not. Also establish the dependency as a supported boundary:
+   the adapter now calls the in-tree
+   `resolver-sim.extensions.api.pro-rata.v1` facade for allocation, evidence,
+   and projection evaluation. The facade has isolated consumer tests, but the
+   economics manifest still pins a public PRF revision that predates this API;
+   its test alias uses the local PRF source tree. The API package also closes
+   over core registry, evidence, and execution code, so retain its explicit
+   source qualification and dependency list. Publish or otherwise make the
+   API-bearing PRF revision independently resolvable before moving economics.
+   `prf-extensions/adapters/sew/README.md` continues to defer Sew adapters
+   until their PRF dependencies are public contracts.
+2. Reconcile the candidate with the current `agent-c-staging` sequence and
+   rerun validation after that merge. The candidate and staging have diverged
+   substantially, so preserve the Force Authorization owner's changes and
+   resolve ownership before combining them.
+3. Keep the existing `replay-dedupe-policy-test` failure assigned to the Force
+   Authorization owner. The exact namespace fails on both this candidate and
+   `main` with the same 36 failures out of 106 assertions: its Force
+   Authorization actions run with an empty context and are rejected by the
+   model's existing admission gate. Treat this as a verified baseline failure,
+   not an extraction regression. After staging reconciliation, compare the
+   broad-suite result against that baseline and require no new failures; do not
+   change Force Authorization behavior as part of the model move.
+4. Transfer the package's source, test, resource, and provenance closure, then
+   qualify both `-M:test` and `-M:consumer-test` from a clean clone of
+   `prf-extensions`. Verify the resulting dependency lock/roots and rerun the
+   PRF profile checks against the package consumer.
+
+Keep the Sew Core profile adapter separate under the Sew adapter area. It is a
+PRF composition adapter and should depend on the moved model package through
+its declared API; it should not be folded into the model package merely to
+make the repository move easier.
+
 ## Priorities and urgency
 
 ### P0 — now / high urgency: preserve the existing boundary

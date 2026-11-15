@@ -494,7 +494,9 @@
     {:path "extensions/sew-yield-integration/test/resolver_sim/protocols/sew/yield/test_support.clj"
      :kind :test-support}
     {:path "extensions/sew-yield-integration/test/resolver_sim/protocols/sew/yield/risk_policy_test.clj"
-     :kind :test-source}]}
+     :kind :test-source}
+    {:path "extensions/sew-yield-integration/test/resolver_sim/protocols/sew/yield/test_runner.clj"
+     :kind :test-runner}]}
 
   ;; Operation-limited behavior candidate aligned to the Solidity Sew Core
   ;; deployment profile. This adapts the in-tree model and therefore still
@@ -792,11 +794,14 @@
   {:component/plane :assurance
    :component/requires [:prf/ideal-pro-rata-v1 :prf/pro-rata-verifier-v1]
    :component/owned-namespaces
-   [resolver-sim.pro-rata.evaluation]
+   [resolver-sim.pro-rata.evaluation
+    resolver-sim.extensions.api.pro-rata.v1]
    :component/entry-namespaces
-   [resolver-sim.pro-rata.evaluation]
+   [resolver-sim.pro-rata.evaluation
+    resolver-sim.extensions.api.pro-rata.v1]
    :component/material
-   [{:path "test/resolver_sim/pro_rata/programme_test.clj" :kind :test-source}]}
+   [{:path "test/resolver_sim/pro_rata/programme_test.clj" :kind :test-source}
+    {:path "test/prf/extensions/api/pro_rata_v1_test.clj" :kind :test-source}]}
 
   ;; Sew slash economics is an adapter over portable allocation and evaluated
   ;; evidence. Sew protocol model uses this integration for its allocation projection.
@@ -812,7 +817,7 @@
      :kind :package-manifest}
     {:path "extensions/sew-pro-rata-economics/test/resolver_sim/protocols/sew/pro_rata/economics_adapter_test.clj"
      :kind :test-source}
-    {:path "extensions/sew-pro-rata-economics/src/resolver_sim/protocols/sew/test_vectors/slash_allocation.clj"
+    {:path "extensions/sew-pro-rata-test-vectors/src/resolver_sim/protocols/sew/test_vectors/slash_allocation.clj"
      :kind :conformance-vector}]}
 
   ;; Vector generation is test/support material and has an optional yield
@@ -821,8 +826,10 @@
   {:component/plane :test-support
    :component/requires [:prf/sew-pro-rata-economics-v1
                         :prf/yield-runtime-v1]
-   :component/owned-namespaces [resolver-sim.test-vectors.pro-rata]
-   :component/entry-namespaces [resolver-sim.test-vectors.pro-rata]
+   :component/owned-namespaces [resolver-sim.test-vectors.pro-rata
+                                resolver-sim.protocols.sew.test-vectors.slash-allocation]
+   :component/entry-namespaces [resolver-sim.test-vectors.pro-rata
+                               resolver-sim.protocols.sew.test-vectors.slash-allocation]
    :component/material
    [{:path "extensions/sew-pro-rata-test-vectors/deps.edn"
      :kind :package-manifest}

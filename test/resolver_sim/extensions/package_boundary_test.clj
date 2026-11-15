@@ -10,10 +10,14 @@
     :source "extensions/force-authorisation/src"}
    {:id :held-custody
     :root "extensions/held-custody"
-    :source "extensions/held-custody/src"}])
+    :source "extensions/held-custody/src"}
+   {:id :sew-pro-rata-economics
+    :root "extensions/sew-pro-rata-economics"
+    :source "extensions/sew-pro-rata-economics/src"}])
 
 (def ^:private public-core-api
-  #{'resolver-sim.extensions.api.v1})
+  #{'resolver-sim.extensions.api.v1
+    'resolver-sim.extensions.api.pro-rata.v1})
 
 (def ^:private api-implementation-dependencies
   #{'resolver-sim.assurance.force-authorisation
@@ -24,6 +28,12 @@
     'resolver-sim.hash.reference
     'resolver-sim.hash.sequence
     'resolver-sim.sensitivity.sentinel})
+
+(def ^:private pro-rata-api-implementation-dependencies
+  #{'resolver-sim.evidence.node
+    'resolver-sim.pro-rata.allocation
+    'resolver-sim.pro-rata.evidence
+    'resolver-sim.pro-rata.evaluation})
 
 (defn- source-files [root]
   (->> (file-seq (io/file root))
@@ -40,22 +50,28 @@
           file (source-files source)]
     (let [contents (slurp file)
           requires (resolver-sim-requires contents)]
-      (is (or (empty? requires) (= public-core-api requires))
+      (is (every? public-core-api requires)
           (str id " runtime source " (.getPath file)
                " may import only " public-core-api "; found " requires)))))
 
 (deftest public-core-api-is-the-only-package-facing-core-namespace
-  (let [requires (resolver-sim-requires
-                  (slurp "src/resolver_sim/extensions/api/v1.clj"))]
-    (is (= api-implementation-dependencies requires)
-        "Review any change to the internal dependency closure of API v1")))
+  (let [core-requires (resolver-sim-requires
+                       (slurp "src/resolver_sim/extensions/api/v1.clj"))
+        pro-rata-requires (resolver-sim-requires
+                           (slurp "src/resolver_sim/extensions/api/pro_rata/v1.clj"))]
+    (is (= api-implementation-dependencies core-requires)
+        "Review any change to the internal dependency closure of extension API v1")
+    (is (= pro-rata-api-implementation-dependencies pro-rata-requires)
+        "Review any change to the internal dependency closure of pro-rata API v1")))
 
 (deftest package-runtime-and-test-paths-are-separated
   (doseq [{:keys [id root]} packages]
     (let [{:keys [paths aliases]} (edn/read-string (slurp (str root "/deps.edn")))]
       (is (= ["src"] paths) (str id " runtime paths must contain source only"))
-      (is (= ["test"] (get-in aliases [:test :extra-paths]))
-          (str id " tests must require the explicit :test alias")))))
+      (is (= "test" (first (get-in aliases [:test :extra-paths])))
+          (str id " tests must require the explicit :test alias"))
+      (is (every? #{"test" "../../src"} (get-in aliases [:test :extra-paths]))
+          (str id " test alias has an unexpected source path")))))
 
 (deftest source-candidate-is-registered-without-claiming-release
   (let [catalog (edn/read-string (slurp "packages/module-boundaries.edn"))

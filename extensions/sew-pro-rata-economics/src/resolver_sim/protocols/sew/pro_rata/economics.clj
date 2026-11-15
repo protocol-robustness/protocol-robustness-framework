@@ -3,7 +3,7 @@
 
    Kept separate from the general Sew economic helpers so the pro-rata
    integration can be composed and qualified independently."
-  (:require [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation]))
+  (:require [resolver-sim.extensions.api.pro-rata.v1 :as pro-rata-api]))
 
 (defn calculate-sew-slash-allocation
   "Allocate a Sew slash amount across liable parties.
@@ -42,12 +42,7 @@
                             :weight basis-amount
                             :cap cap}))
                        liable-parties)
-             allocate (requiring-resolve 'resolver-sim.pro-rata.allocation/allocate)
-             mechanism-evidence-artifact
-             (requiring-resolve 'resolver-sim.pro-rata.evidence/mechanism-evidence-artifact)
-             evidence-reference
-             (requiring-resolve 'resolver-sim.pro-rata.evidence/evidence-reference)
-             generic (allocate
+             generic (pro-rata-api/allocate
                      {:schema-version "pro-rata-allocation-request.v1"
                       :mechanism/version 1
                       :allocation/id [:sew-slash-allocation amount]
@@ -56,7 +51,7 @@
                       :rounding-policy :largest-remainder
                       :tie-break-policy :canonical-row-id
                       :redistribution-policy :unallocated})
-             mechanism-evidence (mechanism-evidence-artifact generic)
+             mechanism-evidence (pro-rata-api/mechanism-evidence-artifact generic)
             by-row-id (into {} (map (juxt :row/id identity) (:rows generic)))
             allocations (mapv (fn [party]
                                 (let [basis-amount (max 0 (long (or (basis party) 0)))
@@ -85,7 +80,8 @@
          ;; Presentation order remains Sew's supplied liable-party order. The
          ;; complete canonical mechanism witness is retained separately.
          :mechanism/evidence mechanism-evidence
-          :mechanism/evidence-reference (evidence-reference mechanism-evidence)
+          :mechanism/evidence-reference
+          (pro-rata-api/evidence-reference mechanism-evidence)
          :allocations allocations}))))
 
 (defn build-sew-slash-projection-artifact
@@ -102,7 +98,7 @@
          cap-field :available-slashable
          unmet-policy :record-only}}]
   (let [amount (or slash-amount slash-obligation 0)]
-    (pro-rata-evaluation/build-projection-artifact
+    (pro-rata-api/build-projection-artifact
      {:amount amount
       :items liable-parties
       :id-fn :id
@@ -130,7 +126,7 @@
    This is a shadow path for comparing against calculate-sew-slash-allocation;
    call sites should continue using the current function until replacement is explicit."
   [artifact]
-  (let [generic (pro-rata-evaluation/calculate-prorata-from-projection artifact)
+  (let [generic (pro-rata-api/calculate-from-projection artifact)
         total-basis (get-in artifact [:summary :total-weight] 0)
         amount (:total-requested generic)
         basis (get-in artifact [:source :basis] :slashable-stake)
