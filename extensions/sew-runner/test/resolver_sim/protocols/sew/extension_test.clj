@@ -19,9 +19,9 @@
   (is (fn? (protocols/get-capability
             "sew-v1" :runner/export-trace-fixture)))
   (is (fn? (protocols/get-capability
-            "sew-v1" :replay/appeal-bond-transition-receipt)))
+            "sew-v1" :replay/transition-evidence)))
   (is (fn? (protocols/get-capability
-            "sew-v1" :replay/finalize-appeal-bond)))
+            "sew-v1" :replay/finalize-result)))
   (is (fn? (protocols/get-capability "sew-v1" :runner/replay)))
   (is (fn? (protocols/get-capability "sew-v1" :runner/post-invariants)))
   (is (fn? (protocols/get-capability "sew-v1" :runner/summarise-batch)))
