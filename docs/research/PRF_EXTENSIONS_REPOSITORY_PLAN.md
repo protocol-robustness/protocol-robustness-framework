@@ -28,6 +28,8 @@ prf-extensions/
     governed-authority/
   adapters/
     sew-force-authorisation/
+  packages/
+    sew-protocol-model/   # add after the portable pro-rata API is released
   concepts/
     framework/
     prf-research/
@@ -50,6 +52,11 @@ depends on the force-authorisation permit contract and held-custody mutation
 contract. Keep `governed-authority` and `held-custody` as provider packages.
 Force-authorisation remains simulation-only until a separate on-chain path is
 implemented and qualified.
+
+The Sew behavioral model belongs in `packages/sew-protocol-model/`, separate
+from PRF composition adapters. Add it only after its portable pro-rata
+dependency is available through a fetchable, versioned PRF API; the current
+economics package still uses a test-only local source overlay for that facade.
 
 ## Package manifest requirements
 
@@ -116,12 +123,15 @@ consumer explicitly commits the bundle root into its own artifact.
 ## Current status and blocker
 
 `packages/prf-extension-api-v1` is an in-tree, clean-room-qualified source
-candidate; it is not a published core artifact. `extensions/force-authorisation`
-and `extensions/held-custody` still use a local-root dependency for PRF core, so
-neither is independently consumable yet. No `prf-extensions` checkout was found
-in `/home/user/Code` during this planning pass. Create or seed the repository
-only after the public API and source ownership are ready for an intentional
-source-layout migration. The force-authorisation source-closure qualification
-currently passes 105 tests / 598 assertions at
-`sha256:ed63122aa5dd54274926dde94f8657fbcef04d825ffaa95aff0dd6ca70d30cf2`;
+candidate; it is not a published core artifact. Force-authorisation and
+held-custody still use a local-root PRF dependency. Sew economics pins public
+PRF revision `b94b091cfbaf46ec34ae2ade4920f9a3751e3097`, which predates its new
+pro-rata API facade, and uses local PRF source only in its test alias. None is
+independently consumable against the complete current API. The
+`/home/user/Code/prf-extensions` checkout exists at `ccd59536` and has no Sew
+model package; its adapter guidance requires public PRF contracts first.
+Do not move the Sew package there until an API-bearing core revision is
+fetchable and clean-consumer qualification passes. The current source closure
+qualification passes 107 tests / 603 assertions at
+`sha256:a38d2a31f24f905b1717b9dffaffff136866b850a38e459f51f5aaee622f5d48`;
 this is an in-tree source qualification, not an independently released package.

@@ -79,6 +79,11 @@
         manifest (edn/read-string
                   (slurp "packages/prf-extension-api-v1/DEPENDENCIES.edn"))]
     (is (= 'resolver-sim.extensions.api.v1 (:public-namespace candidate)))
+    (is (= ['resolver-sim.extensions.api.pro-rata.v1]
+           (:additional-public-namespaces candidate)))
+    (is (= 'resolver-sim.extensions.api.pro-rata.v1
+           (get-in manifest [:additional-public-api 0 :namespace])))
+    (is (some #{:portable-pro-rata-evaluation.v1} (:api candidate)))
     (is (= :in-tree-source-candidate (:status candidate)))
     (is (= "packages/prf-extension-api-v1/DEPENDENCIES.edn"
            (:dependency-manifest candidate)))
