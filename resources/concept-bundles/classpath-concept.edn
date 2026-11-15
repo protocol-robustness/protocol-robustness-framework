@@ -1,0 +1,2 @@
+{:concept/id :test.bundle/classpath-concept
+ :concept/protocols #{:protocol/prf}}

@@ -1,7 +1,12 @@
 # PRF first-party extensions repository plan
 
-Status: proposed repository and package boundary. This plan does not move source,
-create a remote repository, publish artifacts, or claim package independence.
+Status: proposed architecture with an incubating source extraction in the
+separate repository `/home/user/Code/prf-extensions`. Its remote is configured
+and the initial source candidate is on `main`. GitHub currently exposes only
+that branch; the latest local package/test commit
+`0335ee452053967612a4aef68ddb1563f18a6a8e` (tree
+`7f49df6fe60699b57194bb83f986d23218dfa3f4`) is not present on the remote.
+No package release or independent qualification is claimed.
 
 ## Decision
 
@@ -21,13 +26,12 @@ of runtime closures.
 
 ```text
 prf-extensions/
-  extensions/
-    force-authorisation-scope/
-    force-authorisation-governance/
+  packages/
+    force-authorisation/
     held-custody/
-    governed-authority/
+    repairability-report/
   adapters/
-    sew-force-authorisation/
+    sew/force-authorisation/
   concepts/
     framework/
     prf-research/
@@ -94,34 +98,95 @@ resolution, explicit ownership/mapping checks, collision checks, and determinist
 merge/root tests. It must not change execution or evidence roots unless a
 consumer explicitly commits the bundle root into its own artifact.
 
-## Migration order
+## Migration status
 
-1. Finish and qualify `prf-extension-api-v1`; publish or pin the public API
-   artifact before removing monorepo-local core dependencies.
-2. Complete the force-authorisation package contract and implementation. The
-   candidate now advertises only its implemented protocol-neutral scope
-   capability; governed permit issuance and Sew custody execution remain in the
-   PRF runtime and are not advertised by this package. The scope entrypoint now
-   invokes its verifier, and package status is incubating/source-candidate.
-   Continue treating it as unreleased until an external consumer qualifies it.
-3. Move the force-authorisation logical packages and tests into `prf-extensions`
-   as a source-layout change. Preserve schemas, semantics, and test vectors.
-4. Qualify package composition with governed-authority, held-custody, and the
-   Sew adapter through public contracts.
-5. Add concept-bundle schema and explicit validation/merge tooling. Migrate
-   stable concepts first, then PRF research, Sew, and stablecoin domain bundles.
-6. Publish packages individually only after clean consumer qualification and
-   named release ownership. Do not require one coordinated all-package release.
+### Done in the local extraction
 
-## Current status and blocker
+- Created the separate `prf-extensions` repository and configured its `origin`
+  remote. The initial source candidate is present on `main`; the newer local
+  package candidate is not. This is source publication, not a package release
+  or qualification. See that repository's `docs/EXTRACTION_STATUS.md`.
+- Copied force-authorisation scope verification, held-custody, a dependency-free
+  repairability report renderer, and three declarative concept bundles with
+  mappings. The source migration is recorded in
+  that repository's `docs/INITIAL_EXTRACTION_PLAN.md`.
+- Added independent consumer tests, public API boundary checks, package
+  manifests, manifest validation, and a package dependency composition check.
+- Added concept bundle validation against the PRF loader. The extracted
+  catalogue has a new root; it is not claimed equivalent to the old catalogue
+  root.
+- Kept the Sew-specific adapters and governed-authority out of the initial
+  extraction. The force-authorisation adapter and
+  `extensions/sew-core-model` still import PRF protocol, registry, and research
+  namespaces. The latter also depends on `packages/sew-protocol-model`, whose
+  `deps.edn` still points back to the whole PRF checkout. These are extraction
+  blockers, not standalone packages. Define a public protocol/model contract
+  and remove that private source dependency before moving them.
+- A separate local Sew Core adapter repository exists at
+  `/home/user/Code/prf-sew-core-model`, commit
+  `d02ad01d06b096e46c542698f043dc0505e70365`. Its 10 tests / 62 assertions
+  pass against its declared immutable Git dependency at PRF revision
+  `b94b091cfbaf46ec34ae2ade4920f9a3751e3097` when using a temporary writable
+  `GITLIBS` cache. Its model dependency still resolves PRF implementation
+  namespaces, and the dependency exposes `protocols_src` outside the package
+  root. It has no configured remote. Treat it as an incubating source-layout
+  candidate, not a qualified independent extension; prefer folding its package
+  into the shared extensions repository after the model contract and
+  dependency closure are made public.
 
-`packages/prf-extension-api-v1` is an in-tree, clean-room-qualified source
-candidate; it is not a published core artifact. `extensions/force-authorisation`
-and `extensions/held-custody` still use a local-root dependency for PRF core, so
-neither is independently consumable yet. No `prf-extensions` checkout was found
-in `/home/user/Code` during this planning pass. Create or seed the repository
-only after the public API and source ownership are ready for an intentional
-source-layout migration. The force-authorisation source-closure qualification
-currently passes 105 tests / 598 assertions at
-`sha256:ed63122aa5dd54274926dde94f8657fbcef04d825ffaa95aff0dd6ca70d30cf2`;
-this is an in-tree source qualification, not an independently released package.
+### In progress or blocked
+
+1. **Public API package:** `packages/prf-extension-api-v1` now contains a
+   generated 25-namespace source closure and a `deps.edn` contract. The
+   generator checks package copies against canonical PRF sources. The clean-room
+   qualification passed 105 tests / 598 assertions, and both extracted package
+   suites passed when resolving this narrow local package root. It is not yet
+   integrated into staging, published as a Maven artifact, or pinned by
+   `prf-extensions`; those consumers still use the broader PRF root.
+2. **Concept loader:** focused commit
+   `925108c73121d41622925ae9427b100305c18347` is isolated on the exact
+   `agent-c-staging` base. Its loader tests and 50-concept validator pass, but
+   independent review and staging admission remain required before CI can use
+   the loader revision.
+3. **CI qualification:** extension package tests, consumers, composition, and
+   import-boundary checks passed in GitHub Actions. Manifest validation passed
+   locally but its Actions job repeatedly failed during Clojure setup. The
+   concept validation job awaits the reviewed loader integration.
+4. **Ownership and qualification:** repository remote is established; named
+   release owners/authority, independent source-closure review and artifact
+   release qualification remain outstanding.
+5. **PRF migration:** do not remove the in-core concept catalogue or switch PRF
+   consumers until pinned artifacts resolve and historical roots remain
+   inspectable.
+
+### Next sequence
+
+1. Independently review the exact loader candidate and land it through the
+   authorized PRF staging workflow; then enable concept validation in extension
+   CI against that immutable revision.
+2. Independently review the API source package and its complete dependency
+   closure; update extension dependencies to its subdirectory only after the
+   API package is integrated and fetchable.
+3. Record named package/repository owners and release authority.
+4. Publish package/bundle artifacts individually after their applicable
+   qualification gates, then migrate PRF consumers
+   in a separate reviewed change while preserving historical catalogue roots.
+5. Extract governed-authority or Sew adapters only after their public
+   dependency contracts are defined and private imports are removed. In
+   particular, make `sew-protocol-model` independently resolvable before
+   extracting `extensions/sew-core-model`; then reconcile the existing local
+   `prf-sew-core-model` candidate with the shared-repository architecture.
+
+The current local `prf-extensions` branch includes three executable packages:
+force-authorisation, held-custody, and repairability-report. Its latest
+package/test commit is `0335ee452053967612a4aef68ddb1563f18a6a8e`, tree
+`7f49df6fe60699b57194bb83f986d23218dfa3f4`; the current branch head is
+`ccd59536b072d076054fbc33db6ed63ce157d505`, tree
+`0aec33b394eb45a585bd851d4d6c02e741cb6c3a`, including qualification records.
+The branch is 13 commits ahead of local `origin/main`. GitHub confirms the
+package/test commit is absent from the remote; a push attempt failed because
+no GitHub credentials are available in the shell. No remote changes were made.
+Fresh-cache package checks pass, but the candidate has no remote CI run or
+independent review. The API and concept-loader candidates remain separate PRF
+changes pending review and staging qualification. Source publication is not
+release, admission, or deployment evidence.
