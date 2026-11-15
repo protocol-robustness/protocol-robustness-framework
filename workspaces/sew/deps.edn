@@ -18,4 +18,8 @@
          "../../extensions/sew-runner/resources"
          "../../extensions/sew-runner/test"
          "../../packages/sew-protocol-model/test"
-         "../../protocols_src/test"]}
+         "../../protocols_src/test"]
+ :aliases {:dev/local-economics
+           {:override-deps
+            {org.protocol-robustness/prf-sew-pro-rata-economics
+             {:local/root "../../extensions/sew-pro-rata-economics"}}}}}

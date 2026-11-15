@@ -47,11 +47,13 @@ The yield integration is separately selectable and depends on the model and
 shared yield runtime. Slash evidence remains a separate adapter that installs
 the evidence builder through the core-owned hook contract.
 
-The runner-free `sew-protocol` closure includes 60 source files from the model,
-28 from shared yield runtime, 14 benchmark files, 6 scenario files, 3 Sew yield
-adapter files, and 1 contract-model replay file. These counts describe the
-current transitive closure, not a standalone package manifest. Benchmark,
-scenario, replay, and shared framework dependencies still need further review.
+The runner-free `sew-protocol` closure includes 59 model files, 28 shared yield
+runtime files, 14 benchmark files, 3 Sew yield adapter files, 4 slash economics
+and evidence adapter files, 2 pro-rata contract-source files, 2 Force
+Authorization files, and 103 shared PRF source files. It contains no scenario
+or replay source files. These counts describe the current transitive closure,
+not a standalone package manifest. The shared framework API, benchmark
+dependencies, and exact-verifier dependency still need further review.
 
 The `sew-protocol-model-core` candidate excludes all shared yield runtime files
 and all Sew yield adapter files. Its 143-file closure is a useful smaller model
@@ -65,14 +67,13 @@ escrow transitions. The component declares its framework dependency and kernel
 contract test. The profile is intentionally narrower than `sew-protocol` and
 does not claim the full protocol's settlement or evidence behavior.
 
-The initial source relocation covers the 48 core Sew model namespaces reachable
-in the `sew-protocol` closure, in addition to the three kernel namespaces
-already in the package. Force-authorisation and shared integration namespaces
-remain under `protocols_src`; Sew analysis, slash economics, and slash evidence
-are separate extension source roots. Profile
-resolution now finds the moved sources under
-`packages/sew-protocol-model/src`; the package still depends on the remaining
-protocol source tree and the shared PRF framework.
+The current `sew-protocol` profile resolves 59 model-owned files under
+`packages/sew-protocol-model/src`. Sew analysis, slash economics, slash
+evidence, and yield integration have separate extension source roots. The
+model package manifest does not include `protocols_src`; the composed profile
+still selects the Force Authorization component, whose two production files
+remain there for the other agent's extraction. The 103 `src/` files in the
+closure are shared PRF dependencies, not Sew-owned implementation files.
 
 The `sew-protocol-model-core` candidate selects Sew protocol model and slash economics without
 the optional analysis, pro-rata slash-evidence, or researcher force-authorisation adapters. `resolution` calls a core-owned
@@ -150,10 +151,12 @@ protocol behavior from supporting integrations and is not a package manifest.
 
 Replay orchestration, batch summarization, researcher validation, and analysis
 now live behind optional runner or protocol capabilities. The runner-free
-candidate resolves to 201 files; the model-core candidate resolves to 143. The
-yield adapter and runtime are now optional at the component boundary. Benchmark,
-scenario, replay, and shared framework code remain in the candidate closure and
-need further separation before repository extraction.
+candidate resolves to 201 files; the model-core candidate resolves to 143.
+Scenario and replay source files are absent from the runner-free closure. The
+yield adapter and runtime remain optional at the component boundary. Further
+repository preparation should define the public PRF APIs used by the 103 shared
+sources and decide whether exact pro-rata verification belongs in a separate
+published dependency.
 
 ### Yield integration gate
 
@@ -189,9 +192,11 @@ entrypoints remain compatibility facades; Sew resolution calls a core-owned
 multimethod contract, and the adapter installs its implementation when loaded.
 This makes ownership visible in source, and the declared component graph now
 has no crossings for the audited profiles. The slash-evidence adapter is no
-longer a direct dependency of the Sew protocol model component. Full Sew compositions
-select it alongside core; the adapter-free candidate is only five source files
-smaller, so the broader protocol closure remains the main extraction blocker.
+longer a direct dependency of the Sew protocol model component. Full Sew
+compositions select it alongside core. The exact verifier remains in the
+adapter-free model closure because slash economics uses the evaluation and
+verifier chain. The shared framework and yield runtime are the larger remaining
+package boundary.
 
 ### Local PRF framework APIs
 
@@ -231,9 +236,11 @@ and a complete test/fixture closure.
    namespace's dependencies. Replay, batch summarization, researcher
    force-authorisation, and analysis are optional components; Sew yield
    operations are behind model-owned capabilities over the required runtime.
-3. Continue reducing the `sew-protocol` candidate's 201-file closure, focusing
-   on benchmark, scenario, replay, and shared framework dependencies. Keep the
-   yield integration selectable and preserve its explicit fail-closed contract.
+3. Continue reducing the `sew-protocol` candidate's 201-file closure by
+   defining the PRF framework API it needs and reviewing the 14 benchmark and
+   exact-verifier dependencies. Keep the yield integration selectable and
+   preserve its explicit fail-closed contract. Leave Force Authorization with
+   its current owner.
 4. Only after the constrained profile is small and tests/material are
    self-contained, prepare a separate repository package with its own
    dependency manifest, source provenance, compatibility vectors, and
