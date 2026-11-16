@@ -16,11 +16,11 @@
    :task (apply shell "bb" "scripts/profile_view.clj" "view" *command-line-args*)}
 
   profile:check
-  {:doc "Generate a profile view and verify declared namespaces load while excluded bounty namespaces are absent. Usage: bb profile:check <profile-name>"
+  {:doc "Generate a profile view and verify declared namespaces, absence rules, and optional Sew economics behavior. Usage: bb profile:check <profile-name>"
    :task (apply shell "bb" "scripts/profile_view.clj" "check" *command-line-args*)}
 
   profile:test
-  {:doc "Compatibility alias for profile boundary/load checking. Usage: bb profile:test <profile-name>"
+  {:doc "Compatibility alias for profile boundary, load, and optional Sew capability checking. Usage: bb profile:test <profile-name>"
    :task (apply shell "bb" "profile:check" *command-line-args*)}
 
   sim:run {:doc "Run a simulation with EDN params"

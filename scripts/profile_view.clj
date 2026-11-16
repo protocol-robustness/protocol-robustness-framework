@@ -420,6 +420,39 @@
   (some #(fs/exists? (fs/path view-root % (ns->relative-path ns-sym)))
         source-roots))
 
+(defn- check-sew-pro-rata-economics! [view-root integration-selected?]
+  (let [expression
+        (str "(require '[resolver-sim.protocols.sew.economics :as economics])"
+             "(let [input {:slash-amount 10"
+             "             :liable-parties [{:id :resolver-a"
+             "                               :slashable-stake 10"
+             "                               :available-slashable 10}]}"
+             "      result (try"
+             "               {:status :returned"
+             "                :value (economics/calculate-sew-slash-allocation input)}"
+             "               (catch clojure.lang.ExceptionInfo error"
+             "                 {:status :threw :data (ex-data error)}))]"
+             (if integration-selected?
+               (str "  (when-not (and (= :returned (:status result))"
+                    "                 (= 10 (get-in result [:value :recovered-total])))"
+                    "    (throw (ex-info \"Selected Sew pro-rata economics integration failed\""
+                    "                    {:result result})))")
+               (str "  (when-not (and (= :threw (:status result))"
+                    "                 (= :prf/sew-pro-rata-economics-v1"
+                    "                    (get-in result [:data :component]))"
+                    "                 (= :sew-pro-rata-economics/calculate-slash-allocation"
+                    "                    (get-in result [:data :capability/id])))"
+                    "    (throw (ex-info \"Unselected Sew pro-rata economics did not fail closed\""
+                    "                    {:result result})))"))
+             ")")
+        {:keys [exit]} (process/shell {:dir (str view-root) :continue true}
+                                      "clojure" "-M" "-e" expression)]
+    (when-not (zero? exit)
+      (throw (ex-info "Sew pro-rata economics profile contract failed"
+                      {:profile-view (str view-root)
+                       :integration-selected? integration-selected?
+                       :exit exit})))))
+
 (defn check! [name]
   (let [view-root (generate! name)
         {:keys [components]} (resolved-profile name)
@@ -427,6 +460,9 @@
         expected (set (mapcat :component/entry-namespaces (vals components)))
         owned (into {} (map (juxt key #(set (:component/owned-namespaces (val %)))) all-components))
         selected-ids (set (keys components))
+        sew-model-selected? (contains? selected-ids :prf/sew-protocol-model-v1)
+        sew-pro-rata-economics-selected?
+        (contains? selected-ids :prf/sew-pro-rata-economics-v1)
         forbidden (->> owned
                        (filter #(get-in all-components [(key %) :component/absence-enforced?]))
                        (remove #(contains? selected-ids (key %)))
@@ -450,6 +486,9 @@
       (when-not (zero? exit)
         (throw (ex-info "Generated profile cannot load its declared entry namespaces"
                         {:profile name :exit exit}))))
+    (when sew-model-selected?
+      (check-sew-pro-rata-economics! view-root
+                                     sew-pro-rata-economics-selected?))
     (println "Profile boundary and load checks passed:" name)))
 
 (defn describe! [name]

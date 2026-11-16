@@ -248,8 +248,7 @@
   :prf/sew-protocol-model-v1
   {:component/plane :protocol
    :component/requires [:prf/framework-v1
-                        :prf/sew-escrow-kernel-v1
-                        :prf/sew-pro-rata-economics-v1]
+                        :prf/sew-escrow-kernel-v1]
    :component/owned-namespaces
    [resolver-sim.protocols.adjudication
     resolver-sim.protocols.adjudication-authentication-verification
@@ -803,15 +802,16 @@
    [{:path "test/resolver_sim/pro_rata/programme_test.clj" :kind :test-source}
     {:path "test/prf/extensions/api/pro_rata_v1_test.clj" :kind :test-source}]}
 
-  ;; Sew slash economics is an adapter over portable allocation and evaluated
-  ;; evidence. Sew protocol model uses this integration for its allocation projection.
+  ;; Sew slash economics is an optional adapter over portable allocation and
+  ;; evaluated evidence. Slash operations request it through model capabilities.
   :prf/sew-pro-rata-economics-v1
   {:component/plane :protocol-adapter
    :component/requires [:prf/pro-rata-evaluation-v1]
    :component/owned-namespaces
-   [resolver-sim.protocols.sew.pro-rata.economics]
+   [resolver-sim.protocols.sew.pro-rata.economics
+    resolver-sim.protocols.sew.pro-rata.economics-extension]
    :component/entry-namespaces
-   [resolver-sim.protocols.sew.pro-rata.economics]
+   [resolver-sim.protocols.sew.pro-rata.economics-extension]
    :component/material
    [{:path "extensions/sew-pro-rata-economics/deps.edn"
      :kind :package-manifest}
