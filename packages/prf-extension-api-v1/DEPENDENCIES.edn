@@ -6,59 +6,106 @@
  {:namespace resolver-sim.extensions.api.v1
   :source "src/resolver_sim/extensions/api/v1.clj"
   :api-version 1}
- :consumer-packages [:force-authorisation :held-custody]
+ :additional-public-api
+ [{:namespace resolver-sim.extensions.api.pro-rata.v1
+   :source "src/resolver_sim/extensions/api/pro_rata/v1.clj"
+   :api-version 1}]
+ :consumer-packages [:force-authorisation :held-custody :sew-pro-rata-economics]
  :direct-source-dependencies
  [resolver-sim.assurance.force-authorisation
   resolver-sim.assurance.held-admission
   resolver-sim.configuration-head
   resolver-sim.evidence.artifact
+  resolver-sim.evidence.node
   resolver-sim.hash.canonical
   resolver-sim.hash.reference
   resolver-sim.hash.sequence
-  resolver-sim.sensitivity.sentinel]
+  resolver-sim.sensitivity.sentinel
+  resolver-sim.pro-rata.allocation
+  resolver-sim.pro-rata.evidence
+  resolver-sim.pro-rata.evaluation]
  :source-closure
  [resolver-sim.accounting.held-adjustment
   resolver-sim.assurance.canonical-force-authorisation
   resolver-sim.assurance.force-authorisation
   resolver-sim.assurance.held-admission
   resolver-sim.assurance.parameter-attribution
+  resolver-sim.benchmark.integrity
+  resolver-sim.benchmark.signing
   resolver-sim.config.defaults
+  resolver-sim.config.hardening
+  resolver-sim.config.paths
   resolver-sim.configuration-head
+  resolver-sim.definitions.passive-registries
   resolver-sim.economics.effects
+  resolver-sim.economics.progress
   resolver-sim.economics.schemas
+  resolver-sim.economics.verification
   resolver-sim.evidence.artifact
+  resolver-sim.evidence.chain
+  resolver-sim.evidence.config
+  resolver-sim.evidence.node
+  resolver-sim.evidence.reachability
+  resolver-sim.evidence.timestamping
+  resolver-sim.execution.budget
+  resolver-sim.execution.finalization-lane
+  resolver-sim.execution.realization
+  resolver-sim.extensions.api.pro-rata.v1
   resolver-sim.extensions.api.v1
   resolver-sim.extensions.core
   resolver-sim.extensions.execution
   resolver-sim.extensions.manifest
   resolver-sim.extensions.registry
   resolver-sim.extensions.resolution
+  resolver-sim.forensic.source-hash
   resolver-sim.genesis
   resolver-sim.hash.algorithm
   resolver-sim.hash.canonical
   resolver-sim.hash.framing-view
   resolver-sim.hash.reference
   resolver-sim.hash.sequence
+  resolver-sim.io.edn
+  resolver-sim.logging
+  resolver-sim.pro-rata.allocation
+  resolver-sim.pro-rata.engine
+  resolver-sim.pro-rata.evaluation
+  resolver-sim.pro-rata.evidence
+  resolver-sim.pro-rata.exact-verifier
+  resolver-sim.pro-rata.invariants
+  resolver-sim.pro-rata.progress
+  resolver-sim.pro-rata.redistribution
   resolver-sim.sensitivity.sentinel
   resolver-sim.transaction.ordering
-  resolver-sim.transaction.protocol]
+  resolver-sim.transaction.protocol
+  resolver-sim.util.thread-quiescence
+  resolver-sim.vcs]
  :external-dependencies
  {:clojure {:lib org.clojure/clojure :version "1.12.0"}
+  :data-json {:lib org.clojure/data.json :version "2.4.0"}
+  :buddy-core {:lib buddy/buddy-core :version "1.12.0-430"}
+  :slf4j-api {:lib org.slf4j/slf4j-api :version "1.7.36"}
+  :slf4j-simple {:lib org.slf4j/slf4j-simple :version "1.7.36"}
   :prf-canonical
   {:lib prf/canonical
    :git/url "https://github.com/protocol-robustness/prf-canonical.git"
    :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
    :deps/root "clj"}
+  :prf-pro-rata-allocation
+  {:lib prf/pro-rata-allocation
+   :git/url "https://github.com/protocol-robustness/prf-pro-rata-allocation.git"
+   :git/sha "cf38de1ea4ef03654ee3de8bead56c32ef078b10"
+   :deps/root "clj"}
   :test-check {:lib org.clojure/test.check :version "1.1.1"}}
  :qualification
  {:command "bash scripts/qualify_extension_core_api_v1.sh"
   :isolated-source-closure
-  {:source-content-set "sha256:ed63122aa5dd54274926dde94f8657fbcef04d825ffaa95aff0dd6ca70d30cf2"
-   :tests 105
-    :assertions 603
+  {:source-content-set "sha256:a38d2a31f24f905b1717b9dffaffff136866b850a38e459f51f5aaee622f5d48"
+   :tests 107
+   :assertions 603
    :result :passed}
   :test-namespaces
-  [prf.extensions.force-authorisation.manifest-test
+  [prf.extensions.api.pro-rata-v1-test
+   prf.extensions.force-authorisation.manifest-test
    prf.extensions.force-authorisation.scope-verification-test
    prf.extensions.held-custody.authoritative-gate-test
    prf.extensions.held-custody.authorisation-classification-test

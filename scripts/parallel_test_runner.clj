@@ -167,6 +167,7 @@
     resolver-sim.protocols.sew.slashing-test
     resolver-sim.protocols.sew.trace-export-idempotency-test
     resolver-sim.protocols.sew.with-bounty-test
+    resolver-sim.protocols.sew.with-bounty-contract-test
     resolver-sim.run.overview-test
     resolver-sim.scenario.equilibrium-test
     resolver-sim.scenario.expectations-test

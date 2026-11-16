@@ -7,9 +7,9 @@ import json
 import re
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 AUTHOR = "@grifma"
-SCENARIO_DIR = ROOT / "src" / "resolver_sim" / "protocols" / "sew" / "invariant_scenarios"
+SCENARIO_DIR = ROOT / "extensions" / "sew-runner" / "src" / "resolver_sim" / "protocols" / "sew" / "invariant_scenarios"
 TRACE_DIR = ROOT / "data" / "fixtures" / "traces"
 SCENARIOS_JSON = ROOT / "scenarios"
 
@@ -63,7 +63,7 @@ def stamp_scenarios_json(path: Path) -> bool:
 
 def main() -> None:
     clj = sum(stamp_clj_file(p) for p in SCENARIO_DIR.glob("*.clj"))
-    clj += 1 if stamp_clj_file(ROOT / "src/resolver_sim/protocols/sew/invariant_scenarios.clj") else 0
+    clj += 1 if stamp_clj_file(ROOT / "extensions/sew-runner/src/resolver_sim/protocols/sew/invariant_scenarios.clj") else 0
     traces = sum(stamp_trace_json(p) for p in TRACE_DIR.rglob("*.trace.json"))
     scenarios = sum(stamp_scenarios_json(p) for p in SCENARIOS_JSON.glob("*.json"))
     print(f"Stamped {clj} clj files, {traces} traces, {scenarios} scenario JSON files")

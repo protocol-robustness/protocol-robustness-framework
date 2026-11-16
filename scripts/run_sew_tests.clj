@@ -86,8 +86,15 @@
     resolver-sim.protocols.sew.authority-test
     resolver-sim.protocols.sew.claimable-classification-test
     resolver-sim.protocols.sew.diff-test
+    ;; Runner-owned tests moved from the root test tree. Keep them in the
+    ;; canonical manifest so extraction does not silently drop CI coverage.
+    resolver-sim.commands.invariants-run-test
+    resolver-sim.definitions.runner-execution-registry-test
+    resolver-sim.evidence.qol-test
+    resolver-sim.io.diff-test
     resolver-sim.protocols.sew.dispute-capacity-test
     resolver-sim.protocols.sew.economics-test
+    resolver-sim.protocols.sew.pro-rata.economics-adapter-test
     resolver-sim.protocols.sew.force-authorisation-test
     resolver-sim.protocols.sew.held-custody-test-env-test
     resolver-sim.protocols.sew.terminal-state-snapshot-test
@@ -107,6 +114,11 @@
     resolver-sim.protocols.sew.registry-immutability-test
     resolver-sim.protocols.sew.related-claims-test
     resolver-sim.protocols.sew.research-resolution-test
+    resolver-sim.delegation-test
+    resolver-sim.protocols.sew.research-models.ring-batch-test
+    resolver-sim.research.sew.adversarial.liveness-participation-test
+    resolver-sim.research.sew.adversarial.collusion-ring-test
+    resolver-sim.sim.phase-e-evidence-integrity-test
     resolver-sim.protocols.sew.resolution-test
     resolver-sim.protocols.sew.resolver-yield-accrual-test
     resolver-sim.protocols.sew.snapshot-boundary-test
@@ -147,6 +159,25 @@
 
 (def scenario-test-namespaces
   '[resolver-sim.contract-model.replay-batch-sew-test
+    resolver-sim.protocols.sew.appeal-bond-projection-integration-test
+    ;; Runner extension scenarios were moved under extensions/sew-runner;
+    ;; retain them in the canonical scenario lane after the source move.
+    resolver-sim.commands.simulation-test
+    resolver-sim.io.scenario-runner-test
+    resolver-sim.protocols.sew.dispute-context.case-bundle-test
+    resolver-sim.protocols.sew.dispute-context.disagree-test
+    resolver-sim.protocols.sew.extension-test
+    resolver-sim.protocols.sew.transition-assurance-test
+    resolver-sim.repl.interactive-resolution-test
+    resolver-sim.scenario.golden-test
+    resolver-sim.scenario.runner-test
+    resolver-sim.scenario.suites-test
+    resolver-sim.scenario.yield-expectations-test
+    resolver-sim.sim.fixtures-expected-outcome-test
+    resolver-sim.sim.fixtures-golden-theory-test
+    resolver-sim.sim.fixtures-mc-batch-test
+    resolver-sim.sim.fixtures-runner-test
+    resolver-sim.sim.reference-validation-evidence-test
     resolver-sim.protocols.sew.adversarial-test
     resolver-sim.protocols.sew.dispute-resolution-coverage-test
     resolver-sim.protocols.sew.evidence.slashing-test

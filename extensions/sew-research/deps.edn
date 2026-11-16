@@ -1,0 +1,10 @@
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        ;; In-tree dependencies are intentional while PRF core and Sew model
+        ;; artifacts remain unpublished. This package is not standalone yet.
+        org.protocol-robustness/prf-framework {:local/root "../.."}
+        org.protocol-robustness/prf-sew-protocol-model
+        {:local/root "../../packages/sew-protocol-model"}
+        org.protocol-robustness/prf-sew-research-models
+        {:local/root "../sew-research-models"}}
+ :aliases {:test {:extra-paths ["test"]}}}

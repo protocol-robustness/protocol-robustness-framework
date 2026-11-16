@@ -65,7 +65,7 @@
    [:assumptions       [:vector :string]]
    [:validated-by      [:vector :string]]
    [:falsified-if      :string]
-   [:confidence        [:enum :high :medium :bounded :low]]
+   [:confidence        [:enum :high :medium :bounded :trace-bounded :low]]
    [:status            [:enum :not-falsified :falsified :inconclusive :not-evaluated]]
    [:last-validated    {:optional true} [:maybe :string]]
    [:counterexamples   {:optional true} [:maybe [:vector :map]]]])
@@ -93,3 +93,6 @@
 
 (defn explain-manifest [m]
   (m/explain Manifest m))
+
+(defn explain-claim [c]
+  (m/explain Claim c))

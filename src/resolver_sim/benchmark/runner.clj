@@ -556,10 +556,11 @@
    benchmark core depend on a concrete protocol namespace."
   [protocol world]
   (case protocol
-    "sew-v1" (let [canonical-ids @(requiring-resolve 'resolver-sim.protocols.sew.invariants/canonical-ids)
-                   check-all (requiring-resolve 'resolver-sim.protocols.sew.invariants/check-all)]
-               {:ids (sort canonical-ids)
-                :results (:results (check-all world))})
+    "sew-v1" (if-let [check (protocols/get-capability protocol :runner/post-invariants)]
+               (check world)
+               (throw (ex-info "Sew runner invariant adapter is unavailable"
+                               {:protocol protocol
+                                :capability :runner/post-invariants})))
     "yield-v1" (let [catalog @(requiring-resolve 'resolver-sim.yield.invariant-catalog/catalog)
                      run-invariants (requiring-resolve 'resolver-sim.yield.invariants/run-invariants)
                      ids (sort (keys catalog))]
@@ -598,8 +599,11 @@
         output-dir (staging-execution-dir staging-root plan-entry)
         run-replay (fn []
                      (if (= "sew-v1" protocol)
-                       ((requiring-resolve 'resolver-sim.protocols.sew/replay-with-sew-protocol)
-                        scenario {:allow-dirty? (or chain/*allow-dirty* false)})
+                       (if-let [replay (protocols/get-capability protocol :runner/replay)]
+                         (replay scenario {:allow-dirty? (or chain/*allow-dirty* false)})
+                         (throw (ex-info "Sew runner replay adapter is unavailable"
+                                         {:protocol protocol
+                                          :capability :runner/replay})))
                        (replay/replay-events
                         adapter scenario
                         (cond-> {:allow-dirty? (or chain/*allow-dirty* false)}

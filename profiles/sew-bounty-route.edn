@@ -1,0 +1,7 @@
+{:profile/id :prf/sew-bounty-route-candidate-v1
+ :profile/version 1
+ :profile/status :candidate
+ :profile/protocol :prf.protocol/sew
+ :profile/extends :prf/framework-v1
+ :profile/components [:prf/bounty-v1
+                      :prf/sew-bounty-route-v1]}

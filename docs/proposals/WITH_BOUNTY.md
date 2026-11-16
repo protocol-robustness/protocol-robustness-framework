@@ -403,11 +403,12 @@ Implemented:
 - `src/resolver_sim/economics/with_bounty/evaluation.clj` — pure evaluation.
 - `src/resolver_sim/economics/with_bounty/verification.clj` — per-artifact
   structural verification (ADR-0006 D8).
-- `protocols_src/resolver_sim/protocols/sew/with_bounty.clj` — Sew adapter:
+- `extensions/sew-bounty/src/resolver_sim/protocols/sew/with_bounty.clj` — Sew adapter:
   preflight fail-before-mutation, canonical `add-held` reservation, payable +
   backing + claimable, idempotent application.
-- Tests: `test/resolver_sim/economics/with_bounty/*` and
-  `protocols_src/test/resolver_sim/protocols/sew/with_bounty_test.clj`.
+- Tests: `test/resolver_sim/economics/with_bounty/*`,
+  `test/resolver_sim/protocols/sew/with_bounty_test.clj`, and
+  `extensions/sew-bounty/test/resolver_sim/protocols/sew/with_bounty_contract_test.clj`.
 
 The slice stays narrow: one base type (slash distribution as committed base
 result), one obligation type (`:bounty-payable`), one protocol (Sew), no

@@ -7,18 +7,44 @@ describe protocol behavior that can be compared with the Solidity implementation
 in ~/Code/.workspaces/sew-protocol. It does not claim the same package
 boundary, dependency graph, or deployment responsibilities.
 
-The supported sew-protocol-model profile also selects the PRF runner and
-slash-evidence adapter. Those are profile composition choices, not part of the
-meaning of the protocol-model component. The profile is not yet a standalone
-package qualification.
+The supported sew-protocol-model profile also selects the PRF runner, analysis,
+force-authorisation, slash-economics, and slash-evidence extensions. These are
+profile composition choices, not part of the protocol-model component. The
+profile is not yet a standalone package qualification.
+
+The model package manifest pins PRF core at immutable Git revision
+`b94b091cfbaf46ec34ae2ade4920f9a3751e3097` and the Sew pro-rata economics
+extension at candidate revision `c6d21f852f8fbeff3d29b52c1139ad6f88ed332a`.
+The economics revision is not yet available on a shared remote, so clean-clone
+resolution remains unqualified. The test alias uses an in-checkout local-root
+override. The model package remains an in-tree candidate, not a published
+package. Most Sew
+model namespaces and contract tests live under the package source tree. The optional
+slash-evidence adapter and its dedicated tests live in
+`extensions/sew-pro-rata-slashing`; slash economics lives separately in
+`extensions/sew-pro-rata-economics`; the analysis adapter and dedicated tests
+live in `extensions/sew-analysis`, including the claimable-classification report
+builder and its contract tests. Insolvency lifecycle transitions and episode
+reports are isolated in `extensions/sew-financial-lifecycle` with a candidate
+profile. Sew pro-rata held-credit application is separately owned by
+`extensions/sew-pro-rata-application`, with its existing component and a
+candidate profile. The model-only bounty routing artifact is independently
+owned by `extensions/sew-bounty-route`, with its own canonical-hash dependency
+and candidate profile. Force-authorization sources and related tests remain
+under `protocols_src`. The development workspace adds those test paths, but the
+model package manifest does not. The economics extension has its own manifest
+and resolves its evaluation API from a pinned PRF source revision, but that
+manifest is not present at the model package's current pinned revision. These
+are source-composition candidates, not a separate Sew repository or published
+Maven packages.
 
 ## Initial behavior map
 
 | Behavior | PRF model | Solidity implementation | Alignment status |
 | --- | --- | --- | --- |
-| Escrow lifecycle and guarded transitions | protocols_src/resolver_sim/protocols/sew/{types,state_machine,lifecycle}.clj; escrow-kernel component | [BaseEscrow.sol](../../../sew-protocol/contracts/core/BaseEscrow.sol), [EscrowVault.sol](../../../sew-protocol/contracts/core/EscrowVault.sol), [EscrowableERC20.sol](../../../sew-protocol/contracts/core/EscrowableERC20.sol) | Intended shared behavior; compare transitions and boundary cases |
-| Dispute resolution and appeal-bond accounting | protocols_src/resolver_sim/protocols/sew/resolution.clj, appeal_bond_projection.clj, and accounting_projection.clj | [DecentralizedResolutionModule.sol](../../../sew-protocol/contracts/modules/decentralized-resolution-module/DecentralizedResolutionModule.sol), [ResolverIncentiveModule.sol](../../../sew-protocol/contracts/modules/decentralized-resolution-module/incentive/ResolverIncentiveModule.sol), [BondLedger.sol](../../../sew-protocol/contracts/shared/BondLedger.sol) | Shared domain; module boundaries differ |
-| Yield accrual and settlement | yield_runtime_src/resolver_sim/yield/ and protocols_src/resolver_sim/protocols/sew/yield/ | [EscrowYield.sol](../../../sew-protocol/contracts/core/EscrowYield.sol), [AaveYieldModule.sol](../../../sew-protocol/contracts/modules/AaveYieldModule.sol), IYieldModule | Shared behavior where selected module semantics overlap; simulated providers are not Solidity package equivalents |
+| Escrow lifecycle and guarded transitions | `packages/sew-protocol-model/src/resolver_sim/protocols/sew/{types,state_machine,lifecycle}.clj`; escrow-kernel component | [BaseEscrow.sol](../../../sew-protocol/contracts/core/BaseEscrow.sol), [EscrowVault.sol](../../../sew-protocol/contracts/core/EscrowVault.sol), [EscrowableERC20.sol](../../../sew-protocol/contracts/core/EscrowableERC20.sol) | Intended shared behavior; compare transitions and boundary cases |
+| Dispute resolution and appeal-bond accounting | `packages/sew-protocol-model/src/resolver_sim/protocols/sew/{resolution,appeal_bond_projection,accounting_projection}.clj` | [DecentralizedResolutionModule.sol](../../../sew-protocol/contracts/modules/decentralized-resolution-module/DecentralizedResolutionModule.sol), [ResolverIncentiveModule.sol](../../../sew-protocol/contracts/modules/decentralized-resolution-module/incentive/ResolverIncentiveModule.sol), [BondLedger.sol](../../../sew-protocol/contracts/shared/BondLedger.sol) | Shared domain; module boundaries differ |
+| Yield accrual and settlement | `yield_runtime_src/resolver_sim/yield/` and `extensions/sew-yield-integration/src/resolver_sim/protocols/sew/` | [EscrowYield.sol](../../../sew-protocol/contracts/core/EscrowYield.sol), [AaveYieldModule.sol](../../../sew-protocol/contracts/modules/AaveYieldModule.sol), IYieldModule | Shared behavior where selected module semantics overlap; simulated providers are not Solidity package equivalents |
 | Slash allocation and evidence | Sew pro-rata economics, slash projection, and the optional slash-evidence adapter | ResolverIncentiveModule and ResolverIncentiveModuleV2BondLedger | Compare economic outcomes and evidence claims; PRF evidence artifacts are off-chain |
 | Replay receipts, research, and runner assembly | PRF contract-model replay, scenario runner, and research namespaces | No direct on-chain package counterpart | PRF tooling; excluded from a Solidity-core package equivalence claim |
 | Governance, deployment, and upgrades | Model-specific governance behavior where simulated | Solidity governance/admin contracts and deployment tooling | Map individual protocol rules when behavior is shared; deployment infrastructure is not model-core parity |
@@ -44,14 +70,27 @@ The existing 30-file `sew-kernel` candidate does not cover these operations by
 itself. An operation-limited in-tree adapter now exists as the separate
 `sew-core-extension` candidate profile. It validates its action and feature
 boundary and delegates supported behavior to the full Sew model. The adapter
-now lives in the optional `extensions/sew-core-model` package, with a separate
-`deps.edn`, source, tests, and development classpath alias. Its model dependency
-resolves through the independently selectable `packages/sew-protocol-model`
-package, while that model package still uses an in-tree framework dependency.
-The adapter is not independently downloadable until the model is published.
-Its current closure is 194 source files because it still requires the full model, including
+now lives in the optional `extensions/sew-core-profile-adapter` package, with a separate
+`deps.edn`, source, tests, and development classpath alias. Its default model
+dependency is pinned to immutable PRF revision `b94b091c`; that revision's
+manifest still loads the legacy `protocols_src` tree, so it is only a historical
+integration baseline and does not qualify the extracted model. The package's
+`:test` alias replaces that dependency with the current local
+`packages/sew-protocol-model` candidate and adds the yield integration source;
+the passing tests qualify this checkout only. The model manifest now pins the
+economics extension to candidate Git revision
+`c6d21f852f8fbeff3d29b52c1139ad6f88ed332a` and uses a local-root override only
+for in-checkout tests. That revision is not yet published on a shared remote.
+The adapter and model remain unqualified for clean-clone resolution until the
+candidate revisions are published and the default dependency path is verified.
+The model package's in-tree test command is
+`clojure -M:test -m resolver-sim.protocols.sew.package-test-runner`; it loads
+the sibling yield integration test fixture and passes 733 tests with 2,456
+assertions in this checkout.
+Its current closure is 196 source files because it still requires the full model, including
 shared yield runtime; it is not an independently extracted or Solidity
-equivalent package. The profile has no undeclared component crossings and
+equivalent package. Its current profile closure is 210 source files. The
+profile has no undeclared component crossings and
 passes `bb profile:check sew-core-extension`. To make that possible, runner
 execution entries now belong to the optional runner component instead of the
 framework passive registry. Package tests cover rejected feature/configuration

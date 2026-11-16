@@ -329,6 +329,7 @@ run_unit() {
     resolver-sim.io.scenario-runner-test \
     resolver-sim.contract-model.replay-batch-test \
     resolver-sim.contract-model.replay-batch-sew-test \
+    resolver-sim.protocols.sew.appeal-bond-projection-integration-test \
     resolver-sim.contract-model.replay-batch-appeal-test \
     resolver-sim.contract-model.replay-batch-slash-domain-test \
     resolver-sim.protocols.sew.dispute-resolution-coverage-test \
@@ -379,6 +380,7 @@ run_unit() {
     resolver-sim.economics.with-bounty.verification-test \
     resolver-sim.economics.with-bounty.replay-test \
     resolver-sim.protocols.sew.with-bounty-test \
+    resolver-sim.protocols.sew.with-bounty-contract-test \
     resolver-sim.hash.canonical-test \
     resolver-sim.hash.concat-properties-test \
     resolver-sim.hash.framing-view-test \

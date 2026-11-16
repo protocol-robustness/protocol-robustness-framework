@@ -1,0 +1,21 @@
+{:paths ["src" "resources"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        ;; These are explicit local roots while the component packages are
+        ;; unpublished. This manifest is an in-tree candidate, not a
+        ;; standalone package coordinate.
+        org.protocol-robustness/prf-core
+        {:local/root "../.."}
+        org.protocol-robustness/prf-sew-protocol-model
+        {:local/root "../../packages/sew-protocol-model"}
+        org.protocol-robustness/prf-sew-yield-integration
+        {:local/root "../sew-yield-integration"}
+        org.protocol-robustness/prf-sew-analysis
+        {:local/root "../sew-analysis"}
+        org.protocol-robustness/prf-sew-pro-rata-slashing
+        {:local/root "../sew-pro-rata-slashing"}
+        ;; Sew research is still an in-tree candidate; its local root keeps
+        ;; the runner classpath honest until an immutable package revision exists.
+        org.protocol-robustness/prf-sew-research
+        {:local/root "../sew-research"}}
+ :aliases {:test {:extra-paths ["test"]
+                  :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}}}}

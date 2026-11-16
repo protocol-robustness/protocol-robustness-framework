@@ -4,4 +4,5 @@
  :profile/protocol :prf.protocol/sew-core
  :profile/extends :prf/framework-v1
  :profile/components [:prf/sew-protocol-model-v1
+                      :prf/sew-yield-integration-v1
                       :prf/sew-core-extension-v1]}
