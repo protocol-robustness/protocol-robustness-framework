@@ -4,17 +4,17 @@
 
 (deftest portable-pro-rata-api-supports-allocation-and-evidence
   (let [allocation (pro-rata/allocate
-                   {:schema-version "pro-rata-allocation-request.v1"
-                    :mechanism/version 1
-                    :allocation/id :public-api-contract
-                    :available 10
-                    :rows [{:row/id :row-a :obligation/id :a
-                            :requested 10 :weight 3}
-                           {:row/id :row-b :obligation/id :b
-                            :requested 10 :weight 1}]
-                    :rounding-policy :largest-remainder
-                    :tie-break-policy :canonical-row-id
-                    :redistribution-policy :unallocated})
+                    {:schema-version "pro-rata-allocation-request.v1"
+                     :mechanism/version 1
+                     :allocation/id :public-api-contract
+                     :available 10
+                     :rows [{:row/id :row-a :obligation/id :a
+                             :requested 10 :weight 3}
+                            {:row/id :row-b :obligation/id :b
+                             :requested 10 :weight 1}]
+                     :rounding-policy :largest-remainder
+                     :tie-break-policy :canonical-row-id
+                     :redistribution-policy :unallocated})
         evidence (pro-rata/mechanism-evidence-artifact allocation)]
     (is (= [8 2] (mapv :allocated (:rows allocation))))
     (is (true? (pro-rata/evidence-valid? evidence)))
