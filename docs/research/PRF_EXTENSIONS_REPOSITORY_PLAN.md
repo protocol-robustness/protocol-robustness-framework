@@ -147,8 +147,9 @@ consumer explicitly commits the bundle root into its own artifact.
 1. **Public API package:** `packages/prf-extension-api-v1` exposes the original
    API and portable pro-rata API. Its source closure has 54 namespaces, and its
    isolated qualification passed 107 tests / 603 assertions at
-   `sha256:a38d2a31f24f905b1717b9dffaffff136866b850a38e459f51f5aaee622f5d48`.
-   Source review passed. This is still an in-tree candidate, not a published
+   `sha256:a38d2a31f24f905b1717b9dffaffff136866b850a38e459f51f5aaee622f5d48`;
+   this was rerun on the merged candidate on 2026-11-16. Source review passed.
+   This is still an in-tree candidate, not a published
    core artifact. The GitHub publisher rejected the write needed to create a
    fetchable branch because MCP approval is unavailable (`approval policy is
    never`); no public revision was created. Public PRF `main` remains at
