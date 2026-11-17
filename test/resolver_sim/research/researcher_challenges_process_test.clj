@@ -201,6 +201,27 @@
     (spit path (pr-str body))
     path))
 
+(deftest challenge-001-v2-profile-reconstructs-in-a-fresh-process
+  (let [f (#'shortfall-fixture/challenge-001-fixture)
+        initial (#'shortfall-fixture/before-submission f)
+        history (#'shortfall-fixture/submission f initial (:context f))
+        expected (shortfall-adapter/replay (:config f) (:profile f) history (:evidence f))
+        directory (.toFile (Files/createTempDirectory "challenge-001-replay-process-"
+                                                      (make-array java.nio.file.attribute.FileAttribute 0)))
+        config-path (write-edn! directory "configuration.edn" (:config f))
+        profile-path (write-edn! directory "profile.edn" (:profile f))
+        history-path (write-edn! directory "history.edn" history)
+        evidence-path (write-edn! directory "evidence.edn" (:evidence f))]
+    (try
+      (let [actual (successful!
+                    (shortfall-child! directory "replay" config-path profile-path
+                                      history-path evidence-path))]
+        (is (= (:state expected) (:state actual)))
+        (is (= (mapv :node-hash (:replay/nodes expected))
+               (mapv :node-hash (:replay/nodes actual)))))
+      (finally
+        (doseq [file (reverse (file-seq directory))] (.delete file))))))
+
 (deftest separate-participant-operator-and-observer-processes
   (let [directory (.toFile (Files/createTempDirectory "researcher-process-"
                                                       (make-array java.nio.file.attribute.FileAttribute 0)))

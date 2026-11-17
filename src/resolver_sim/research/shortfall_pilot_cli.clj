@@ -2,11 +2,18 @@
   "Offline arithmetic-gated pilot admission using the existing durable writer."
   (:require [clojure.edn :as edn]
             [resolver-sim.io.edn :as pretty]
+            [resolver-sim.network.researcher-challenges :as challenges]
             [resolver-sim.research.researcher-challenges-cli :as cli]
             [resolver-sim.research.shortfall-pilot :as pilot]
             [resolver-sim.network.shortfall-pilot-adapter :as pilot-adapter]))
 
 (defn- read-file [path] (edn/read-string (slurp path)))
+
+(defn build-challenge-001-profile
+  "Validate a network configuration and build its Challenge 001 verifier profile."
+  [config candidate comparison]
+  (challenges/replay config [])
+  (pilot/build-challenge-001-profile config candidate comparison))
 
 (defn -main [& args]
   (let [[command & paths] args]
@@ -25,6 +32,13 @@
                       (pilot/build-context (read-file (first paths)) (read-file (second paths))))
         "profile" (do (when-not (= 2 (count paths)) (throw (ex-info "profile CONFIG COMPARISON" {})))
                       (pilot-adapter/build-profile (read-file (first paths)) (read-file (second paths))))
+        "challenge-001-profile" (do (when-not (= 4 (count paths))
+                                      (throw (ex-info "challenge-001-profile CONFIG SCOPE_CANDIDATE LEFT RIGHT" {})))
+                                    (let [[config-path candidate-path left-path right-path] paths
+                                          comparison (pilot/execute-comparison
+                                                      (mapv read-file [left-path right-path]))]
+                                      (build-challenge-001-profile
+                                       (read-file config-path) (read-file candidate-path) comparison)))
         "controlled-profile" (do (when-not (= 4 (count paths))
                                    (throw (ex-info "controlled-profile CONFIG PILOT_PROFILE CONTROL_POLICY ACTIVATION_HISTORY" {})))
                                  (apply pilot-adapter/build-controlled-profile (map read-file paths)))
@@ -48,4 +62,4 @@
                                  (cli/apply-controlled-checked-file!
                                   config policy-path history action checkpoint
                                   #(pilot-adapter/replay-controlled %1 profile policy %2 evidence))))
-        (throw (ex-info "Expected compare, qualify, context, profile, controlled-profile, replay, controlled-replay, apply or controlled-apply" {})))))))
+        (throw (ex-info "Expected compare, qualify, context, profile, challenge-001-profile, controlled-profile, replay, controlled-replay, apply or controlled-apply" {})))))))
