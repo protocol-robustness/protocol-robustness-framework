@@ -16,7 +16,8 @@
             [resolver-sim.hash.canonical :as canonical-hash]
             [resolver-sim.hash.reference :as hash-reference]
             [resolver-sim.hash.sequence :as sequence-hash]
-            [resolver-sim.sensitivity.sentinel :as sensitivity]))
+            [resolver-sim.sensitivity.sentinel :as sensitivity]
+            [resolver-sim.protocols.registry :as protocol-registry]))
 
 ;; Force-authorisation and held-admission contracts.
 (def normalize-force-authorisation-scope
@@ -42,3 +43,27 @@
 (def sequence-hash sequence-hash/sequence-hash)
 (def remote-authority-required-artifact?
   sensitivity/remote-authority-required-artifact?)
+
+;; Optional protocol capability contracts.
+(defn register-protocol-capability!
+  "Register an optional capability for a protocol extension.
+
+   Capability IDs are keywords. The value is protocol-defined data or a
+   function. Returns the capability ID."
+  [protocol-id capability-id value]
+  (protocol-registry/register-capability! protocol-id capability-id value))
+
+(defn get-protocol-capability
+  "Resolve a registered optional protocol capability, returning nil when it
+   is unavailable. Profile-specific extension bootstrapping is performed by
+   the PRF protocol registry."
+  [protocol-id capability-id]
+  (protocol-registry/get-capability protocol-id capability-id))
+
+(defn register-protocol-capability-provider!
+  "Register a reloadable bootstrap for one protocol capability group.
+
+   `group` must be recognized by the host protocol registry. Returns the
+   group keyword."
+  [protocol-id group bootstrap-fn]
+  (protocol-registry/register-capability-provider! protocol-id group bootstrap-fn))
