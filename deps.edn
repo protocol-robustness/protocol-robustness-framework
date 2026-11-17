@@ -157,7 +157,7 @@
    ;; Optional extracted notebook source; only notebook commands select this.
    :notebooks
    {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}}
+                                :git/sha "07ff7a18da15cfc6402de199179fe17457b8c253"}}}
 
    ;; Corruption guard: load-all / def-inventory integrity checks.
    :check
@@ -405,12 +405,12 @@
 
    :clerk
    {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}
+                                :git/sha "07ff7a18da15cfc6402de199179fe17457b8c253"}}
     :main-opts ["-m" "notebooks.serve"]}
 
    :build-clerk
    {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}
+                                :git/sha "07ff7a18da15cfc6402de199179fe17457b8c253"}}
     :main-opts ["-m" "prf.notebooks.build"]}
 
    :observability
@@ -419,7 +419,7 @@
      {:git/url "https://github.com/nextjournal/clerk"
       :git/sha "8772a0889218274384a30e79165b4c194b59560f"}}
     :extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}
+                                :git/sha "07ff7a18da15cfc6402de199179fe17457b8c253"}}
     :main-opts ["-m" "notebooks.serve"]}
 
    :telemetry-seed
@@ -488,7 +488,7 @@
    :search-docs
    {:extra-paths [:paths/scripts]
     :extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}
+                                :git/sha "07ff7a18da15cfc6402de199179fe17457b8c253"}}
     :main-opts ["-m" "scripts.search_docs_sentinel.run"]}
 
 }}
