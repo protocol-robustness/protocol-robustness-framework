@@ -2,10 +2,11 @@
 
 This candidate records the source boundary consumed by the
 `force-authorisation`, `held-custody`, and Sew pro-rata economics packages. It
-contains three versioned facades: the general extension API at
+contains three versioned facades and the shared adapter interface: the general extension API at
 `src/resolver_sim/extensions/api/v1.clj`, the portable pro-rata API at
 `src/resolver_sim/extensions/api/pro_rata/v1.clj`, and the narrow protocol
 capability registry API at `src/resolver_sim/extensions/api/protocol/v1.clj`.
+The common protocol interfaces live at `src/resolver_sim/protocols/protocol.clj`.
 Neither implementation is copied or forked into this directory.
 
 Status: in-tree source candidate. The dependency manifest pins the external

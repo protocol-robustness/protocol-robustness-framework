@@ -7,8 +7,7 @@
   (:require [clojure.string :as str]
             [resolver-sim.extensions.api.protocol.v1 :as protocol-api]
             [resolver-sim.protocols.protocol :as proto]
-            [resolver-sim.protocols.sew :as sew]
-            [resolver-sim.protocols.sew.compat :as compat]))
+            [resolver-sim.protocols.sew :as sew]))
 
 (def protocol-profile :sew-core-v1)
 
@@ -100,7 +99,7 @@
 (defn validate-event!
   "Reject actions and option fields not represented by the Sew Core profile."
   [event]
-  (let [action (compat/canonical-action event)
+  (let [action (sew/canonical-action event)
         params (:params event {})
         excluded (vec (excluded-config-paths params))
         unsupported-params (vec (remove (get event-parameter-allowlist action #{})

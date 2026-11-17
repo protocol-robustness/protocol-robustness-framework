@@ -19,7 +19,8 @@
 (def ^:private public-core-api
   #{'resolver-sim.extensions.api.v1
     'resolver-sim.extensions.api.pro-rata.v1
-    'resolver-sim.extensions.api.protocol.v1})
+    'resolver-sim.extensions.api.protocol.v1
+    'resolver-sim.protocols.protocol})
 
 (def ^:private api-implementation-dependencies
   #{'resolver-sim.assurance.force-authorisation
@@ -100,12 +101,15 @@
                   (slurp "packages/prf-extension-api-v1/DEPENDENCIES.edn"))]
     (is (= 'resolver-sim.extensions.api.v1 (:public-namespace candidate)))
     (is (= ['resolver-sim.extensions.api.pro-rata.v1
-            'resolver-sim.extensions.api.protocol.v1]
+            'resolver-sim.extensions.api.protocol.v1
+            'resolver-sim.protocols.protocol]
            (:additional-public-namespaces candidate)))
     (is (= 'resolver-sim.extensions.api.pro-rata.v1
            (get-in manifest [:additional-public-api 0 :namespace])))
     (is (= 'resolver-sim.extensions.api.protocol.v1
            (get-in manifest [:additional-public-api 1 :namespace])))
+    (is (= 'resolver-sim.protocols.protocol
+           (get-in manifest [:additional-public-api 2 :namespace])))
     (is (some #{:portable-pro-rata-evaluation.v1} (:api candidate)))
     (is (= :in-tree-source-candidate (:status candidate)))
     (is (= "packages/prf-extension-api-v1/DEPENDENCIES.edn"

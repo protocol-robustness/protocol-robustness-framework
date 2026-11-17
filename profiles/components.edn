@@ -10,6 +10,7 @@
     resolver-sim.logging
     resolver-sim.time.context
     resolver-sim.time.deadlines
+    resolver-sim.protocols.protocol
     resolver-sim.extensions.api.protocol.v1]
    :component/entry-namespaces
    [resolver-sim.hash.canonical
@@ -20,9 +21,12 @@
     resolver-sim.logging
     resolver-sim.time.context
     resolver-sim.time.deadlines
+    resolver-sim.protocols.protocol
     resolver-sim.extensions.api.protocol.v1]
    :component/material
    [{:path "config" :kind :runtime-configuration}
+    {:path "test/prf/extensions/api/protocol_interface_v1_test.clj"
+     :kind :test-source}
     {:path "test/prf/extensions/api/protocol_v1_test.clj"
      :kind :test-source}
     {:path "test/resolver_sim/protocols/registry_test.clj"
@@ -335,6 +339,8 @@
     resolver-sim.cancellation.sew-projection]
    :component/material
    [{:path "packages/sew-protocol-model/test/resolver_sim/protocols/adjudication_test.clj"
+     :kind :test-source}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/public_api_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/adjudication_authentication_verification_test.clj"
      :kind :test-source}

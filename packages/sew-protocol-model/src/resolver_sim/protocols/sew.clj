@@ -40,6 +40,10 @@
       (throw (ex-info "Sew operation requires the yield integration"
                       {:protocol/id "sew-v1" :capability/id capability-id}))))
 
+(def canonical-action
+  "Canonicalize Sew action input through the model's public entry namespace."
+  compat/canonical-action)
+
 ;; ---------------------------------------------------------------------------
 ;; Constants
 ;; ---------------------------------------------------------------------------
