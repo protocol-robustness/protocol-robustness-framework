@@ -9,8 +9,12 @@
  :additional-public-api
  [{:namespace resolver-sim.extensions.api.pro-rata.v1
    :source "src/resolver_sim/extensions/api/pro_rata/v1.clj"
+   :api-version 1}
+  {:namespace resolver-sim.extensions.api.protocol.v1
+   :source "src/resolver_sim/extensions/api/protocol/v1.clj"
    :api-version 1}]
- :consumer-packages [:force-authorisation :held-custody :sew-pro-rata-economics]
+ :consumer-packages [:force-authorisation :held-custody
+                     :sew-pro-rata-economics :sew-core-profile-adapter]
  :direct-source-dependencies
  [resolver-sim.assurance.force-authorisation
   resolver-sim.assurance.held-admission
@@ -21,6 +25,7 @@
   resolver-sim.hash.reference
   resolver-sim.hash.sequence
   resolver-sim.sensitivity.sentinel
+  resolver-sim.extensions.api.protocol.v1
   resolver-sim.pro-rata.allocation
   resolver-sim.pro-rata.evidence
   resolver-sim.pro-rata.evaluation]
@@ -51,6 +56,7 @@
   resolver-sim.execution.finalization-lane
   resolver-sim.execution.realization
   resolver-sim.extensions.api.pro-rata.v1
+  resolver-sim.extensions.api.protocol.v1
   resolver-sim.extensions.api.v1
   resolver-sim.extensions.core
   resolver-sim.extensions.execution
@@ -74,6 +80,7 @@
   resolver-sim.pro-rata.invariants
   resolver-sim.pro-rata.progress
   resolver-sim.pro-rata.redistribution
+  resolver-sim.protocols.registry
   resolver-sim.sensitivity.sentinel
   resolver-sim.transaction.ordering
   resolver-sim.transaction.protocol
@@ -99,12 +106,13 @@
  :qualification
  {:command "bash scripts/qualify_extension_core_api_v1.sh"
   :isolated-source-closure
-  {:source-content-set "sha256:a38d2a31f24f905b1717b9dffaffff136866b850a38e459f51f5aaee622f5d48"
-   :tests 107
-   :assertions 603
+  {:source-content-set "sha256:3869bc01fa5cfb45492f12058f4a9bccde7b2d2749daf81b7d304808bf4c6156"
+   :tests 108
+   :assertions 605
    :result :passed}
   :test-namespaces
-  [prf.extensions.api.pro-rata-v1-test
+  [prf.extensions.api.protocol-v1-test
+   prf.extensions.api.pro-rata-v1-test
    prf.extensions.force-authorisation.manifest-test
    prf.extensions.force-authorisation.scope-verification-test
    prf.extensions.held-custody.authoritative-gate-test

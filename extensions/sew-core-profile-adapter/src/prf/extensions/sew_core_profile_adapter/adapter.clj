@@ -5,7 +5,7 @@
    while rejecting actions and configuration outside the Sew Core scope. It is
    an optional package boundary; the in-tree model dependency is still broad."
   (:require [clojure.string :as str]
-            [resolver-sim.extensions.api.v1 :as prf-api]
+            [resolver-sim.extensions.api.protocol.v1 :as protocol-api]
             [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.protocols.sew :as sew]
             [resolver-sim.protocols.sew.compat :as compat]))
@@ -309,11 +309,11 @@
       protocol scenario replay-options))))
 
 (defn register-capabilities! []
-  (prf-api/register-protocol-capability!
+  (protocol-api/register-capability!
    "sew-v1" :sew-core/dispatch-action dispatch-action)
-  (prf-api/register-protocol-capability!
+  (protocol-api/register-capability!
    "sew-v1" :sew-core/validate-scenario validate-scenario!))
 
-(prf-api/register-protocol-capability-provider!
+(protocol-api/register-capability-provider!
  "sew-v1" :sew-core register-capabilities!)
 (register-capabilities!)

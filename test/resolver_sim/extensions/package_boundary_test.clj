@@ -2,6 +2,7 @@
   "Keep package runtime imports and project paths behind the versioned core API."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.test :refer [deftest is]]))
 
 (def ^:private packages
@@ -17,7 +18,8 @@
 
 (def ^:private public-core-api
   #{'resolver-sim.extensions.api.v1
-    'resolver-sim.extensions.api.pro-rata.v1})
+    'resolver-sim.extensions.api.pro-rata.v1
+    'resolver-sim.extensions.api.protocol.v1})
 
 (def ^:private api-implementation-dependencies
   #{'resolver-sim.assurance.force-authorisation
@@ -27,7 +29,11 @@
     'resolver-sim.hash.canonical
     'resolver-sim.hash.reference
     'resolver-sim.hash.sequence
-    'resolver-sim.sensitivity.sentinel})
+    'resolver-sim.sensitivity.sentinel
+    'resolver-sim.extensions.api.protocol.v1})
+
+(def ^:private protocol-api-implementation-dependencies
+  #{'resolver-sim.protocols.registry})
 
 (def ^:private pro-rata-api-implementation-dependencies
   #{'resolver-sim.evidence.node
@@ -45,14 +51,24 @@
        (map (comp symbol second))
        set))
 
+(defn- package-owned-namespace? [source-root namespace]
+  (let [relative (-> (str namespace)
+                     (str/replace "." "/")
+                     (str/replace "-" "_")
+                     (str ".clj"))]
+    (.isFile (io/file source-root relative))))
+
 (deftest package-runtime-depends-only-on-the-versioned-core-api
   (doseq [{:keys [id source]} packages
           file (source-files source)]
     (let [contents (slurp file)
           requires (resolver-sim-requires contents)]
-      (is (every? public-core-api requires)
+      (is (every? #(or (public-core-api %)
+                       (package-owned-namespace? source %))
+                  requires)
           (str id " runtime source " (.getPath file)
-               " may import only " public-core-api "; found " requires)))))
+               " may import only the versioned core API or its own package; found "
+               requires)))))
 
 (deftest public-core-api-is-the-only-package-facing-core-namespace
   (let [core-requires (resolver-sim-requires
@@ -62,7 +78,11 @@
     (is (= api-implementation-dependencies core-requires)
         "Review any change to the internal dependency closure of extension API v1")
     (is (= pro-rata-api-implementation-dependencies pro-rata-requires)
-        "Review any change to the internal dependency closure of pro-rata API v1")))
+        "Review any change to the internal dependency closure of pro-rata API v1")
+    (is (= protocol-api-implementation-dependencies
+           (resolver-sim-requires
+            (slurp "src/resolver_sim/extensions/api/protocol/v1.clj")))
+        "Review any change to the internal dependency closure of protocol API v1")))
 
 (deftest package-runtime-and-test-paths-are-separated
   (doseq [{:keys [id root]} packages]
@@ -79,10 +99,13 @@
         manifest (edn/read-string
                   (slurp "packages/prf-extension-api-v1/DEPENDENCIES.edn"))]
     (is (= 'resolver-sim.extensions.api.v1 (:public-namespace candidate)))
-    (is (= ['resolver-sim.extensions.api.pro-rata.v1]
+    (is (= ['resolver-sim.extensions.api.pro-rata.v1
+            'resolver-sim.extensions.api.protocol.v1]
            (:additional-public-namespaces candidate)))
     (is (= 'resolver-sim.extensions.api.pro-rata.v1
            (get-in manifest [:additional-public-api 0 :namespace])))
+    (is (= 'resolver-sim.extensions.api.protocol.v1
+           (get-in manifest [:additional-public-api 1 :namespace])))
     (is (some #{:portable-pro-rata-evaluation.v1} (:api candidate)))
     (is (= :in-tree-source-candidate (:status candidate)))
     (is (= "packages/prf-extension-api-v1/DEPENDENCIES.edn"

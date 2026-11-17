@@ -25,7 +25,9 @@ actual_closure=$(clojure -M:check -e '
                               (clojure.tools.namespace.parse/deps-from-ns-decl form)])
                            forms))
         roots (concat [(symbol "resolver-sim.extensions.api.v1")
+                       (symbol "resolver-sim.extensions.api.protocol.v1")
                        (symbol "resolver-sim.extensions.api.pro-rata.v1")
+                       (symbol "prf.extensions.api.protocol-v1-test")
                        (symbol "prf.extensions.api.pro-rata-v1-test")]
                       (clojure.tools.namespace.find/find-namespaces-in-dir
                        (clojure.java.io/file "extensions/force-authorisation/test"))
@@ -70,6 +72,7 @@ cp -R extensions/force-authorisation/test "$probe_dir/extensions/force-authorisa
 cp -R extensions/held-custody/src "$probe_dir/extensions/held-custody/"
 cp -R extensions/held-custody/test "$probe_dir/extensions/held-custody/"
 mkdir -p "$probe_dir/test/prf/extensions/api"
+cp test/prf/extensions/api/protocol_v1_test.clj "$probe_dir/test/prf/extensions/api/"
 cp test/prf/extensions/api/pro_rata_v1_test.clj "$probe_dir/test/prf/extensions/api/"
 
 source_root=$(cd "$probe_dir" && find src resources extensions config test -type f -print0 \
@@ -96,6 +99,7 @@ clojure -Srepro -Sdeps '{:paths ["src" "resources"
                                  :git/sha "cf38de1ea4ef03654ee3de8bead56c32ef078b10"
                                  :deps/root "clj"}}}' -M -e '
   (require (quote clojure.test)
+           (quote prf.extensions.api.protocol-v1-test)
            (quote prf.extensions.api.pro-rata-v1-test)
            (quote prf.extensions.force-authorisation.manifest-test)
            (quote prf.extensions.force-authorisation.scope-verification-test)
@@ -110,6 +114,7 @@ clojure -Srepro -Sdeps '{:paths ["src" "resources"
            (quote prf.extensions.held-custody.semantic-admission-test)
            (quote prf.extensions.held-custody.aggregate-test))
   (let [result (clojure.test/run-tests
+                (quote prf.extensions.api.protocol-v1-test)
                 (quote prf.extensions.api.pro-rata-v1-test)
                 (quote prf.extensions.force-authorisation.manifest-test)
                 (quote prf.extensions.force-authorisation.scope-verification-test)
