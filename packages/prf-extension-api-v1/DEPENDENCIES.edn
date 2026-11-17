@@ -12,6 +12,9 @@
    :api-version 1}
   {:namespace resolver-sim.extensions.api.protocol.v1
    :source "src/resolver_sim/extensions/api/protocol/v1.clj"
+   :api-version 1}
+  {:namespace resolver-sim.protocols.protocol
+   :source "src/resolver_sim/protocols/protocol.clj"
    :api-version 1}]
  :consumer-packages [:force-authorisation :held-custody
                      :sew-pro-rata-economics :sew-core-profile-adapter]
@@ -80,6 +83,7 @@
   resolver-sim.pro-rata.invariants
   resolver-sim.pro-rata.progress
   resolver-sim.pro-rata.redistribution
+  resolver-sim.protocols.protocol
   resolver-sim.protocols.registry
   resolver-sim.sensitivity.sentinel
   resolver-sim.transaction.ordering
@@ -106,12 +110,13 @@
  :qualification
  {:command "bash scripts/qualify_extension_core_api_v1.sh"
   :isolated-source-closure
-  {:source-content-set "sha256:3869bc01fa5cfb45492f12058f4a9bccde7b2d2749daf81b7d304808bf4c6156"
-   :tests 108
-   :assertions 605
+  {:source-content-set "sha256:76144d14b4a9ca411554d16874f508df4a745834c1e1cf8b00e5dc0658950f93"
+   :tests 109
+   :assertions 606
    :result :passed}
   :test-namespaces
-  [prf.extensions.api.protocol-v1-test
+  [prf.extensions.api.protocol-interface-v1-test
+   prf.extensions.api.protocol-v1-test
    prf.extensions.api.pro-rata-v1-test
    prf.extensions.force-authorisation.manifest-test
    prf.extensions.force-authorisation.scope-verification-test
