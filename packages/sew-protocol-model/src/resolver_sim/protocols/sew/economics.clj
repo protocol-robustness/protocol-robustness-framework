@@ -13,7 +13,8 @@
    to the primary execution path."
   (:require [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.economics.calculations :as core-econ]
-             [resolver-sim.economics.slash-distribution :as sd]))
+            [resolver-sim.economics.slash-distribution :as sd]
+            [resolver-sim.protocols.registry :as registry]))
 
 (def ECONOMIC-POLICIES
   "Recommended Sew parameter bands for governance.
@@ -283,23 +284,33 @@
   ([stake multiplier]
    (core-econ/calculate-capacity-limit stake multiplier)))
 
+(defn- sew-pro-rata-economics-capability [capability-id operation]
+  (or (registry/get-capability "sew-v1" capability-id)
+      (throw (ex-info "Sew operation requires the pro-rata economics integration"
+                      {:component :prf/sew-pro-rata-economics-v1
+                       :capability/id capability-id
+                       :operation operation}))))
+
 (defn calculate-sew-slash-allocation
-  "Compatibility delegate to the Sew pro-rata integration namespace."
+  "Compatibility delegate to the optional Sew pro-rata economics integration."
   [input]
-  ((requiring-resolve
-    'resolver-sim.protocols.sew.pro-rata.economics/calculate-sew-slash-allocation)
+  ((sew-pro-rata-economics-capability
+    :sew-pro-rata-economics/calculate-slash-allocation
+    :calculate-sew-slash-allocation)
    input))
 
 (defn build-sew-slash-projection-artifact
-  "Compatibility delegate to the Sew pro-rata integration namespace."
+  "Compatibility delegate to the optional Sew pro-rata economics integration."
   [input]
-  ((requiring-resolve
-    'resolver-sim.protocols.sew.pro-rata.economics/build-sew-slash-projection-artifact)
+  ((sew-pro-rata-economics-capability
+    :sew-pro-rata-economics/build-slash-projection-artifact
+    :build-sew-slash-projection-artifact)
    input))
 
 (defn calculate-sew-slash-allocation-from-projection
-  "Compatibility delegate to the Sew pro-rata integration namespace."
+  "Compatibility delegate to the optional Sew pro-rata economics integration."
   [artifact]
-  ((requiring-resolve
-    'resolver-sim.protocols.sew.pro-rata.economics/calculate-sew-slash-allocation-from-projection)
+  ((sew-pro-rata-economics-capability
+    :sew-pro-rata-economics/calculate-slash-allocation-from-projection
+    :calculate-sew-slash-allocation-from-projection)
    artifact))

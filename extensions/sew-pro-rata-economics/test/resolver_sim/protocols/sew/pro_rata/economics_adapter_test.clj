@@ -4,6 +4,7 @@
             [resolver-sim.extensions.api.pro-rata.v1 :as pro-rata-api]
             [resolver-sim.pro-rata.allocation :as pro-rata]
             [resolver-sim.pro-rata.evidence :as mechanism-evidence]
+            [resolver-sim.protocols.registry :as registry]
             [resolver-sim.protocols.sew.pro-rata.economics :as sew-econ]))
 
 (deftest slash-allocation-uses-slashable-stake-as-default-weight
@@ -25,6 +26,20 @@
                   (:mechanism/evidence result))))
       (is (= (:evidence/hash (:mechanism/evidence result))
              (get-in result [:mechanism/evidence-reference :evidence/hash]))))))
+
+(deftest economics-capability-bootstrap-restores-after-registry-reset
+  (let [capability-id :sew-pro-rata-economics/calculate-slash-allocation
+        input {:slash-amount 10
+               :liable-parties [{:id :resolver-a
+                                 :slashable-stake 10
+                                 :available-slashable 10}]}]
+    (try
+      (registry/unregister-extension! "sew-v1")
+      (let [calculate (registry/get-capability "sew-v1" capability-id)]
+        (is (ifn? calculate))
+        (is (= 10 (:recovered-total (calculate input)))))
+      (finally
+        (registry/get-protocol "sew-v1")))))
 
 (deftest slash-allocation-preserves-caps-and-historical-result-shape
   (let [result (sew-econ/calculate-sew-slash-allocation

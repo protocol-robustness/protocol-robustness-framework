@@ -99,15 +99,16 @@ been removed; profile generation now succeeds. `runner` and supported
 protocol fixture data and test material. Profile link generation verifies
 that destinations remain inside `.profile-view` and cannot overwrite source
 paths. The runner-free `sew-protocol-model-core` profile now passes its
-boundary/load check without runner or yield integration sources. This check
-does not qualify all model-only runtime behavior; no-yield fallback and
-fail-closed yield capability behavior have focused contract coverage.
+boundary/load check without runner, yield integration, or pro-rata economics
+adapter sources. This check does not qualify all model-only runtime behavior;
+no-yield fallback and fail-closed optional capability behavior have focused
+contract coverage.
 
-The runner-free `sew-protocol` candidate resolves to 202 files with no
-component crossings. The `sew-protocol-model-core` profile resolves to 144 files
-and excludes the Sew yield integration and shared yield runtime. Full Sew
-profiles select `sew-yield-integration`, which has an in-tree manifest with a
-local model dependency. Replay and batch reporting are runner capabilities;
+The runner-free `sew-protocol` candidate resolves to 203 files with no
+component crossings. The `sew-protocol-model-core` profile resolves to 129 files
+and excludes the Sew yield integration, shared yield runtime, and optional
+pro-rata economics adapter. Full Sew profiles select these integrations
+explicitly. Replay and batch reporting are runner capabilities;
 researcher authorization and scenario analysis are separately selectable Sew
 integrations. Scenario and replay sources are absent from the runner-free
 candidate, while benchmark and shared framework dependencies remain. Keep
@@ -174,18 +175,24 @@ Before moving the model source:
    API-bearing PRF revision independently resolvable before moving economics.
    `prf-extensions/adapters/sew/README.md` continues to defer Sew adapters
    until their PRF dependencies are public contracts.
-2. Reconcile the candidate with the current `agent-c-staging` sequence and
-   rerun validation after that merge. The candidate and staging have diverged
-   substantially, so preserve the Force Authorization owner's changes and
-   resolve ownership before combining them.
+2. **Completed on 2026-11-16:** reconciled the candidate with staging through
+   `jjq` item 72 (`0c12f4ee`) and advanced `agent-c-3` to that landed revision.
+   The Sew package suite (733 tests / 2,456 assertions), core API qualification
+   (107 / 603), dispute-review tests (8 / 32), focused Sew Core adapter tests
+   (10 / 62), profile checks, `bb fmt:check`, full `bb backstop`, and the JJQ
+   `bb backstop:fast` gate passed. The package still cannot move while the
+   public PRF API and economics revisions remain unavailable to clean-clone
+   consumers; continue preserving Force Authorization ownership during that
+   dependency work.
 3. Keep the existing `replay-dedupe-policy-test` failure assigned to the Force
    Authorization owner. The exact namespace fails on both this candidate and
    `main` with the same 36 failures out of 106 assertions: its Force
    Authorization actions run with an empty context and are rejected by the
    model's existing admission gate. Treat this as a verified baseline failure,
-   not an extraction regression. After staging reconciliation, compare the
-   broad-suite result against that baseline and require no new failures; do not
-   change Force Authorization behavior as part of the model move.
+   not an extraction regression. Before moving the model, compare the broad
+   suite on the reconciled candidate against that baseline and require no new
+   failures; do not change Force Authorization behavior as part of the model
+   move.
 4. Transfer the package's source, test, resource, and provenance closure, then
    qualify both `-M:test` and `-M:consumer-test` from a clean clone of
    `prf-extensions`. Verify the resulting dependency lock/roots and rerun the
