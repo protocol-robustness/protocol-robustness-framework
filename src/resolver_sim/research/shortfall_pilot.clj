@@ -26,6 +26,7 @@
   ["sha256:8fe15fe2dc2ff1ad552c08e65808333eb314db2890c2a835ec031fa5137fbced"])
 
 (def challenge-001-candidate-schema "researcher-challenge-scope-candidate.v1")
+(def challenge-001-profile-schema "researcher-shortfall-pilot.v2")
 (def ^:private challenge-001-policy-roots
   #{"sha256:14c1ae6efdb928b134d91bb6aa61ff2e4c7f7b71ad5dddb3e8b7bf84de588143"
     "sha256:2e4c81dc89c3a0b5b15f8a110ceeb66fe1a802fb1f0322ae3e58fed4cef9aeb9"})
@@ -99,11 +100,9 @@
          (integer? (:available request))
          (<= 0 (:available request) total))))
 
-(defn counterexample-witness-projection
-  "Derive the compact maximum-difference row view from the fully retained,
-   freshly recomputed pair. This projection is not a minimized input."
+(defn- counterexample-witness-projection-validated
+  "Project a comparison already checked by its caller."
   [comparison]
-  (validate-comparison! comparison)
   (let [[left right] (:results comparison)
         pairs (mapv (fn [a b]
                       {:row/id (:row/id a)
@@ -122,14 +121,58 @@
                   (mapv #(dissoc % :absolute-difference)))
              [])}))
 
+(defn counterexample-witness-projection
+  "Derive the compact maximum-difference row view from the fully retained,
+   freshly recomputed pair. This projection is not a minimized input."
+  [comparison]
+  (validate-comparison! comparison)
+  (counterexample-witness-projection-validated comparison))
+
 (defn- policy-roots [comparison]
   (vec (sort (distinct (map #(reference/sha256-ref (allocation/allocation-policy-root %))
                             (:results comparison))))))
+
+(declare validate-challenge-001-candidate!)
 
 (defn validate-challenge-001-scope-candidate!
   "Validate the unpublished Challenge 001 candidate without admitting a
    submission or creating an authoritative challenge/reward artifact."
   [candidate comparison]
+  (let [candidate-root (validate-challenge-001-candidate! candidate)]
+    (let [comparison (validate-comparison! comparison)
+          [left right] (:requests comparison)
+          policy-signatures (mapv (juxt :rounding-policy :tie-break-policy :redistribution-policy)
+                                  [left right])
+          roots (set (policy-roots comparison))
+          total (reduce +' 0N (map :requested (:rows left)))
+          value (:value comparison)]
+      (ensure! (and (candidate-domain-valid? left) (candidate-domain-valid? right))
+               :challenge-001-input-outside-bounds)
+      (ensure! (= (dissoc left :redistribution-policy)
+                  (dissoc right :redistribution-policy))
+               :challenge-001-policy-pair-mismatch)
+      (ensure! (= [[:largest-remainder :canonical-row-id :unallocated]
+                   [:largest-remainder :canonical-row-id :redistribute-cap-excess]]
+                  policy-signatures)
+               :challenge-001-unsupported-policy-pair)
+      (ensure! (= challenge-001-policy-roots roots) :challenge-001-policy-root-mismatch)
+      (ensure! (not (some #{(:case/root comparison)} calibration-case-roots))
+               :calibration-case-not-qualifying)
+      (when (pos? value)
+        (ensure! (< (:available left) total) :challenge-001-counterexample-requires-shortfall))
+      {:candidate/root candidate-root
+       :comparison/root (:artifact/root comparison)
+       :case/root (:case/root comparison)
+       :scope/status :valid-candidate-input
+       :result/classification (if (pos? value) :counterexample-found :supported)
+       :falsification-condition-met? (pos? value)
+       :novelty/review-required? true
+       :witness (counterexample-witness-projection-validated comparison)})))
+
+(defn validate-challenge-001-candidate!
+  "Validate the closed, rooted candidate definition without claiming it is
+   approved, published, or authorized for participation."
+  [candidate]
   (let [candidate-root (reference/sha256-ref
                         (canonical/domain-hash challenge-001-candidate-schema
                                                (dissoc candidate :candidate/root)))]
@@ -163,35 +206,7 @@
     (ensure! (re-matches #"sha256:[0-9a-f]{64}"
                          (:source-content-manifest/root (get candidate :source/revision-observation)))
              :challenge-001-source-manifest-root-invalid)
-    (let [comparison (validate-comparison! comparison)
-          [left right] (:requests comparison)
-          policy-signatures (mapv (juxt :rounding-policy :tie-break-policy :redistribution-policy)
-                                  [left right])
-          roots (set (policy-roots comparison))
-          total (reduce +' 0N (map :requested (:rows left)))
-          value (:value comparison)]
-      (ensure! (and (candidate-domain-valid? left) (candidate-domain-valid? right))
-               :challenge-001-input-outside-bounds)
-      (ensure! (= (dissoc left :redistribution-policy)
-                  (dissoc right :redistribution-policy))
-               :challenge-001-policy-pair-mismatch)
-      (ensure! (= [[:largest-remainder :canonical-row-id :unallocated]
-                   [:largest-remainder :canonical-row-id :redistribute-cap-excess]]
-                  policy-signatures)
-               :challenge-001-unsupported-policy-pair)
-      (ensure! (= challenge-001-policy-roots roots) :challenge-001-policy-root-mismatch)
-      (ensure! (not (some #{(:case/root comparison)} calibration-case-roots))
-               :calibration-case-not-qualifying)
-      (when (pos? value)
-        (ensure! (< (:available left) total) :challenge-001-counterexample-requires-shortfall))
-      {:candidate/root candidate-root
-       :comparison/root (:artifact/root comparison)
-       :case/root (:case/root comparison)
-       :scope/status :valid-candidate-input
-       :result/classification (if (pos? value) :counterexample-found :supported)
-       :falsification-condition-met? (pos? value)
-       :novelty/review-required? true
-       :witness (counterexample-witness-projection comparison)})))
+    candidate-root))
 
 (defn qualify-case
   "Recompute and present one frozen shortfall case through the shared
@@ -235,11 +250,9 @@
    {:measure/id metric :measure/value-domain :integer :measure/unit :unit/capital
     :measure/direction :unordered :measure/comparison-semantics :exact-integer}))
 
-(defn build-context
-  "Construct the existing six-artifact analysis context from actual arithmetic.
-   Metadata supplies only issued assignment/environment/runner references."
+(defn- build-context-validated
+  "Build context from a comparison freshly checked by the caller."
   [metadata comparison]
-  (validate-comparison! comparison)
   (ensure! (= #{:subject-root :environment-root :runner-root :assignment-fields}
               (set (keys metadata))) :invalid-context-metadata)
   (ensure! (= #{:research-assignment/id :research-assignment/policy-hash
@@ -290,6 +303,13 @@
                        :analysis-output/evidence-root (:artifact/root comparison)))]
     (assoc context :analysis-output output)))
 
+(defn build-context
+  "Construct the existing six-artifact analysis context from actual arithmetic.
+   Metadata supplies only issued assignment/environment/runner references."
+  [metadata comparison]
+  (validate-comparison! comparison)
+  (build-context-validated metadata comparison))
+
 (defn build-profile
   "Rooted opt-in method requirement around, not a revision of, V1 configuration.
    Policy roots are fixed; scenario inputs may vary between findings."
@@ -304,13 +324,74 @@
            :allocation-policy/roots (policy-roots comparison)
            :excluded-calibration-case/roots calibration-case-roots}))
 
+(defn- challenge-001-subject-root [candidate]
+  (root "challenge-001-subject.v1" (:subject candidate)))
+
+(defn- challenge-001-challenge! [config candidate]
+  (let [matches (filter #(= (:challenge/id %) (:challenge/id candidate))
+                        (:challenges config))
+        challenge (first matches)
+        expected-criteria {:proposition-id (get-in candidate [:subject :proposition])
+                           :metric-id (get-in candidate [:subject :measure])
+                           :result-classifications #{:counterexample-found}}]
+    (ensure! (= 1 (count matches)) :challenge-001-challenge-identity-mismatch)
+    (ensure! (= (challenge-001-subject-root candidate) (:subject/root challenge))
+             :challenge-001-subject-mismatch)
+    (ensure! (= (get-in candidate [:source/revision-observation :source-content-manifest/root])
+                (:subject/revision-root challenge))
+             :challenge-001-revision-mismatch)
+    (ensure! (= expected-criteria (:acceptance/criteria challenge))
+             :challenge-001-criteria-mismatch)
+    challenge))
+
+(defn build-challenge-001-profile
+  "Build a candidate-rooted extension to the generic arithmetic profile.
+   This binds the exact proposed scope but does not authorize its publication
+   or researcher participation."
+  [config candidate comparison]
+  (let [checked (validate-challenge-001-scope-candidate! candidate comparison)
+        challenge (challenge-001-challenge! config candidate)
+        base (build-profile config comparison)]
+    (ensure! (= :counterexample-found (:result/classification checked))
+             :challenge-001-counterexample-required)
+    (rooted challenge-001-profile-schema
+            {:configuration/root (:artifact/root config)
+             :pilot/profile-base-root (:artifact/root base)
+             :method/root method-root
+             :allocation-policy/roots (:allocation-policy/roots base)
+             :excluded-calibration-case/roots calibration-case-roots
+             :scope/candidate candidate
+             :scope/candidate-root (:candidate/root checked)
+             :scope/challenge-root (:artifact/root challenge)})))
+
 (defn validate-profile! [config profile]
-  (ensure! (and (= "researcher-shortfall-pilot.v1" (:artifact/schema profile))
-                (= (:artifact/root config) (:configuration/root profile))
-                (= method-root (:method/root profile))
-                (= profile (rooted "researcher-shortfall-pilot.v1"
-                                   (dissoc profile :artifact/schema :artifact/root))))
-           :invalid-pilot-profile)
+  (let [schema (:artifact/schema profile)
+        candidate (:scope/candidate profile)
+        challenge (when (= challenge-001-profile-schema schema)
+                    (do (validate-challenge-001-candidate! candidate)
+                        (challenge-001-challenge! config candidate)))
+        base-root (when (= challenge-001-profile-schema schema)
+                    (:artifact/root
+                     (rooted "researcher-shortfall-pilot.v1"
+                             {:configuration/root (:configuration/root profile)
+                              :method/root (:method/root profile)
+                              :allocation-policy/roots (:allocation-policy/roots profile)
+                              :excluded-calibration-case/roots
+                              (:excluded-calibration-case/roots profile)})))
+        candidate-policy-roots (when candidate
+                                 (->> (:policy-pair candidate)
+                                      (map :observed-policy-root) distinct sort vec))
+        expected (rooted schema (dissoc profile :artifact/root))]
+    (ensure! (and (contains? #{"researcher-shortfall-pilot.v1" challenge-001-profile-schema} schema)
+                  (= (:artifact/root config) (:configuration/root profile))
+                  (= method-root (:method/root profile))
+                  (= expected profile)
+                  (or (not= challenge-001-profile-schema schema)
+                      (and (= (:artifact/root challenge) (:scope/challenge-root profile))
+                           (= (:candidate/root candidate) (:scope/candidate-root profile))
+                           (= base-root (:pilot/profile-base-root profile))
+                           (= candidate-policy-roots (:allocation-policy/roots profile)))))
+             :invalid-pilot-profile))
   (let [roots (:allocation-policy/roots profile)]
     (ensure! (and (vector? roots) (<= 1 (count roots) 2)
                   (= roots (vec (sort (distinct roots))))
@@ -325,14 +406,24 @@
   [config profile challenge-root context evidence]
   (let [comparison (get evidence (get-in context [:analysis-output :analysis-output/evidence-root]))
         challenge (some #(when (= challenge-root (:artifact/root %)) %) (:challenges config))
-        a (:research-assignment context) c (:research-command context)]
+        a (:research-assignment context) c (:research-command context)
+        challenge-001? (= challenge-001-profile-schema (:artifact/schema profile))]
+    (validate-profile! config profile)
     (ensure! comparison :missing-replay-evidence)
     (ensure! challenge :unknown-challenge)
     (ensure! (not (some #{(:case/root comparison)} calibration-case-roots))
              :calibration-case-not-qualifying)
-    (ensure! (= profile (build-profile config comparison)) :pilot-policy-substitution)
+    (if challenge-001?
+      (let [checked (validate-challenge-001-scope-candidate! (:scope/candidate profile) comparison)]
+        (ensure! (= challenge-root (:scope/challenge-root profile))
+                 :challenge-001-profile-challenge-mismatch)
+        (ensure! (= (:allocation-policy/roots profile) (policy-roots comparison))
+                 :pilot-policy-substitution)
+        (ensure! (= :counterexample-found (:result/classification checked))
+                 :challenge-001-counterexample-required))
+      (ensure! (= profile (build-profile config comparison)) :pilot-policy-substitution))
     (ensure! (= context
-                (build-context
+                ((if challenge-001? build-context-validated build-context)
                  {:subject-root (:subject/root challenge)
                   :environment-root (:command/environment-root c) :runner-root (:command/runner-root c)
                   :assignment-fields (select-keys a [:research-assignment/id :research-assignment/policy-hash

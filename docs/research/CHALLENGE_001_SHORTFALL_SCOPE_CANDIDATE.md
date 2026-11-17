@@ -5,7 +5,7 @@ activated researcher configuration, a funding commitment, or authority to accept
 submissions or create reward obligations. The matching EDN candidate is
 `examples/researcher-challenges/shortfall-stress/challenge-001-scope-candidate.v1.edn`.
 Its current candidate root is
-`sha256:51a39238bde9539b7687374575955f40e985e7fc9e4cc216dca254e8cebda310`.
+`sha256:94a974fd5c2d30c2574cd82b6159b147812fe21788b07ed21f4212a9ac794f73`.
 
 ## Proposed bounded domain
 
@@ -93,31 +93,33 @@ and zero existing invariant violations:
 The 12-row probe included a capped row. These are compatibility probes, not
 challenge findings or expected results supplied to researchers.
 
-The allocator and existing V0 replay path do not enforce this candidate's
-row-count, per-row, total-request, or availability bounds. A separate
-`validate-challenge-001-scope-candidate!` preflight now checks the candidate's
-rooted domain and exact method/policy declarations, then freshly validates a
-comparison against those bounds. It is deliberately not called by submission
-admission and creates no challenge, acceptance, or reward artifact. Before a
-real challenge is frozen, an approved challenge-specific submission gate must
-enforce these bounds without changing allocator semantics or identities. The
-current adapter retains full results rather than a separately stored compact
-witness; the witness projection is deterministically derivable from them.
+The generic allocator and V1 arithmetic profile do not enforce this
+candidate's row-count, per-row, total-request, or availability bounds. The
+Challenge 001 V2 profile now binds the candidate root and configured challenge
+identity, and invokes `validate-challenge-001-scope-candidate!` during the
+existing locked submission/replay gate. It freshly recomputes the comparison
+from canonical requests and rejects out-of-domain inputs, policy/method
+substitution, and non-counterexamples before durable history replacement. The
+candidate itself remains proposed and unsigned; this verifier profile is not
+approval or activation. The adapter retains full results rather than a
+separately stored compact witness; the witness projection is derivable from
+them.
 
 ## Source identity and manifest
 
-Read-only revision extraction succeeded only with `jj --ignore-working-copy`:
-the visible working-copy revision is
-`7e9e371fca7ceedca94e1b61a1c5e7d687d60459` (no description), with parent
-`7f861667655d6315ed58518cd040f4f2db261110` (`Checkpoint after protected-capital
-reservation audit`). The working copy was not captured in that revision, so
-neither revision identifies the current files. Ordinary `jj` snapshotting fails
-because the shared `/home/user/Code/sew-simulation/.git/objects` is read-only;
-that store was not modified. The content manifest is therefore the candidate
-source identity.
+The source revision is the `agent-c-1` commit
+`0b1c907e00c6982ebe7b5b557906effec1dbc498`, with parents
+`0306645468086460689c50f0dd9398b63e1dbdf8` and
+`caaddc57a9e456466c38675e661b3d9b22074b6e` (the candidate and current staging
+revisions at integration time). The candidate
+records this source commit and its parent in the source/revision observation. The content
+manifest independently binds the source files, project inputs, pinned gitlib
+sources, and Maven artifacts used by the demo.
 
 [`challenge-001-source-content-manifest.v1.tsv`](challenge-001-source-content-manifest.v1.tsv)
-contains 219 entries: the 56 local Clojure namespaces loaded by the
+contains 245 entries: 119 local source, resource, and project/input files,
+16 gitlib source files, and 110 Maven JARs.
+The local Clojure namespace set includes the namespaces loaded by the
 shortfall pilot, its CLI, and publication entry points; all 50 project resource
 files; `deps.edn`; both calibration input files; and all 110 JARs on the
 project-only `clojure -Srepro -Spath` classpath. Including the complete project
@@ -126,27 +128,26 @@ closure; it prevents silently omitting a classpath artifact. No test keys,
 private keys, user Clojure configuration, build caches, or result corpora are
 included.
 
-The manifest was refreshed for the current checkout after the previously
-recorded allocator policy roots and nine listed source/project files no longer
-matched their recorded bytes. It also now includes the current researcher
-network namespace actually loaded by the pilot entry points, replacing its
-unused compatibility shim in the source list. The two policy roots now match
-the current allocator implementation; no allocator semantics were changed in
-this candidate refresh. The manifest content-set root is:
+The manifest was refreshed for the sequence-72 integration, admission replay
+optimization, profile-root-key validation, and the Challenge 001 CLI composition
+refactor. It binds the
+exact source revision recorded above. All
+245 row digests match this checkout, the pinned gitlib sources, and the local
+Maven repository. The manifest content-set root is:
 
 ```text
-sha256:790402f2ecd202dcdf2d7b509f34c31d3a09b2ee06d7df4ee2e0b1201ab3bffb
+sha256:b416f5cb715cada609dd5739fde0edd16e4250acd2cc65159ad32772d9d62010
 ```
 
-It was independently checked using the system `sha256sum` command: all 219
-source/resource/JAR entries matched, and hashing the manifest file reproduced
-the root above. This remains a content-set identity, not a hermetic source/build
-closure or captured jj revision; use this refreshed root for the current local
-candidate only. The manifest was refreshed after adding the explicitly
-non-admitting candidate-scope validator and focused tests. For another machine,
-set `m2_repository` to its Maven cache root
-and repeat the per-line check; the TSV records repository-relative Maven paths,
-not this machine's absolute cache path. Runtime used Clojure CLI 1.12.5.1654,
+Hashing the manifest file with system `sha256sum` reproduces the root above.
+The manifest rows use `source` paths relative to the checkout, `gitlib` paths
+relative to the Clojure gitlibs `libs/` directory, and `maven` paths relative
+to the Maven repository. Recheck every row's file digest
+on the target machine. This remains a content-set identity, not a hermetic source/build
+closure; use this root with the recorded source commit for this local candidate only. For another machine,
+set `gitlibs_root` and `m2_repository` to its local cache roots and repeat the
+per-line check; the TSV records repository-relative cache paths, not absolute
+machine paths. Runtime used Clojure CLI 1.12.5.1654,
 Clojure 1.12.0, and OpenJDK 21.0.12.1. The manifest does not claim a hermetic
 JDK/build environment or prove organizational independence.
 
