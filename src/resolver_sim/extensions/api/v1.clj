@@ -17,7 +17,7 @@
             [resolver-sim.hash.reference :as hash-reference]
             [resolver-sim.hash.sequence :as sequence-hash]
             [resolver-sim.sensitivity.sentinel :as sensitivity]
-            [resolver-sim.protocols.registry :as protocol-registry]))
+            [resolver-sim.extensions.api.protocol.v1 :as protocol-api]))
 
 ;; Force-authorisation and held-admission contracts.
 (def normalize-force-authorisation-scope
@@ -51,14 +51,14 @@
    Capability IDs are keywords. The value is protocol-defined data or a
    function. Returns the capability ID."
   [protocol-id capability-id value]
-  (protocol-registry/register-capability! protocol-id capability-id value))
+  (protocol-api/register-capability! protocol-id capability-id value))
 
 (defn get-protocol-capability
   "Resolve a registered optional protocol capability, returning nil when it
    is unavailable. Profile-specific extension bootstrapping is performed by
    the PRF protocol registry."
   [protocol-id capability-id]
-  (protocol-registry/get-capability protocol-id capability-id))
+  (protocol-api/get-capability protocol-id capability-id))
 
 (defn register-protocol-capability-provider!
   "Register a reloadable bootstrap for one protocol capability group.
@@ -66,4 +66,4 @@
    `group` must be recognized by the host protocol registry. Returns the
    group keyword."
   [protocol-id group bootstrap-fn]
-  (protocol-registry/register-capability-provider! protocol-id group bootstrap-fn))
+  (protocol-api/register-capability-provider! protocol-id group bootstrap-fn))

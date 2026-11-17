@@ -89,9 +89,14 @@ the sibling yield integration test fixture and passes 733 tests with 2,456
 assertions in this checkout.
 Its current closure is 196 source files because it still requires the full model, including
 shared yield runtime; it is not an independently extracted or Solidity
-equivalent package. Its current profile closure is 210 source files. The
+equivalent package. Its current profile closure is 208 source files. The
 profile has no undeclared component crossings and
-passes `bb profile:check sew-core-extension`. To make that possible, runner
+passes `bb profile:check sew-core-extension`. The adapter now registers its
+optional capabilities through a narrow versioned PRF protocol API, rather than
+loading the aggregate extension API and its unrelated authorization and
+evidence dependencies. This reduces profile source closure but does not change
+the adapter's dependency on the full in-tree model. To make the profile check
+possible, runner
 execution entries now belong to the optional runner component instead of the
 framework passive registry. Package tests cover rejected feature/configuration
 paths, adapter initialization, guardian pause and governance recovery, native

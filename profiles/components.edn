@@ -9,7 +9,8 @@
     resolver-sim.execution.budget
     resolver-sim.logging
     resolver-sim.time.context
-    resolver-sim.time.deadlines]
+    resolver-sim.time.deadlines
+    resolver-sim.extensions.api.protocol.v1]
    :component/entry-namespaces
    [resolver-sim.hash.canonical
     resolver-sim.hash.reference
@@ -18,9 +19,12 @@
     resolver-sim.execution.budget
     resolver-sim.logging
     resolver-sim.time.context
-    resolver-sim.time.deadlines]
+    resolver-sim.time.deadlines
+    resolver-sim.extensions.api.protocol.v1]
    :component/material
    [{:path "config" :kind :runtime-configuration}
+    {:path "test/prf/extensions/api/protocol_v1_test.clj"
+     :kind :test-source}
     {:path "test/resolver_sim/protocols/registry_test.clj"
      :kind :test-source}]}
 

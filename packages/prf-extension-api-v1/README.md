@@ -2,10 +2,11 @@
 
 This candidate records the source boundary consumed by the
 `force-authorisation`, `held-custody`, and Sew pro-rata economics packages. It
-contains two versioned facades: the general extension API at
-`src/resolver_sim/extensions/api/v1.clj`, and the portable pro-rata API at
-`src/resolver_sim/extensions/api/pro_rata/v1.clj`. Neither implementation is
-copied or forked into this directory.
+contains three versioned facades: the general extension API at
+`src/resolver_sim/extensions/api/v1.clj`, the portable pro-rata API at
+`src/resolver_sim/extensions/api/pro_rata/v1.clj`, and the narrow protocol
+capability registry API at `src/resolver_sim/extensions/api/protocol/v1.clj`.
+Neither implementation is copied or forked into this directory.
 
 Status: in-tree source candidate. The dependency manifest pins the external
 canonical-codec and pro-rata allocation sources, records the complete PRF
@@ -19,6 +20,10 @@ because its pinned public PRF revision predates the pro-rata API.
 ```sh
 bash scripts/qualify_extension_core_api_v1.sh
 ```
+
+The Sew Core profile adapter consumes only the narrow protocol capability API
+for registration and lookup; it no longer loads the aggregate extension API
+and its unrelated authorization and evidence dependencies for that purpose.
 
 This qualifies the current source closure only. There is no published
 `org.protocol-robustness/prf-core` artifact or immutable package coordinate.
