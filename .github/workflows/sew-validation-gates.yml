@@ -66,6 +66,10 @@ jobs:
         timeout-minutes: 15
         run: ./scripts/test.sh unit
 
+      - name: Extension package qualification
+        timeout-minutes: 30
+        run: bash scripts/test_extension_packages.sh
+
       - name: Reference validation
         timeout-minutes: 10
         run: clojure -M:reference-validation
