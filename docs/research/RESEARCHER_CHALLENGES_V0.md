@@ -279,12 +279,15 @@ that can be submitted and submissions awaiting review.
    whether the next step is submission or waiting for review. A future guided
    wizard could still locate the verification input automatically.
 
-The operator exchanges signed files with participants using its chosen transport.
-There is no public server. The CLI locks the history file, replays it completely,
-validates the next signed action, then replaces the history atomically after
-forcing the temporary file. Failure leaves prior history unchanged. Filesystem
-power-loss durability, malicious rollback and cross-host concurrent writers
-are not qualified. Retain signed actions and publish the resulting history root.
+For offline participation, the operator exchanges signed files with participants
+using its chosen transport. A loopback-only [local devnet API](RESEARCHER_CHALLENGES_DEVNET.md)
+now provides bounded HTTP transport while retaining the signed action format
+and locked file-admission path. It is for one-machine development only, not a
+public server. The CLI locks the history file, replays it completely, validates
+the next signed action, then replaces the history atomically after forcing the
+temporary file. Failure leaves prior history unchanged. Filesystem power-loss
+durability, malicious rollback and cross-host concurrent writers are not
+qualified. Retain signed actions and publish the resulting history root.
 Independent replay can take that trusted root as its third argument to detect
 prefix omission or substitution. Signatures alone cannot establish that an
 unpublished history prefix is the latest authoritative state.
@@ -454,6 +457,9 @@ Only the reviewer can append payout records for a known obligation. Status is
 `:recorded-pending`, `:recorded-paid` or `:recorded-failed`, with an external
 reference. All records remain visible; the obligation is unchanged. These are
 authenticated external assertions, not observations of on-chain settlement.
+For ERC-20 evidence, use the transaction hash as the external reference and
+independently re-run the researcher transfer verifier. Replay itself does not
+inspect a chain receipt or verify the external reference.
 
 ## Qualification boundary
 

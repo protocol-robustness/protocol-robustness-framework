@@ -329,14 +329,36 @@ The runtime experiment remains pending until this runner completes successfully.
 
 ## Authenticated bounty funding and direct payout
 
-`src/BountySettlement.sol` is a separate controlled native-asset example for
-the bounty lifecycle. The configured funder deposits actual native currency;
-the contract records a unique source root, sequence and available balance.
-Only the award authority can create a payable, and only against that recorded
-reserve. The beneficiary address can be pseudonymous; no civil identity is
-required. A claim is one-time and pays the full amount directly to that
-beneficiary. The contract checks exact reserve and beneficiary balance deltas,
-and a rejected transfer rolls back the settlement state.
+`src/BountySettlement.sol` is the controlled payout example for native and
+ERC-20 assets. The configured funder deposits native currency or approves and
+deposits ERC-20 tokens; each deposit records a unique source root, sequence,
+asset and available amount. Only the award authority can create a payable
+against that asset-matched reserve. The beneficiary address can be
+pseudonymous; no civil identity is required. A claim is one-time and pays the
+full amount directly to that beneficiary. ERC-20 transfers require exact
+reserve and recipient balance deltas, so fee-on-transfer tokens are rejected;
+a failed or reentrant transfer rolls back settlement state. Use the canonical
+reward-obligation root as the payable ID to enforce on-chain duplicate
+approval/claim protection.
+
+This contract is still a controlled example, not a production payout service.
+The award authority must independently verify the challenge history, signed
+payout policy, researcher consent and backing evidence before approving a
+payable. The researcher-challenge CLIs now verify that evidence and prepare
+ERC-20 approval calldata; a separate RPC verifier checks the resulting
+transaction and claim. They do not deploy or fund the contract, submit EVM
+transactions, or independently establish backing. Deployment, funded execution,
+independent review and public-chain qualification remain open.
+
+For an end-to-end local researcher obligation demonstration, use
+[`demo_researcher_challenge_erc20.py`](scripts/demo_researcher_challenge_erc20.py)
+with an eligible accepted obligation in the challenge history. It deploys the
+fixed-supply [`ResearcherDemoToken.sol`](src/ResearcherDemoToken.sol) and this
+settlement contract to loopback Anvil, builds the signed demo policy and
+researcher consent, submits funding/approval/claim transactions with Anvil's
+unlocked accounts, and runs the retained transfer verifier. Its backing root is
+synthetic and its token is for local demonstration only. It does not qualify
+public testnet deployment or funding.
 
 `test/BountySettlement.t.sol` retains executable checks for funded backing,
 unauthorized and overdrawn award rejection, exact payout deltas, replay
@@ -357,13 +379,15 @@ settlement and replays it in a separate Clojure process while checking the live
 receipt. It demonstrates local inclusion and execution consistency; Anvil's head
 report is not independent consensus finality or evidence about a public deployment.
 
-This example authenticates on-chain funding through actual deposit execution
-and a configured funding authority. It does not prove the authority's external
-source of funds or qualify a production bounty service. The Clojure verifier can
-optionally query JSON-RPC for receipt, event and endpoint-reported finality checks;
-the Sew adapter does not configure that live RPC check by default. The Clojure
-path uses separately signed funding and payout attestations and local custody
-accounting; those artifacts are not on-chain transfer proofs.
+This native-asset example authenticates on-chain funding through actual deposit
+execution and a configured funding authority. It does not prove the authority's
+external source of funds or qualify a production bounty service. Its Clojure
+verifier can optionally query JSON-RPC for receipt, event and endpoint-reported
+finality checks; the Sew adapter does not configure that live RPC check by
+default. The separate researcher ERC-20 path described above verifies contract
+reserve funding, derives approval calldata from signed challenge evidence, and
+checks the resulting transfer against chain data. Neither path proves external
+funding provenance or supplies independent consensus finality by itself.
 
 ## Governance upgrade conformance result
 

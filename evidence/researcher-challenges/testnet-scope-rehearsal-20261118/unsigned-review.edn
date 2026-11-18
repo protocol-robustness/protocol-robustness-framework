@@ -1,0 +1,24 @@
+{:network/root
+ "sha256:c1021f3b6da1e30fe9a06efe4ad48d441e99d9df46575403e0e1f327d42ce4e2",
+ :action/nonce "testnet-scope-demo-simulated-review-20261118-01",
+ :action/root
+ "sha256:9032b5c0bd323d8dd0d17b7ea85bc3f5aba010f4d0b808d0de4d8f02cfc6a2e7",
+ :action/payload
+ {:submission/root
+  "sha256:3953d666db511d75806b7a70da579b683d0e2924d487920ee946c5e3bb5b1f19",
+  :decision :accepted,
+  :incentive/decision :eligible,
+  :incentive/evidence-root
+  "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+  :decision/evidence-root
+  "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6",
+  :accepted-at "2026-11-18T15:30:00Z"},
+ :history/root
+ "sha256:9de8b7ca644a4eceb31079f42b28a6d382d3847ed1e32f2bddb95fd3b7752dff",
+ :action/kind :review,
+ :actor/root
+ "sha256:47b46aadbe03ebc13d9331864185b424222fb69307174cbc2bb79d873d92ca3e",
+ :artifact/schema "researcher-challenge-action.v1",
+ :challenge/root
+ "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42"}
+

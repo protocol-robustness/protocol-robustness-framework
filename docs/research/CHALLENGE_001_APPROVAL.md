@@ -20,15 +20,17 @@ the pilot.
 
 ## Local approval-key procedure
 
-For this demo, distinct development-only operator/reviewer Ed25519 keypairs
-were generated under `/tmp/challenge-001-demo-keys` because the separately
-mounted `/secure/path/challenge` directory was unavailable to the persistent
-workspace. The temporary private keys were mode `600`, used only to sign this
-root, then removed. Public keys and detached signatures are recorded in the
-bundle. These keys are synthetic test identities and do not establish owner
-identity or approval. The detached
-signatures and public-key content are
-in
+For the current local demo, the supplied development-only Ed25519 operator and
+reviewer private keys are outside this repository at
+`/home/user/Code/challenge-001-keys` with mode `600`. The previously requested
+`/secure/path/challenge` directory is not present in this environment. The
+checked-in bundle contains only the public keys and detached signatures over
+this exact root. Their fingerprints are
+`sha256:f8f8f25db85a261697cd02b58300c933452ffb1e5659f5bdf3c3ab6749ddf907`
+and
+`sha256:7d31f496fdfa39a117e694fc1e71815b5d73ae5f7ea2474d6ab350504294a0e7`.
+These development keys do not establish owner identity or approval. The
+detached signatures and public-key content are in
 [`challenge-001-approval-signatures.devtest.v1.edn`](../../examples/researcher-challenges/shortfall-stress/challenge-001-approval-signatures.devtest.v1.edn).
 Both signatures verify against the exact payload root above, and the public-key
 fingerprints differ. This bundle exercises signing and verification only: it

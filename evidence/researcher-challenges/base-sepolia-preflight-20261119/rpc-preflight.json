@@ -1,0 +1,159 @@
+{
+  "schema": "researcher-challenge-testnet-rpc-preflight.v1",
+  "observed_at_utc": "2026-11-19T12:44:25.596201+00:00",
+  "network": {
+    "name": "Base Sepolia",
+    "caip2": "eip155:84532",
+    "chain_id_expected": 84532
+  },
+  "asset": {
+    "name": "Circle testnet USDC",
+    "contract": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "decimals_expected": 6,
+    "circle_testnet_tokens_have_financial_value": false
+  },
+  "endpoints": [
+    {
+      "name": "base-official",
+      "url": "https://sepolia.base.org",
+      "chain_id": "0x14a34",
+      "genesis_block": {
+        "error": {
+          "code": 4444,
+          "message": "pruned history unavailable: requested 0, earliest available 47000000"
+        }
+      },
+      "token_code": {
+        "byte_length": 1798,
+        "sha256": "sha256:e878b99fc0c17354c86c7edeb999c70c18cfd925abb0958496f027cbad996d28"
+      },
+      "token_decimals": {
+        "hex": "0x0000000000000000000000000000000000000000000000000000000000000006",
+        "integer": 6
+      }
+    },
+    {
+      "name": "publicnode",
+      "url": "https://base-sepolia-rpc.publicnode.com",
+      "chain_id": "0x14a34",
+      "genesis_block": {
+        "error": {
+          "code": 4444,
+          "message": "pruned history unavailable: requested 0, earliest available 47000000"
+        }
+      },
+      "token_code": {
+        "byte_length": 1798,
+        "sha256": "sha256:e878b99fc0c17354c86c7edeb999c70c18cfd925abb0958496f027cbad996d28"
+      },
+      "token_decimals": {
+        "hex": "0x0000000000000000000000000000000000000000000000000000000000000006",
+        "integer": 6
+      }
+    },
+    {
+      "name": "blockreq-public",
+      "url": "https://base-sepolia-rpc.blockreq.com/v1/rpc/public",
+      "chain_id": "0x14a34",
+      "genesis_block": {
+        "error": {
+          "code": -32601,
+          "message": "public endpoint only serves recent blocks (last 1024). Register at blockreq.com for historical / archive access."
+        }
+      },
+      "token_code": {
+        "byte_length": 1798,
+        "sha256": "sha256:e878b99fc0c17354c86c7edeb999c70c18cfd925abb0958496f027cbad996d28"
+      },
+      "token_decimals": {
+        "hex": "0x0000000000000000000000000000000000000000000000000000000000000006",
+        "integer": 6
+      }
+    },
+    {
+      "name": "drpc-public",
+      "url": "https://base-sepolia.drpc.org",
+      "chain_id": "0x14a34",
+      "genesis_block": null,
+      "token_code": {
+        "byte_length": 1798,
+        "sha256": "sha256:e878b99fc0c17354c86c7edeb999c70c18cfd925abb0958496f027cbad996d28"
+      },
+      "token_decimals": {
+        "hex": "0x0000000000000000000000000000000000000000000000000000000000000006",
+        "integer": 6
+      }
+    },
+    {
+      "name": "tenderly-public",
+      "url": "https://base-sepolia.gateway.tenderly.co",
+      "chain_id": "0x14a34",
+      "genesis_block": {
+        "number": "0x0",
+        "hash": "0x0dcc9e089e30b90ddfc55be9a37dd15bc551aeee999d2e2b51414c54eaf934e4"
+      },
+      "token_code": {
+        "byte_length": 1798,
+        "sha256": "sha256:e878b99fc0c17354c86c7edeb999c70c18cfd925abb0958496f027cbad996d28"
+      },
+      "token_decimals": {
+        "hex": "0x0000000000000000000000000000000000000000000000000000000000000006",
+        "integer": 6
+      }
+    },
+    {
+      "name": "onfinality-public",
+      "url": "https://base-sepolia.api.onfinality.io/public",
+      "chain_id": "0x14a34",
+      "genesis_block": {
+        "number": "0x0",
+        "hash": "0x0dcc9e089e30b90ddfc55be9a37dd15bc551aeee999d2e2b51414c54eaf934e4"
+      },
+      "token_code": {
+        "transport_error": "HTTP 429 during this preflight read"
+      },
+      "token_decimals": {
+        "transport_error": "HTTP 429 during this preflight read"
+      }
+    },
+    {
+      "name": "nodies-public",
+      "url": "https://base-sepolia-public.nodies.app",
+      "chain_id": "0x14a34",
+      "genesis_block": {
+        "number": "0x0",
+        "hash": "0x0dcc9e089e30b90ddfc55be9a37dd15bc551aeee999d2e2b51414c54eaf934e4"
+      },
+      "token_code": {
+        "byte_length": 1798,
+        "sha256": "sha256:e878b99fc0c17354c86c7edeb999c70c18cfd925abb0958496f027cbad996d28"
+      },
+      "token_decimals": {
+        "hex": "0x0000000000000000000000000000000000000000000000000000000000000006",
+        "integer": 6
+      }
+    },
+    {
+      "name": "pocket-public",
+      "url": "https://base-sepolia-testnet.api.pocket.network",
+      "chain_id": "0x14a34",
+      "genesis_block": {
+        "number": "0x0",
+        "hash": "0x0dcc9e089e30b90ddfc55be9a37dd15bc551aeee999d2e2b51414c54eaf934e4"
+      },
+      "token_code": {
+        "byte_length": 1798,
+        "sha256": "sha256:e878b99fc0c17354c86c7edeb999c70c18cfd925abb0958496f027cbad996d28"
+      },
+      "token_decimals": {
+        "hex": "0x0000000000000000000000000000000000000000000000000000000000000006",
+        "integer": 6
+      }
+    }
+  ],
+  "authorization": {
+    "publication": false,
+    "activation": false,
+    "funding": false
+  }
+}
