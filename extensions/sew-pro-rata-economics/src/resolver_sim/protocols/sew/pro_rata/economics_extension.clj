@@ -1,6 +1,6 @@
 (ns resolver-sim.protocols.sew.pro-rata.economics-extension
   "Runtime bootstrap for optional Sew pro-rata slash economics."
-  (:require [resolver-sim.protocols.registry :as registry]
+  (:require [resolver-sim.extensions.api.protocol.v1 :as protocol-api]
             [resolver-sim.protocols.sew.pro-rata.economics :as economics]))
 
 (def capability-implementations
@@ -13,8 +13,8 @@
 
 (defn register-capabilities! []
   (doseq [[capability implementation] capability-implementations]
-    (registry/register-capability! "sew-v1" capability implementation)))
+    (protocol-api/register-capability! "sew-v1" capability implementation)))
 
-(registry/register-capability-provider!
+(protocol-api/register-capability-provider!
  "sew-v1" :sew-pro-rata-economics register-capabilities!)
 (register-capabilities!)
