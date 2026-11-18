@@ -114,7 +114,7 @@
    :status :in-tree-source-candidate
    :dependency-manifest "packages/sew-protocol-model/deps.edn"
    :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-   :git/sha "c62c03f22fc6c7be29702cfe18211cc5d15ec440"
+   :git/sha "fd696ba2ed5f8dcdbdeb02db9e5ce2c5f0f92cb0"
    :public-namespace resolver-sim.protocols.sew
    :api [:sew-protocol-model.v1]
    :qualification {:released-artifact? false
@@ -125,7 +125,7 @@
    :status :in-tree-source-candidate
    :dependency-manifest "extensions/sew-core-profile-adapter/deps.edn"
    :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-   :git/sha "26de6a2e4371013690b223f13f258a5fd1fec7fe"
+   :git/sha "800105559f17213a927001c318682fd8497a284c"
    :public-namespace prf.extensions.sew-core-profile-adapter.adapter
    :api [:sew-core-profile.v1]
    :qualification {:released-artifact? false
