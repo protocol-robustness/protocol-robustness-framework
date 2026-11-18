@@ -30,8 +30,7 @@
     'resolver-sim.hash.canonical
     'resolver-sim.hash.reference
     'resolver-sim.hash.sequence
-    'resolver-sim.sensitivity.sentinel
-    'resolver-sim.extensions.api.protocol.v1})
+    'resolver-sim.sensitivity.sentinel})
 
 (def ^:private protocol-api-implementation-dependencies
   #{'resolver-sim.protocols.registry})
