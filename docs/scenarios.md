@@ -56,7 +56,7 @@ bb run:scenario:search <text>
 
 These scenarios verify that the protocol behaves correctly under normal and edge-case conditions.
 
-> The table below is generated from `src/resolver_sim/protocols/sew/invariant_scenarios/doc_summaries.clj`.
+> The table below is generated from `extensions/sew-runner/src/resolver_sim/protocols/sew/invariant_scenarios/doc_summaries.clj`.
 > Regenerate with `bb docs:scenarios` after editing summaries or scenario ids.
 
 | ID | Name | What it tests |

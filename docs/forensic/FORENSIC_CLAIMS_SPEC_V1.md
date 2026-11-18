@@ -27,8 +27,9 @@ supports the conclusion.
 The forensic bundle distinguishes between:
 
 - **Claim definitions** — registered, versioned descriptions of what a
-  claim asserts, its assumptions, and its falsification conditions. These
-  live in `data/claims/` and `protocols_src/` within the source tree.
+  claim asserts, its assumptions, and its falsification conditions. Sew
+  protocol claims live in `extensions/sew-runner/resources/data/claims/`;
+  forensic claims live in the Sew runner extension source.
 - **Claim evaluation results** — per-run records in `claims/` that capture
   the outcome of evaluating one or more claim definitions against the run's
   evidence. These are produced by the forensic pipeline, not by source
@@ -47,7 +48,8 @@ The `claims/` directory may contain results from both:
 1. **Forensic-grade claims** (defined in
    `protocols_src/resolver_sim/evidence/forensic_claims.clj`) — automated
    audit claims about the evidence chain itself.
-2. **Protocol claims** (defined in `data/claims/sew-claims.edn`) — domain
+2. **Protocol claims** (defined in
+   `extensions/sew-runner/resources/data/claims/sew-claims.edn`) — domain
    claims about protocol behavior.
 
 ## 3. Schema: Claim Evaluation Result
@@ -177,7 +179,7 @@ The planned implementation phases are:
 
 - `protocols_src/resolver_sim/evidence/forensic_claims.clj` — 6 forensic
   claim definitions
-- `data/claims/sew-claims.edn` — 17 protocol claim definitions
+- `extensions/sew-runner/resources/data/claims/sew-claims.edn` — 16 protocol claim definitions
 - `src/resolver_sim/evidence/forensic_adapter.clj` — ForensicEvidenceAdapter
   protocol (produces derived diagnostic artifacts)
 - `src/resolver_sim/definitions/passive_registries.clj` — Claim definition

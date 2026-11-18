@@ -6,6 +6,7 @@
             [clojure.string                 :as str]
             [resolver-sim.definitions.registry :as defs]
             [resolver-sim.protocols.registry :as protocol-registry]
+            [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.scenario.expectations :as expectations]
             [resolver-sim.scenario.theory-result :as theory-result]
             [resolver-sim.scenario.yield-metrics :as yield-metrics]
@@ -75,15 +76,12 @@
                         (yield-provider-metrics/merge-provider-metrics scenario))
     (yield-metrics/merge-yield-metrics result)))
 
-(defn- appeal-bond-adapter-present?
-  [result]
-  (boolean (some :appeal-bond/transition-receipt (:trace result))))
-
 (defn- finalize-protocol-evidence
   [scenario result]
-  (when (appeal-bond-adapter-present? result)
+  (when-let [protocol-id (or (:protocol/id result)
+                             (some-> (:protocol result) proto/protocol-id))]
     (when-let [finalize (protocol-registry/get-capability
-                         "sew-v1" :replay/finalize-appeal-bond)]
+                         protocol-id :replay/finalize-result)]
       (finalize scenario result))))
 
 (defn finalize-scenario-result
@@ -142,7 +140,9 @@
          (and (= (:outcome result-ev) :pass) (not checks-ok?))
          (assoc base-result
                 :outcome :fail
-                :halt-reason (cond (not projection-ok?) :invalid-appeal-bond-projection
+                :halt-reason (cond (not projection-ok?)
+                                   (or (:halt-reason protocol-evidence)
+                                       :protocol-evidence-invalid)
                                    (not outcomes-ok?) :expected-outcome-mismatch
                                    (not expect-ok?) :expectation-mismatch
                                    (not theory-ok?) :theory-falsified)

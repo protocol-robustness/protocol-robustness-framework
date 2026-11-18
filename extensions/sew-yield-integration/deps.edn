@@ -1,0 +1,12 @@
+;; In-tree candidate for the Sew-specific yield adapter. The model dependency
+;; remains local until the Sew protocol model is published independently.
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        org.protocol-robustness/prf-sew-protocol-model
+        {:local/root "../../packages/sew-protocol-model"}}
+ :aliases {:test {:extra-paths ["test"]
+                  ;; Use the in-checkout economics package until its pinned
+                  ;; source revision is available on the shared remote.
+                  :override-deps {org.protocol-robustness/prf-sew-pro-rata-economics
+                                  {:local/root "../sew-pro-rata-economics"}}
+                  :main-opts ["-m" "resolver-sim.protocols.sew.yield.test-runner"]}}}

@@ -514,7 +514,7 @@ Batch aggregates include `:oracle-effective-mode`.
 
 ## Scenario fixture parity (trace + public JSON)
 
-Invariant scenarios are authored in Clojure (`protocols/sew/invariant_scenarios/`).
+Invariant scenarios are authored in Clojure (`extensions/sew-runner/src/resolver_sim/protocols/sew/invariant_scenarios/`).
 Checked-in `data/fixtures/traces/*.trace.json` and `scenarios/S*.json` must stay aligned
 with that source or CI fails.
 

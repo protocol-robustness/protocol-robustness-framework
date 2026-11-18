@@ -4,19 +4,23 @@ Status: preparation only; no independent `prf-core` repository or release exists
 
 ## Recommendation
 
-Extract a narrow, source-pinned core slice first: the supported extension API
-and the complete implementation closure needed by `force-authorisation` and
-`held-custody`. Do not move all of `src/` as one package. The current extension
-qualification demonstrates a tractable first slice, not that the whole
-framework has one coherent package boundary.
+Keep core extraction sliced by consumer: the general extension API serves
+`force-authorisation` and `held-custody`; a separate portable pro-rata API
+serves the Sew economics adapter. Do not move all of `src/` as one package.
+The current combined source candidate demonstrates a qualified source closure,
+not that the whole framework has one coherent package boundary.
 
-The source candidate is `resolver-sim.extensions.api.v1` plus the 24
-implementation namespaces listed in
+The current 54-namespace source closure contains
+`resolver-sim.extensions.api.v1`,
+`resolver-sim.extensions.api.pro-rata.v1`, and their implementation namespaces
+listed in
 [`packages/prf-extension-api-v1/DEPENDENCIES.edn`](../../packages/prf-extension-api-v1/DEPENDENCIES.edn).
-Its tested external dependencies are Clojure 1.12.0, `prf/canonical` at
-`5e2b520feca812b049ba397b7b3681963c66a48c`, and test.check 1.1.1 for tests.
-The clean-room test stages this closure outside the repository classpath and
-passes both extension suites (113 tests, 622 assertions).
+Its external dependencies include Clojure 1.12.0, `prf/canonical` at
+`5e2b520feca812b049ba397b7b3681963c66a48c`, and
+`prf/pro-rata-allocation` at `cf38de1ea4ef03654ee3de8bead56c32ef078b10`, as
+well as registry/evidence runtime libraries recorded in the manifest. The
+clean-room test stages this closure outside the repository classpath and passes
+the isolated API and extension suites (107 tests, 603 assertions).
 
 ## Closure ownership review
 
@@ -24,14 +28,15 @@ For the first slice, ownership is intentionally narrow:
 
 | Classification | Namespaces | Contract |
 |---|---:|---|
-| Public package surface | `resolver-sim.extensions.api.v1` | The only namespace extension packages may import; compatibility follows API v1. |
-| Private implementation closure | Other 24 `resolver-sim.*` entries in the dependency manifest | Needed to implement the facade and run the extension suites; not a promise that these namespaces are individually public APIs. |
-| External runtime dependency | `prf/canonical` at the recorded Git SHA | Resolved as a pinned dependency, not copied into the candidate source bundle. |
-| Test-only dependency | `org.clojure/test.check` 1.1.1 | Used by the source qualification; not a runtime dependency of the API. |
+| Public package surface | `resolver-sim.extensions.api.v1`; `resolver-sim.extensions.api.pro-rata.v1` | Versioned contracts for force authorization/held custody and portable pro-rata respectively. |
+| Private implementation closure | Other entries in the 54-namespace source closure | Needed to implement the facades and run consumer tests; not a promise that these namespaces are individually public APIs. |
+| External PRF runtime dependencies | `prf/canonical` and `prf/pro-rata-allocation` at recorded Git SHAs | Resolved as pinned dependencies, not copied into the candidate source bundle. |
+| JVM runtime libraries | Data JSON, Buddy Core, and SLF4J at manifest-pinned versions | Needed by the core evidence and registry implementation closure. |
+| Test-only dependency | `org.clojure/test.check` 1.1.1 | Used by source qualification; not a runtime dependency of the facades. |
 
-A namespace scan including `src/`, `test/`, `protocols_src/`, both extension
+A namespace scan including `src/`, `test/`, `protocols_src/`, extension
 trees, and package roots found substantial direct consumer fan-out outside
-this 25-namespace slice. For example, `resolver-sim.hash.canonical` has 574
+this 54-namespace slice. For example, `resolver-sim.hash.canonical` has 574
 outside namespace declarations and `resolver-sim.hash.reference` 349;
 `genesis` has 32, extension registry 24, configuration head and extension
 resolution 19 each, and assurance force-authorisation 18. The earlier narrower
@@ -50,7 +55,7 @@ outside-consumer counts. It scans source, test, protocol, extension, and package
 roots; duplicate namespace declarations across test roots are combined by
 namespace.
 
-The remaining 24 namespaces should therefore be treated as private package
+The remaining source-closure namespaces should therefore be treated as private package
 implementation for the initial release even though some have other in-repo
 consumers. The cleanest eventual cutover is a single ownership transfer: move
 the reviewed namespace files into the core release, make the monorepo depend on
@@ -80,8 +85,8 @@ a checked migration fixture and update every consumer classpath and build.
 
 1. **Approve ownership and compatibility.** Name the maintainers, repository
    owner, license, API compatibility policy, supported Clojure/JVM versions,
-   and deprecation policy. Keep `resolver-sim.extensions.api.v1` as the only
-   package-facing namespace for the first release.
+   and deprecation policy. Keep both facade namespaces versioned and explicit;
+   publish the pro-rata facade only with its complete reviewed source closure.
 2. **Review the closure.** For every namespace in the dependency manifest,
    record whether it moves into the first release, remains a private
    implementation dependency, or blocks extraction. Review resource and

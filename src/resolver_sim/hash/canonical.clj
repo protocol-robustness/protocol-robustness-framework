@@ -69,6 +69,7 @@
    :bundle-root "BUNDLE_ROOT_V1"
    :reproducibility "BENCHMARK_REPRODUCIBILITY_V1"
    :evidence-content "EVIDENCE_CONTENT_V1"
+   :dispute-review-v0 "PRF_DISPUTE_REVIEW_V0"
    :sensitivity-sentinel-decision "SENSITIVITY_SENTINEL_DECISION_V1"
    :state-diff "STATE_DIFF_V1"
    :protocol-state "PROTOCOL_STATE_V1"

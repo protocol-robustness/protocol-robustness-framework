@@ -218,7 +218,7 @@
 
 ;; ── architecture / reachability gate ────────────────────────────────────────
 
-(def ^:private sew-root "protocols_src/resolver_sim/protocols/sew")
+(def ^:private sew-root "packages/sew-protocol-model/src/resolver_sim/protocols/sew")
 
 (def ^:private low-level-call-re
   "A raw low-level held-ingress call: (acct/add-held ... or (accounting/add-held ...
@@ -236,11 +236,11 @@
   #{"held_mutation_admission.clj" "accounting.clj"})
 
 (defn- repo-root
-  "Walk up from the CWD to the repository root (a directory containing
-   protocols_src/), so the gate is robust to the working directory."
+  "Walk up from the CWD to the PRF root containing the canonical Sew model
+   source, so the gate works from package and repository directories."
   []
   (loop [dir (io/file (System/getProperty "user.dir"))]
-    (if (and dir (.isDirectory dir) (.exists (io/file dir "protocols_src")))
+    (if (and dir (.isDirectory dir) (.isDirectory (io/file dir sew-root)))
       (.getCanonicalPath dir)
       (when-let [parent (.getParentFile dir)]
         (recur parent)))))

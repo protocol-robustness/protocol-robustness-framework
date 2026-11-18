@@ -6,8 +6,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src" / "resolver_sim" / "protocols" / "sew"
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "extensions" / "sew-runner" / "src" / "resolver_sim" / "protocols" / "sew"
 SRC_FILE = SRC / "invariant_scenarios.clj"
 OUT_DIR = SRC / "invariant_scenarios"
 

@@ -1,14 +1,12 @@
 (ns resolver-sim.notebook-support.speds.findings
-  "Findings-envelope generation for SPEDS.
-   Canonical evidence artifact from trial outputs."
+  "Generate SPEDS findings reports derived from trial evidence."
   (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
             [malli.core :as m]
             [malli.error :as me]
-            [resolver-sim.logging :as log]
             [resolver-sim.notebook-support.common :as common]
+            [resolver-sim.io.atomic-file :as atomic-file]
             [resolver-sim.definitions.registry :as defs]
             [resolver-sim.notebook-support.speds.data :as data]
             [resolver-sim.notebook-support.speds.semantics :as sem]
@@ -19,7 +17,7 @@
             [resolver-sim.notebook-support.speds.config :as config]))
 
 (def findings-path
-  (or (:findings config/artifact-paths) (evcfg/artifact-path :findings)))
+  (or (:speds-findings config/artifact-paths) (evcfg/artifact-path :speds-findings)))
 
 (def required-finding-keys
   #{:finding_id :scenario_id :kind :severity :status_kind :title
@@ -481,33 +479,19 @@
     [:provenance :map]]))
 
 (defn- validate-findings-bundle!
-  "Validate findings bundle against schema. Logs and returns bundle."
+  "Validate findings bundle against schema, failing before publication."
   [bundle]
   (if-let [errors (m/explain findings-bundle-schema bundle)]
-    (let [msg (str "Findings bundle schema validation failed: " (me/humanize errors))]
-      (log/warn! msg {:errors errors})
-      bundle)
+    (let [message (str "Findings bundle schema validation failed: " (me/humanize errors))]
+      (throw (ex-info message {:schema "speds.findings.v1" :errors errors})))
     bundle))
 
 (defn save-findings!
   ([] (save-findings! (data/load-run-artifacts)))
   ([artifacts]
    (let [bundle (-> artifacts generate-findings-bundle validate-findings-bundle!)]
-     (.mkdirs (java.io.File. (evcfg/artifact-dir)))
-     (with-open [w (io/writer findings-path)]
-       (json/write bundle w :indent true))
+     (atomic-file/write-text! findings-path (json/write-str bundle :indent true))
      bundle)))
-
-(defn findings-fresh?
-  "Returns true if the on-disk findings file is newer than the summary artifact."
-  []
-  (try
-    (let [f (io/file findings-path)
-          s (io/file (:test-summary config/artifact-paths))]
-      (and (.exists f)
-           (or (not (.exists s))
-               (>= (.lastModified f) (.lastModified s)))))
-    (catch Exception _ false)))
 
 (defn load-findings []
   (common/read-json findings-path))

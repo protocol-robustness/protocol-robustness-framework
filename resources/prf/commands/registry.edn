@@ -2,6 +2,32 @@
 
  :commands
  [
+  {:command/id :dispute-review-new
+   :command/path ["dispute-review" "new"]
+   :command/title "Create a PRF dispute review"
+   :command/category :evidence
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "EDN review request file"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Create an independent read-only review package under the user's PRF data directory."}
+
+  {:command/id :dispute-review-verify
+   :command/path ["dispute-review" "verify"]
+   :command/title "Verify a PRF dispute review"
+   :command/category :evidence
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--review" :type :string :required true :doc "Review package directory"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Read-only verification of a review package's schema, identity, evidence references and reproduction checks."}
+
   {:command/id :protocol-finality-inspect
    :command/path ["protocol" "finality" "inspect"]
    :command/title "protocol finality inspect"

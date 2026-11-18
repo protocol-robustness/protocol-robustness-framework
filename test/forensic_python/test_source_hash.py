@@ -40,7 +40,7 @@ def test_default_source_hash_includes_extracted_yield_and_extension_sources(tmp_
     for root in sut.DEFAULT_SOURCE_ROOTS:
         (tmp_path / root).mkdir(parents=True)
     yield_source = tmp_path / "yield_runtime_src" / "resolver_sim" / "yield" / "partial_fill.clj"
-    extension_source = tmp_path / "extensions" / "sew-core-model" / "src" / "adapter.clj"
+    extension_source = tmp_path / "extensions" / "sew-core-profile-adapter" / "src" / "adapter.clj"
     _write(yield_source, "(def value 1)\n")
     _write(extension_source, "(def adapter 1)\n")
 

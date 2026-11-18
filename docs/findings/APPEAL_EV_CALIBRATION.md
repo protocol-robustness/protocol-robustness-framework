@@ -90,7 +90,7 @@ derive both bounds from the declared governance calibration and slash rate
 - Scenarios: `S-DR-097` (well-calibrated), `S-DR-098` (under-deterred),
   `S-DR-099` (correct-blocked)
 - Equilibrium check: `:appeal-decision-rationality`
-  (`protocols_src/resolver_sim/protocols/sew/equilibrium.clj`)
+  (`extensions/sew-analysis/src/resolver_sim/protocols/sew/equilibrium.clj`)
 - Benchmark claim: `:claim/appeal-decision-rationality`
   (`benchmarks/packs/sew/reversal-slashing-v1.edn`)
 

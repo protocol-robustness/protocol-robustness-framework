@@ -24,7 +24,7 @@ distinct paths:
 ### Source Tree
 
 #### Core cancellation implementation
-- `protocols_src/.../sew/state_machine.clj` — `set-sender-agree-to-cancel`,
+- `packages/sew-protocol-model/src/.../sew/state_machine.clj` — `set-sender-agree-to-cancel`,
   `set-recipient-agree-to-cancel`, `both-agreed-to-cancel?`, `auto-cancel-due?`
 - `protocols_src/.../sew/lifecycle.clj:495-597` — `sender-cancel`, `recipient-cancel`,
   `auto-cancel-disputed-escrow`
@@ -441,7 +441,7 @@ However, this is a **state inconsistency** that could:
 - `~/Code/sew-protocol/test/foundry/governance/SlowLaneCancellationStrategyTest.t.sol` — governance
 
 **Simulation source re-read for comparison:**
-- `protocols_src/.../sew/state_machine.clj:232-242` — `:set-raise-dispute-status` clears counterparty
+- `packages/sew-protocol-model/src/.../sew/state_machine.clj:232-242` — `:set-raise-dispute-status` clears counterparty
 - `protocols_src/.../sew/invariants/escrow.clj:19-29` — `cancellation-mutex?` predicate
 - `protocols_src/.../sew/invariants.clj:39` — `cancellation-mutex?` wrapper
 - `docs/protocol/invariant-parity.md:12` — maps `cancellation-mutex` to `test_CancellationMutex` (Pending)

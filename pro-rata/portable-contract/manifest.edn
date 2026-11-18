@@ -7,7 +7,7 @@
  :files
  [{:path "SPEC.md" :sha256 "62144bfa332d308c3bf0e5f3206f86a3ec39106af3f6070981a176954eee4888" :normative? true}
   {:path "contract.edn" :sha256 "ac602efa648aa19b601cf2a42f499c922325d833ed446f45294e2014b789dd72" :normative? true}
-  {:path "EXTRACTION_PLAN.md" :sha256 "e178b14e397d6d89c706d8aec7b08ce22743f98affe8026a93b7fd3e26d77f95" :normative? false}
+  {:path "EXTRACTION_PLAN.md" :sha256 "a5e0539ff798e5dced3c61a305d467ab93b2e29253f7084add982afa574c2a6b" :normative? false}
   {:path "vectors/allocation-rounding-001.edn" :sha256 "f2552365434868de77589ef81392bd267a74f2b0739db7230e7d5d072e64ccab" :normative? true}
    {:path "vectors/cap-clamping-001.edn" :sha256 "77b285e2ef70d80ef26f331c74feae4fb61987ae59461e7e9284cd3b74034c1b" :normative? true}
   {:path "vectors/canonical-transition-001.edn" :sha256 "6d5baa7f6c60a400f0895ddabcca96b4dea70e62aacd7d17981b15a3f21b1d3c" :normative? true}
@@ -25,4 +25,4 @@
   {:path "canonical-bytes/effects.hex" :sha256 "cd16c72c3fefade5cd19573c570c3af06af00f7b296125ae20d6e65d147eb5f4" :normative? true}
   {:path "canonical-bytes/state-after.hex" :sha256 "7a387b900fa204fb862b1281f231329ac803dfa958cb65157da87a45faae7e41" :normative? true}
   {:path "canonical-bytes/transition.hex" :sha256 "9cf251e23dc443035f64abd9db9c5ee0c839f551e3a81ca87f5a06f4c7f7cbdc" :normative? true}]
- :portable-contract/release-root "b863e04a61d0dded845dc3351626ebf57c4d5abea7e18ea19a89cacf4b1ad12a"}
+ :portable-contract/release-root "7f879b3491262f62e1fcad94ce6692bd6c605bc6727e3e57d20cb6bea97dc0f3"}

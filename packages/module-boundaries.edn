@@ -88,8 +88,14 @@
                    :released-artifact? false
                    :immutable-coordinate? false}
    :public-namespace resolver-sim.extensions.api.v1
-   :api [:extension-core-api.v1]
-   :depends-on #{:prf-canonical}}
+   :additional-public-namespaces [resolver-sim.extensions.api.pro-rata.v1
+                                  resolver-sim.extensions.api.protocol.v1
+                                  resolver-sim.protocols.protocol]
+   :api [:extension-core-api.v1
+         :portable-pro-rata-evaluation.v1
+         :protocol-capabilities.v1
+         :protocol-adapter-interfaces.v1]
+   :depends-on #{:prf-canonical :prf-pro-rata-allocation}}
   :repairability-report
   {:owner :prf-dev-pro-90
    :status :in-tree-unqualified-extension-candidate

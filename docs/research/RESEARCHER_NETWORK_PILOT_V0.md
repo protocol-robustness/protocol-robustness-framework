@@ -258,6 +258,18 @@ allocation-policy invariance for that declared pair; zero is supported within
 that single case. This metric does not measure unpaid demand, prove general IC,
 or establish novelty. Primitive result invariants must pass for both results.
 
+For Challenge 001, use the `researcher-shortfall-pilot.v2` profile rather than
+the generic V1 profile. It embeds and roots the exact scope-candidate artifact,
+binds its challenge ID, subject root, revision root, acceptance criteria and
+fixed allocation-policy pair to the researcher configuration, then reruns the
+candidate's bounded-domain checks for every submission during replay. Build it
+with `challenge-001-profile CONFIG SCOPE_CANDIDATE LEFT RIGHT`. The ordinary
+`profile CONFIG COMPARISON` command remains available for generic V1 arithmetic
+pilots and does not enforce Challenge 001's row/amount bounds. The V2 profile
+does not change the candidate's `proposed-not-authorized` status or authorize
+publication, enrollment, funding or rewards; those still require the separate
+approval and signed publication workflow below.
+
 `researcher-shortfall-pilot.v1` composes the existing configuration with an
 explicit method root, fixed allocation-policy roots and the exact canonical
 case root of the published calibration pair as a non-qualifying input. The

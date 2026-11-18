@@ -12,7 +12,7 @@ key-management system, governance process, or external token custodian.
 
 A passing replay establishes only that an executed, declared trace satisfied
 registered invariants under this model. It is evidence for the bounded claims
-in `data/claims/sew-claims.edn`; it is not a universal safety, liveness, or
+in `extensions/sew-runner/resources/data/claims/sew-claims.edn`; it is not a universal safety, liveness, or
 economic-security proof.
 
 ## 2. Assets and security objectives

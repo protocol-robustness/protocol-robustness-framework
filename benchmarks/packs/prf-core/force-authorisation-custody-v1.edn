@@ -31,7 +31,7 @@
                :force-authorisation/expiry-enforced]}
   :benchmark/claim-definitions
   {:generic-spec "data/claims/force_authorisation_claims.edn"
-   :sew-binding "data/claims/sew-claims.edn"}
+   :sew-binding "extensions/sew-runner/resources/data/claims/sew-claims.edn"}
   :benchmark/description
  "Experimental bounded-claim benchmark for exceptional authorization and
   custody isolation. It does not establish governance legitimacy, external

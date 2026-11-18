@@ -2,4 +2,24 @@
 {:deps {org.clojure/clojure {:mvn/version "1.12.0"}
         org.protocol-robustness/prf-sew-protocol-model
         {:local/root "../../packages/sew-protocol-model"}}
- :paths ["../../protocols_src/test"]}
+ :paths ["../../extensions/sew-analysis/src"
+         "../../extensions/sew-yield-integration/src"
+         "../../extensions/sew-yield-integration/test"
+         "../../extensions/sew-analysis/test"
+         "../../extensions/sew-financial-lifecycle/src"
+         "../../extensions/sew-financial-lifecycle/test"
+         "../../extensions/sew-bounty-route/src"
+         "../../extensions/sew-bounty-route/test"
+         "../../extensions/sew-bounty/src"
+         "../../extensions/sew-bounty/test"
+         "../../extensions/sew-pro-rata-application/src"
+         "../../extensions/sew-pro-rata-application/test"
+         "../../extensions/sew-runner/src"
+         "../../extensions/sew-runner/resources"
+         "../../extensions/sew-runner/test"
+         "../../packages/sew-protocol-model/test"
+         "../../protocols_src/test"]
+ :aliases {:dev/local-economics
+           {:override-deps
+            {org.protocol-robustness/prf-sew-pro-rata-economics
+             {:local/root "../../extensions/sew-pro-rata-economics"}}}}}
