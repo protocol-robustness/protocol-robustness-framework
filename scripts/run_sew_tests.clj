@@ -278,7 +278,8 @@
     next.jdbc.connection
     next.jdbc.result-set
     resolver-sim.db.xtdb
-    resolver-sim.db.store])
+    resolver-sim.db.store
+    resolver-sim.db.temporal])
 
 (def execution-modes
   {:shared-sequential   {:label "legacy shared context, sequential"
