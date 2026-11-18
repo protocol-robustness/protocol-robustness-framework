@@ -83,7 +83,7 @@
    ;; Optional extracted notebook source; only notebook commands select this.
    :notebooks
    {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}}
+                                :git/sha "07ff7a18da15cfc6402de199179fe17457b8c253"}}}
 
    ;; Corruption guard: load-all / def-inventory integrity checks.
    :check
