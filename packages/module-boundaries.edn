@@ -125,7 +125,7 @@
    :status :in-tree-source-candidate
    :dependency-manifest "extensions/sew-core-profile-adapter/deps.edn"
    :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-   :git/sha "800105559f17213a927001c318682fd8497a284c"
+   :git/sha "73a23390da76c411c16e711697c93f058d90014f"
    :public-namespace prf.extensions.sew-core-profile-adapter.adapter
    :api [:sew-core-profile.v1]
    :qualification {:released-artifact? false
