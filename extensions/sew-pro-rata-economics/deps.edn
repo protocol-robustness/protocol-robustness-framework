@@ -6,4 +6,4 @@
         {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
          :git/sha "c89237990d9b88b76c841ee9ff611d36559dde56"
          :deps/root "."}}
- :aliases {:test {:extra-paths ["test" "../../src"]}}}
+ :aliases {:test {:extra-paths ["test"]}}}
