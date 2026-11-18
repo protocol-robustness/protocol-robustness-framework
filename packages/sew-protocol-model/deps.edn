@@ -6,7 +6,7 @@
          :deps/root "."}
         org.protocol-robustness/prf-sew-pro-rata-economics
         {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-         :git/sha "dcdf49720f7d2ab52eeb6e34a0a29f652d4dfddd"
+         :git/sha "8dd41152c49c1ec692c1ada21f3e1554f9ddd493"
          :deps/root "extensions/sew-pro-rata-economics"}}
  :aliases {:test {:extra-paths ["test" "../../extensions/sew-yield-integration/src"]
                   :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}}}}
