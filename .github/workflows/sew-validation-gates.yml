@@ -67,6 +67,7 @@ jobs:
         run: ./scripts/test.sh unit
 
       - name: Extension package qualification
+        if: always()
         timeout-minutes: 30
         run: bash scripts/test_extension_packages.sh
 
