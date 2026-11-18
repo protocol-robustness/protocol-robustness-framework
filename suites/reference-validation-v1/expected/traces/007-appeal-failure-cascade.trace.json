@@ -168,6 +168,7 @@
    "rejected":true},
   "participation":{"dispute_initiator":"buyer"},
   "timing":{"auto_cancel_triggered":false}},
+ "generated_by":"resolver-sim\/cdrs-0.2",
  "trace_kind":["dispute-resolution", "escalation"],
  "terminal_projection_hash":
  "a853149001bd9207767a97a4a2ac5e0db0e82ebeff2150eb207859219683f8f5",
