@@ -465,7 +465,7 @@
     [:run [:map {:closed true}
            [:run_id :string]
            [:generated_at :string]
-           [:git_sha :string]
+           [:git_sha [:maybe :string]]
            [:suite_id :string]
            [:artifact_root :string]]]
     [:overall_status [:map {:closed true}
