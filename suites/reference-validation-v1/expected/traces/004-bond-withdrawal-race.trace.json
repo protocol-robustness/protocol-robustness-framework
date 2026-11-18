@@ -138,6 +138,7 @@
    "beneficiary":"buyer"},
   "participation":{"dispute_initiator":"buyer"},
   "timing":{"auto_cancel_triggered":true}},
+ "generated_by":"resolver-sim\/cdrs-0.2",
  "trace_kind":["dispute-resolution", "timing"],
  "terminal_projection_hash":
  "5336f60123fe8c6b3ba177793acf938ab34abba10c244b5015f122225e992e1d",
