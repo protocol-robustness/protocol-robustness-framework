@@ -137,6 +137,14 @@
       (catch java.io.FileNotFoundException _ nil))
     (restore-capability-group! protocol-id :sew-core requested-capability)))
 
+(defn- bootstrap-sew-pro-rata-economics-extension!
+  [protocol-id requested-capability]
+  (when (= "sew-v1" protocol-id)
+    (try
+      (require 'resolver-sim.protocols.sew.pro-rata.economics-extension)
+      (catch java.io.FileNotFoundException _ nil))
+    (restore-capability-group! protocol-id :sew-pro-rata-economics requested-capability)))
+
 (defn register-capability!
   "Register an optional protocol-owned capability without adding a core import.
    Capability IDs are keywords; values are protocol-defined data or functions."
@@ -167,6 +175,8 @@
     (bootstrap-yield-extension! protocol-id capability-id))
   (when (= "sew-core" (namespace capability-id))
     (bootstrap-sew-core-extension! protocol-id capability-id))
+  (when (= "sew-pro-rata-economics" (namespace capability-id))
+    (bootstrap-sew-pro-rata-economics-extension! protocol-id capability-id))
   (get-in @extension-capability-registry [protocol-id capability-id]))
 
 (defn get-protocol
