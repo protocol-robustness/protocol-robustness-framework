@@ -134,7 +134,7 @@
     (is (= "4b628c8ef15b1970425804aaf06014c960469357" (:git/sha api)))
     (is (= "ae258b36f3b6f1c0ee4bcf9d913e4cea136994c0" (:git/sha economics)))
     (is (= "fd696ba2ed5f8dcdbdeb02db9e5ce2c5f0f92cb0" (:git/sha model)))
-    (is (= "800105559f17213a927001c318682fd8497a284c" (:git/sha core-adapter)))
+    (is (= "73a23390da76c411c16e711697c93f058d90014f" (:git/sha core-adapter)))
     (is (= "4b628c8ef15b1970425804aaf06014c960469357"
            (get-in economics-deps
                    [:deps 'org.protocol-robustness/prf-core :git/sha])))
