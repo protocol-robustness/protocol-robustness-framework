@@ -119,3 +119,35 @@
     (is (= :in-tree-source-candidate (:package/status manifest)))
     (is (false? (get-in manifest [:source-layout :independently-released?])))
     (is (nil? (get-in manifest [:publication :dependency-coordinate])))))
+(deftest sew-package-revision-chain-is-registered-and-pinned
+  (let [contracts (:package-contracts
+                   (edn/read-string (slurp "packages/module-boundaries.edn")))
+        api (get contracts :prf-extension-api-v1)
+        economics (get contracts :sew-pro-rata-economics)
+        model (get contracts :sew-protocol-model)
+        core-adapter (get contracts :sew-core-profile-adapter)
+        economics-deps (edn/read-string
+                        (slurp "extensions/sew-pro-rata-economics/deps.edn"))
+        model-deps (edn/read-string
+                    (slurp "packages/sew-protocol-model/deps.edn"))
+        core-deps (edn/read-string
+                   (slurp "extensions/sew-core-profile-adapter/deps.edn"))]
+    (is (= "4c4b9ac4b3bbbac3e44a47cb4df7d5197bee7dc3" (:git/sha api)))
+    (is (= "dcdf49720f7d2ab52eeb6e34a0a29f652d4dfddd" (:git/sha economics)))
+    (is (= "1f3071fa93a59012331bae04f84866df0c72ea7a" (:git/sha model)))
+    (is (= "9a075724bc336481b7edb7f07b7b097c2ff53295" (:git/sha core-adapter)))
+    (is (= "4c4b9ac4b3bbbac3e44a47cb4df7d5197bee7dc3"
+           (get-in economics-deps
+                   [:deps 'org.protocol-robustness/prf-core :git/sha])))
+    (is (= "4c4b9ac4b3bbbac3e44a47cb4df7d5197bee7dc3"
+           (get-in model-deps
+                   [:deps 'org.protocol-robustness/prf-core :git/sha])))
+    (is (= "dcdf49720f7d2ab52eeb6e34a0a29f652d4dfddd"
+           (get-in model-deps
+                   [:deps 'org.protocol-robustness/prf-sew-pro-rata-economics :git/sha])))
+    (is (= "1f3071fa93a59012331bae04f84866df0c72ea7a"
+           (get-in core-deps
+                   [:deps 'org.protocol-robustness/prf-sew-protocol-model :git/sha])))
+    (is (nil? (get-in economics-deps [:aliases :test :override-deps])))
+    (is (nil? (get-in model-deps [:aliases :test :override-deps])))
+    (is (nil? (get-in core-deps [:aliases :test :override-deps])))))
