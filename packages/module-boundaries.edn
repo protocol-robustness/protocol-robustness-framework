@@ -103,7 +103,7 @@
    :status :in-tree-source-candidate
    :dependency-manifest "extensions/sew-pro-rata-economics/deps.edn"
    :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-   :git/sha "dcdf49720f7d2ab52eeb6e34a0a29f652d4dfddd"
+   :git/sha "8dd41152c49c1ec692c1ada21f3e1554f9ddd493"
    :public-namespace resolver-sim.protocols.sew.pro-rata.economics
    :api [:sew-pro-rata-slash-economics.v1]
    :qualification {:released-artifact? false
@@ -114,7 +114,7 @@
    :status :in-tree-source-candidate
    :dependency-manifest "packages/sew-protocol-model/deps.edn"
    :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-   :git/sha "1f3071fa93a59012331bae04f84866df0c72ea7a"
+   :git/sha "86874faee1e5f7ca8bce5f144c1e91631c1e4083"
    :public-namespace resolver-sim.protocols.sew
    :api [:sew-protocol-model.v1]
    :qualification {:released-artifact? false
@@ -125,7 +125,7 @@
    :status :in-tree-source-candidate
    :dependency-manifest "extensions/sew-core-profile-adapter/deps.edn"
    :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-   :git/sha "9a075724bc336481b7edb7f07b7b097c2ff53295"
+   :git/sha "3bb9b8d0def5772b2b894cb615084672048298fe"
    :public-namespace prf.extensions.sew-core-profile-adapter.adapter
    :api [:sew-core-profile.v1]
    :qualification {:released-artifact? false
