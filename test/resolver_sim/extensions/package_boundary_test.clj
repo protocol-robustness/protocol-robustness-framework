@@ -133,8 +133,8 @@
                    (slurp "extensions/sew-core-profile-adapter/deps.edn"))]
     (is (= "4b628c8ef15b1970425804aaf06014c960469357" (:git/sha api)))
     (is (= "ae258b36f3b6f1c0ee4bcf9d913e4cea136994c0" (:git/sha economics)))
-    (is (= "c62c03f22fc6c7be29702cfe18211cc5d15ec440" (:git/sha model)))
-    (is (= "26de6a2e4371013690b223f13f258a5fd1fec7fe" (:git/sha core-adapter)))
+    (is (= "fd696ba2ed5f8dcdbdeb02db9e5ce2c5f0f92cb0" (:git/sha model)))
+    (is (= "800105559f17213a927001c318682fd8497a284c" (:git/sha core-adapter)))
     (is (= "4b628c8ef15b1970425804aaf06014c960469357"
            (get-in economics-deps
                    [:deps 'org.protocol-robustness/prf-core :git/sha])))
@@ -144,7 +144,7 @@
     (is (= "ae258b36f3b6f1c0ee4bcf9d913e4cea136994c0"
            (get-in model-deps
                    [:deps 'org.protocol-robustness/prf-sew-pro-rata-economics :git/sha])))
-    (is (= "c62c03f22fc6c7be29702cfe18211cc5d15ec440"
+    (is (= "fd696ba2ed5f8dcdbdeb02db9e5ce2c5f0f92cb0"
            (get-in core-deps
                    [:deps 'org.protocol-robustness/prf-sew-protocol-model :git/sha])))
     (is (nil? (get-in economics-deps [:aliases :test :override-deps])))
