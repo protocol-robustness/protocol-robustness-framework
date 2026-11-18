@@ -2,6 +2,6 @@
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
         org.protocol-robustness/prf-sew-protocol-model
         {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-         :git/sha "0d98708c92ad9a0bd9123fa4efce81480ff70f03"
+         :git/sha "1f3071fa93a59012331bae04f84866df0c72ea7a"
          :deps/root "packages/sew-protocol-model"}}
  :aliases {:test {:extra-paths ["test"]}}}
