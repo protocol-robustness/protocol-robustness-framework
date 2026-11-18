@@ -84,6 +84,8 @@
   {:owner :prf-core
    :status :in-tree-source-candidate
    :dependency-manifest "packages/prf-extension-api-v1/DEPENDENCIES.edn"
+   :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
+   :git/sha "4c4b9ac4b3bbbac3e44a47cb4df7d5197bee7dc3"
    :qualification {:isolated-source-closure-load? true
                    :released-artifact? false
                    :immutable-coordinate? false}
@@ -96,6 +98,39 @@
          :protocol-capabilities.v1
          :protocol-adapter-interfaces.v1]
    :depends-on #{:prf-canonical :prf-pro-rata-allocation}}
+  :sew-pro-rata-economics
+  {:owner :sew
+   :status :in-tree-source-candidate
+   :dependency-manifest "extensions/sew-pro-rata-economics/deps.edn"
+   :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
+   :git/sha "dcdf49720f7d2ab52eeb6e34a0a29f652d4dfddd"
+   :public-namespace resolver-sim.protocols.sew.pro-rata.economics
+   :api [:sew-pro-rata-slash-economics.v1]
+   :qualification {:released-artifact? false
+                   :clean-clone-resolution? :pending}
+   :depends-on #{:prf-extension-api-v1}}
+  :sew-protocol-model
+  {:owner :sew
+   :status :in-tree-source-candidate
+   :dependency-manifest "packages/sew-protocol-model/deps.edn"
+   :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
+   :git/sha "1f3071fa93a59012331bae04f84866df0c72ea7a"
+   :public-namespace resolver-sim.protocols.sew
+   :api [:sew-protocol-model.v1]
+   :qualification {:released-artifact? false
+                   :clean-clone-resolution? :pending}
+   :depends-on #{:prf-extension-api-v1 :sew-pro-rata-economics}}
+  :sew-core-profile-adapter
+  {:owner :sew-core
+   :status :in-tree-source-candidate
+   :dependency-manifest "extensions/sew-core-profile-adapter/deps.edn"
+   :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
+   :git/sha "9a075724bc336481b7edb7f07b7b097c2ff53295"
+   :public-namespace prf.extensions.sew-core-profile-adapter.adapter
+   :api [:sew-core-profile.v1]
+   :qualification {:released-artifact? false
+                   :clean-clone-resolution? :pending}
+   :depends-on #{:sew-protocol-model}}
   :repairability-report
   {:owner :prf-dev-pro-90
    :status :in-tree-unqualified-extension-candidate
