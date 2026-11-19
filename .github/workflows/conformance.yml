@@ -41,6 +41,8 @@ jobs:
       - name: Build SP1 guest ELFs for host linting
         # SP1's build helper skips guest builds under Clippy. Build the workspace
         # first so host binaries using include_elf! can still be linted.
+        env:
+          RUSTUP_TOOLCHAIN: stable
         run: cargo build --locked --manifest-path "$PRF_COPROCESSOR_ROOT/Cargo.toml" --workspace --all-targets --all-features
 
       - name: Rust clippy
