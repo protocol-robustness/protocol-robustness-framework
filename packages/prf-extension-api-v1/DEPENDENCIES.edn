@@ -17,7 +17,7 @@
    :source "src/resolver_sim/protocols/protocol.clj"
    :api-version 1}]
  :consumer-packages [:force-authorisation :held-custody
-                     :sew-pro-rata-economics :sew-core-profile-adapter]
+                     :sew-pro-rata-economics :sew-core-model]
  :direct-source-dependencies
  [resolver-sim.assurance.force-authorisation
   resolver-sim.assurance.held-admission

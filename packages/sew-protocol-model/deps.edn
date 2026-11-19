@@ -1,21 +1,12 @@
-;; In-tree source candidate for the PRF Sew protocol model. Both the framework
-;; and economics extension use immutable Git subdirectory revisions. The
-;; economics revision is part of the local agent-c-3 candidate history and must
-;; be published before clean-clone resolution can be qualified.
 {:paths ["src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
         org.protocol-robustness/prf-core
         {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-         :git/sha "b94b091cfbaf46ec34ae2ade4920f9a3751e3097"
+         :git/sha "4b628c8ef15b1970425804aaf06014c960469357"
          :deps/root "."}
         org.protocol-robustness/prf-sew-pro-rata-economics
         {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-         :git/sha "c6d21f852f8fbeff3d29b52c1139ad6f88ed332a"
+         :git/sha "ae258b36f3b6f1c0ee4bcf9d913e4cea136994c0"
          :deps/root "extensions/sew-pro-rata-economics"}}
- :aliases {:test {:override-deps
-                  {org.protocol-robustness/prf-sew-pro-rata-economics
-                   {:local/root "../../extensions/sew-pro-rata-economics"}}
-                  :extra-paths ["test"
-                                "../../extensions/sew-yield-integration/src"
-                                "../../src"]
+ :aliases {:test {:extra-paths ["test" "../../extensions/sew-yield-integration/src"]
                   :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}}}}
