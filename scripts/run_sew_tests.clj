@@ -269,6 +269,18 @@
 
 ;; ── Execution modes ─────────────────────────────────────────────────────────
 
+(def unit-runtime-preload-namespaces
+  '[resolver-sim.stochastic.dispute
+    camel-snake-kebab.internals.string-separator
+    camel-snake-kebab.internals.misc
+    camel-snake-kebab.core
+    next.jdbc
+    next.jdbc.connection
+    next.jdbc.result-set
+    resolver-sim.db.xtdb
+    resolver-sim.db.store
+    resolver-sim.db.temporal])
+
 (def execution-modes
   {:shared-sequential   {:label "legacy shared context, sequential"
                          :parallel? false
@@ -807,6 +819,14 @@
     (when-not staged-root
       (artifact-scope/write-owner-marker! (run-root-dir run-id)
                                           {:run-id run-id :namespace :run-root}))
+    ;; Load runtime-only dependencies before the parallel namespace pool.
+    ;; Governance tests reach the stochastic dispute, case conversion, and
+    ;; JDBC paths dynamically; preloading keeps those libraries out of
+    ;; concurrent first-load.
+    (when (some #(= "unit" (first %)) groups)
+      (println "Preloading" (count unit-runtime-preload-namespaces)
+               "runtime namespaces...")
+      (load-all! unit-runtime-preload-namespaces))
     ;; Load namespaces sequentially first (root-level side effects are
     ;; legitimate here), THEN snapshot default state so the leak tripwire only
     ;; sees test-execution-time changes to root registries/artifact locations.

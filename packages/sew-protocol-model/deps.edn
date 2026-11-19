@@ -1,6 +1,12 @@
-;; In-tree distributable boundary for the PRF Sew protocol model.
-;; Publish this package under org.protocol-robustness/prf-sew-protocol-model
-;; before replacing the relative framework dependency with its released coordinate.
-{:paths ["../../protocols_src"]
+{:paths ["src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
-        prf/framework {:local/root "../.."}}}
+        org.protocol-robustness/prf-core
+        {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
+         :git/sha "4b628c8ef15b1970425804aaf06014c960469357"
+         :deps/root "."}
+        org.protocol-robustness/prf-sew-pro-rata-economics
+        {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
+         :git/sha "ae258b36f3b6f1c0ee4bcf9d913e4cea136994c0"
+         :deps/root "extensions/sew-pro-rata-economics"}}
+ :aliases {:test {:extra-paths ["test" "../../extensions/sew-yield-integration/src"]
+                  :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}}}}

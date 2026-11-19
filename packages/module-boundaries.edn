@@ -84,12 +84,53 @@
   {:owner :prf-core
    :status :in-tree-source-candidate
    :dependency-manifest "packages/prf-extension-api-v1/DEPENDENCIES.edn"
+   :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
+   :git/sha "4b628c8ef15b1970425804aaf06014c960469357"
    :qualification {:isolated-source-closure-load? true
                    :released-artifact? false
                    :immutable-coordinate? false}
    :public-namespace resolver-sim.extensions.api.v1
-   :api [:extension-core-api.v1]
-   :depends-on #{:prf-canonical}}
+   :additional-public-namespaces [resolver-sim.extensions.api.pro-rata.v1
+                                  resolver-sim.extensions.api.protocol.v1
+                                  resolver-sim.protocols.protocol]
+   :api [:extension-core-api.v1
+         :portable-pro-rata-evaluation.v1
+         :protocol-capabilities.v1
+         :protocol-adapter-interfaces.v1]
+   :depends-on #{:prf-canonical :prf-pro-rata-allocation}}
+  :sew-pro-rata-economics
+  {:owner :sew
+   :status :in-tree-source-candidate
+   :dependency-manifest "extensions/sew-pro-rata-economics/deps.edn"
+   :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
+   :git/sha "ae258b36f3b6f1c0ee4bcf9d913e4cea136994c0"
+   :public-namespace resolver-sim.protocols.sew.pro-rata.economics
+   :api [:sew-pro-rata-slash-economics.v1]
+   :qualification {:released-artifact? false
+                   :clean-clone-resolution? :pending}
+   :depends-on #{:prf-extension-api-v1}}
+  :sew-protocol-model
+  {:owner :sew
+   :status :in-tree-source-candidate
+   :dependency-manifest "packages/sew-protocol-model/deps.edn"
+   :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
+   :git/sha "fd696ba2ed5f8dcdbdeb02db9e5ce2c5f0f92cb0"
+   :public-namespace resolver-sim.protocols.sew
+   :api [:sew-protocol-model.v1]
+   :qualification {:released-artifact? false
+                   :clean-clone-resolution? :pending}
+   :depends-on #{:prf-extension-api-v1 :sew-pro-rata-economics}}
+  :sew-core-profile-adapter
+  {:owner :sew-core
+   :status :in-tree-source-candidate
+   :dependency-manifest "extensions/sew-core-profile-adapter/deps.edn"
+   :git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
+   :git/sha "73a23390da76c411c16e711697c93f058d90014f"
+   :public-namespace prf.extensions.sew-core-profile-adapter.adapter
+   :api [:sew-core-profile.v1]
+   :qualification {:released-artifact? false
+                   :clean-clone-resolution? :pending}
+   :depends-on #{:sew-protocol-model}}
   :repairability-report
   {:owner :prf-dev-pro-90
    :status :in-tree-unqualified-extension-candidate

@@ -82,7 +82,8 @@
     (let [round (assoc-in (make-keyed-round)
                           [:review-round/members 2 :review-member/key] 7)
           result (rac/check-aggregate-member-bit-width round)]
-      (is (= 3 (rr/member-bit-width round)))
+      (is (nil? (rr/member-bit-width round))
+          "sparse keys are invalid, so no canonical bit-width is available")
       (is (not (:holds? result)))
       (is (some #(and (= ::rac/member-bit-width-mismatch (:kind %))
                       (= 2 (:expected-bit-width %)))

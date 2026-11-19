@@ -1,0 +1,43 @@
+{:source/revision "17bf2f0693367bfa3909a5aa186f4e806a76a5ea"
+ :source/contract "contracts/core/SewCoreVault.sol"
+ :source/test "test/foundry/core/SewCoreVaultProfile.t.sol"
+ :source/manifest-sha256 "2aa8f10233e405ef85679ef8775269b6a4221b98915f387659fe9028badb9ba4"
+ :source/modules {:module-registry
+                  {:fully-qualified-name "contracts/core/ModuleSnapshotRegistry.sol:ModuleSnapshotRegistry"
+                   :runtime-code-sha256 "05c85a03d70026375630b34ce1edf38af6d4f9b1c0d62a8fb3aa8f269264869b"}
+                  :resolution-module
+                  {:fully-qualified-name "contracts/modules/DefaultResolutionModule.sol:DefaultResolutionModule"
+                   :runtime-code-sha256 "69ca109f740b3c913c359c159da1065321c66f10b28da1938137c4210d0e436d"}
+                  :release-strategy
+                  {:fully-qualified-name "contracts/modules/DefaultReleaseStrategy.sol:DefaultReleaseStrategy"
+                   :runtime-code-sha256 "d6a58c198762635c7f6c3cbc98816a21c1e5cc10f33f9561d6fea1c1866ee4fa"}}
+ ;; Amounts are normalized integer token units. The Solidity tests use ether
+ ;; scaled values but assert the same fee and settlement relationships.
+ :cases
+ {:release {:source/test-function "test_create_release_and_pull_settlement_conserves_fee"
+            :gross 100000
+            :fee-bps 100
+            :net 99000
+            :fee 1000
+            :state :released
+            :claimant "0xSeller"}
+  :dispute-resolution {:source/test-function "test_single_resolver_dispute_settles_immediately_without_appeal_path"
+                       :gross 100000
+                       :fee-bps 0
+                       :net 100000
+                       :state :released
+                       :claimant "0xSeller"}
+  :timeout {:source/test-function "test_timeout_refunds_after_max_dispute_duration"
+            :gross 100000
+            :fee-bps 0
+            :net 100000
+            :state :refunded
+            :claimant "0xBuyer"
+            :elapsed-seconds 7776001}
+  :pull-settlement {:source/test-function "test_create_release_and_pull_settlement_conserves_fee"
+                    :gross 100000
+                    :fee-bps 100
+                    :net 99000
+                    :fee 1000
+                    :state :released
+                    :claimant "0xSeller"}}}
