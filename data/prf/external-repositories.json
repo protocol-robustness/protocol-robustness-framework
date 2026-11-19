@@ -1,7 +1,7 @@
 {
   "prf-coprocessor": {
     "url": "https://github.com/protocol-robustness/prf-coprocessor.git",
-    "revision": "9b66ca3bdca796c9b0b7c8365f284660705351d1",
+    "revision": "6348d715d15ada8e89470ffa1d497f47aeff3aa3",
     "status": "extracted-unqualified"
   }
 }
