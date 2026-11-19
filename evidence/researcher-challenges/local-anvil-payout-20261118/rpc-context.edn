@@ -1,0 +1,10 @@
+{:chain-id 31337
+ :chain-instance-root "sha256:954ad9b589a042549e9390da9ae269101ae77de886c896e924988584a18c88c1"
+ :genesis-hash "0x77052c897a5f893ead835668eebde54b155b10506fed9a01c2ebb93cb2508a5d"
+ :token-contract "0x5fbdb2315678afecb367f032d93f642f64180aa3"
+ :token-code-sha256 "sha256:288f45e1d7cb5143277cbd1a751a51aad90f26482f564b90caf67f022d9d0a34"
+ :asset-decimals 18
+ :sender "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
+ :beneficiary "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+ :amount 100
+ :required-finality :included}

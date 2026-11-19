@@ -16,15 +16,17 @@ power-loss qualification.
 | Candidate/evidence integration commit | `750032b80a5deea56ae98601570372c21fa350bc` |
 
 The detached bundle contains only role-labeled signatures and public-key
-content. The operator and reviewer keys were generated under `/tmp/challenge-001-demo-keys`;
-the mode `600` temporary private keys were removed after signing. The public
-key fingerprints are distinct
-(`sha256:f09053c280b9d55a7e5730e06eddb766228e0ec19f565478b07338a781dde903`
-and `sha256:e48267baa91bf7b1d4a36e68e2abe36e8fbed39d0f21267a24a859101363cbcc`).
-Both signatures also verified independently with OpenSSL `pkeyutl -verify -rawin`
-against the exact approval payload root. The focused suite also confirms swapped
-roles, a tampered signature, and a stale root fail verification. The payload remains
-proposed/inactive, and the bundle explicitly does not authorize activation.
+content. The supplied development-only private keys remain outside the
+repository under `/home/user/Code/challenge-001-keys` with mode `600`; the
+previously requested `/secure/path/challenge` directory is absent in this
+environment. The key fingerprints are distinct
+(`sha256:f8f8f25db85a261697cd02b58300c933452ffb1e5659f5bdf3c3ab6749ddf907`
+and
+`sha256:7d31f496fdfa39a117e694fc1e71815b5d73ae5f7ea2474d6ab350504294a0e7`).
+Both signatures were regenerated and verified against the exact approval root
+with the PRF Ed25519 verifier. This confirms key possession only. The payload
+remains proposed/inactive, and the bundle explicitly does not authorize
+activation.
 The source manifest root does not include this signature bundle. All 245
 manifest entry digests were checked against the merged checkout, pinned
 dependency sources, and local Maven repository; there were zero mismatches.
@@ -94,3 +96,41 @@ establish distinct real people or separate physical hosts. The process-kill
 tests qualify the declared file-write boundaries, not physical power loss.
 Settlement tests use local evidence and do not prove an external transfer or
 chain finality. Do not use this bundle to activate or fund a live challenge.
+
+## Fresh local devnet bundle and HTTP smoke run (19 Nov 2026)
+
+Using the available development reviewer public key, the current demo generator
+produced a fresh empty-history bundle. Independent CLI replay succeeded. The
+service started on `127.0.0.1:18788`; `/healthz` and `/v1/checkpoint` returned
+the same configuration root, network root, empty-history root and action count.
+The server was stopped after the checks. Bundle files, run status and checksums
+are retained in
+[`evidence/researcher-challenges/local-devnet-bundle-20261119`](../../evidence/researcher-challenges/local-devnet-bundle-20261119).
+This establishes local devnet startup and checkpoint agreement only. The bundle
+remains test-only, with funding, publication and activation authorization false.
+
+## Local testnet-scope and ERC-20 execution demonstrations (18 Nov 2026)
+
+The local bundle generator now accepts an optional `testnet` scope. A complete
+offline signed-file run used temporary development keys for enrollment, claim,
+submission, and a simulated reviewer acceptance. Fresh CLI replay succeeded and
+the four-action history checkpoint verified. Public artifacts, SHA-256 file
+manifest, replay report, and explicit unauthorized/simulated status are in
+[`evidence/researcher-challenges/testnet-scope-rehearsal-20261118`](../../evidence/researcher-challenges/testnet-scope-rehearsal-20261118).
+The resulting reward obligation root is
+`sha256:3b7b1924387174b9e3a8a1e6cc15c5d39a64b169261dac353a90907a50a895b4`.
+The loopback service started on the same artifacts; health and checkpoint
+responses agreed on the configuration, network and four-action history roots.
+It reported its runtime as `:local-devnet`. This exercises the offline protocol
+under a `:testnet` namespace; it is not a public testnet service, chain
+deployment, independent review, or authorization.
+
+The complete local Anvil ERC-20 payout runner was also executed against the
+existing devnet-scope obligation. Its retained report has `:valid? true`, a
+matching 100-token transfer to the authorized pseudonymous beneficiary, and a
+non-nil settlement sender. Public policy, consent, RPC context, transfer, report,
+deployment and receipt artifacts plus checksums are in
+[`evidence/researcher-challenges/local-anvil-payout-20261118`](../../evidence/researcher-challenges/local-anvil-payout-20261118).
+That run used a synthetic backing commitment and a simulated accepted decision;
+its Anvil instance has stopped. It establishes no real backing, public-chain
+inclusion, testnet settlement, funding, publication, or activation.

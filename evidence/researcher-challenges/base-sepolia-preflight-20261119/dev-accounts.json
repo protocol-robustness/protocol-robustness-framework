@@ -1,0 +1,52 @@
+{
+  "schema": "researcher-challenge-testnet-dev-accounts.v1",
+  "observed_at_utc": "2026-11-19T12:37:38.646806+00:00",
+  "network": "eip155:84532",
+  "account_kind": "encrypted development-only Foundry keystores; keys have no mainnet authority",
+  "keystores": "encrypted development keystores outside repository; exact local path omitted",
+  "password_file": "protected local password file outside repository; exact path omitted",
+  "permissions": {
+    "keystore_directory": "0700",
+    "keystore_files": "0600",
+    "password_file": "0600"
+  },
+  "active_accounts": {
+    "funder": "0xBE6f78F336A746451d1b9A1133BA6fEC1F1B8E2E",
+    "award_authority": "0xdE4e014D59a0ec53d8A462c0dC4D7D7F1E92D1dA",
+    "beneficiary": "0xcAc39a6A4d05b99b747d2a6DE73552Fb3D7FE7b9"
+  },
+  "balances_at_observed_at": {
+    "native_eth_wei": {
+      "funder": "0",
+      "award_authority": "0",
+      "beneficiary": "0"
+    },
+    "circle_test_usdc_base_units": {
+      "funder": "0"
+    }
+  },
+  "retired_accounts": {
+    "addresses": {
+      "funder": "0xd76d9F773c26c3651c92b22c7fF0699fc2a6b7a2",
+      "award_authority": "0xCc2086574a45CedC09e676F06f3C7c658890Ca41",
+      "beneficiary": "0x9d5327ee4B25EA1E10a62a681685d2B24482EE61"
+    },
+    "reason": "Prior protected keystore mount was absent in the current environment; previous keys are unavailable here.",
+    "live_balance_check": {
+      "native_eth_wei": {
+        "funder": "0",
+        "award_authority": "0",
+        "beneficiary": "0"
+      },
+      "circle_test_usdc_base_units": {
+        "funder": "0"
+      }
+    }
+  },
+  "funding_status": "unfunded",
+  "deployment_status": "dry-run only; not deployed",
+  "transactions_submitted": false,
+  "publication_authority": false,
+  "activation_authority": false,
+  "mainnet_use_permitted": false
+}

@@ -3,6 +3,7 @@
             [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.protocols.protocol :as proto]
+            [resolver-sim.protocols.sew.yield-extension]
             [resolver-sim.protocols.registry :as registry]
             [resolver-sim.time.context :as time-context]
             [prf.extensions.sew-core-profile-adapter.adapter :as core]))

@@ -4,6 +4,6 @@
         ;; API. Pin the source dependency until that API has a published artifact.
         org.protocol-robustness/prf-core
         {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
-         :git/sha "b94b091cfbaf46ec34ae2ade4920f9a3751e3097"
+         :git/sha "4b628c8ef15b1970425804aaf06014c960469357"
          :deps/root "."}}
- :aliases {:test {:extra-paths ["test" "../../src"]}}}
+ :aliases {:test {:extra-paths ["test"]}}}

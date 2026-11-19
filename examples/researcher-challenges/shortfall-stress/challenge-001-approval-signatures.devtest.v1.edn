@@ -1,23 +1,16 @@
-{:artifact/schema "research-challenge-approval-devtest-signatures.v1",
- :demo/status :test-only-not-owner-authorization,
- :key-origin :fresh-temporary-demo-keypairs,
- :approval/root
- "sha256:2832a447b01cc04301d082eb544315cfbd2e5a41bb4364065458c591f82aa89d",
- :activation/authorized? false,
+{:artifact/schema "research-challenge-approval-devtest-signatures.v1"
+ :demo/status :test-only-not-owner-authorization
+ :key-origin :user-provided-development-keypairs
+ :approval/root "sha256:2832a447b01cc04301d082eb544315cfbd2e5a41bb4364065458c591f82aa89d"
+ :activation/authorized? false
  :signatures
- [{:role :operator,
-   :algorithm :ed25519,
-   :signature/hex
-   "82300177777b515975ce17a230382302ad8012b20ef3dee4f71948d6286d2b32f8bd497497a4ecdc697dd13d868bd64e1431da44ec5b3be8fd88f557c689270f",
-   :public-key/fingerprint
-   "sha256:f09053c280b9d55a7e5730e06eddb766228e0ec19f565478b07338a781dde903",
-   :public-key/content
-   "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAgMSjM6v3EJj3gpjak4dqVz9OyF63xYbPxKFe29n8pjM=\n-----END PUBLIC KEY-----\n"}
-  {:role :reviewer,
-   :algorithm :ed25519,
-   :signature/hex
-   "1ccb69621e200a845f3867e221b9cca9ae3195da1c4998be7562e989ca262705e4c497011431ed7758042559257e55aa4b1e34e30b6e016a245c4a4daaa2190c",
-   :public-key/fingerprint
-   "sha256:e48267baa91bf7b1d4a36e68e2abe36e8fbed39d0f21267a24a859101363cbcc",
-   :public-key/content
-   "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAChioDx/yoPtnRDkAWmGc4Wz3BsRxKXgxeTZp3m+ONXc=\n-----END PUBLIC KEY-----\n"}]}
+ [{:role :operator
+   :algorithm :ed25519
+   :signature/hex "9d90ad7e4553b7faebce2518ee861a4569084ae7d18654b2b968afcbb29536e042aab4f1edae93e98de018c3e08126e55bb919e9d442914ae70cca4f9470e00f"
+   :public-key/fingerprint "sha256:f8f8f25db85a261697cd02b58300c933452ffb1e5659f5bdf3c3ab6749ddf907"
+   :public-key/content "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA3118Uv6SPNHO7g4Gv1bjZ6g7iobP3fhmKsgK7gIAzN0=\n-----END PUBLIC KEY-----\n"}
+  {:role :reviewer
+   :algorithm :ed25519
+   :signature/hex "b0785170cf71fc80e85dbfb349d422d5cb066c3514221b26562f4cee605e2763fb075e9035833dc28e2a72652b139f15f21c0c9e788c2c9478aaa4461ed9b809"
+   :public-key/fingerprint "sha256:7d31f496fdfa39a117e694fc1e71815b5d73ae5f7ea2474d6ab350504294a0e7"
+   :public-key/content "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAgQ/HS17OWC3v3Sn94HJ+K+9rIh/lYRNCadsqW5PVFKE=\n-----END PUBLIC KEY-----\n"}]}

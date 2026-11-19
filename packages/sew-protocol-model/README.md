@@ -1,41 +1,26 @@
 # Sew protocol model
 
-Status: in-tree extraction candidate. This directory contains the Sew
-behavioral model source and package test suite; it is not an independently
-resolvable or released package.
+Status: in-tree extraction candidate with immutable PRF and economics commit
+pins. It is not a standalone artifact release.
 
-## Qualification in this checkout
+## Dependency pins
 
-From this directory, run the model package suite with:
+The runtime manifest pins PRF core to
+`4b628c8ef15b1970425804aaf06014c960469357` and the Sew pro-rata economics
+adapter to `ae258b36f3b6f1c0ee4bcf9d913e4cea136994c0`. Both commits are
+present in the fetched PRF history. A fresh consumer resolution has not been
+verified in this environment; the behavioral test result below used explicit
+local source overrides and does not prove remote fetchability.
+
+## Qualification
+
+From a clean PRF repository checkout:
 
 ```sh
+cd packages/sew-protocol-model
 clojure -Srepro -M:test -m resolver-sim.protocols.sew.package-test-runner
 ```
 
-The test alias intentionally overlays the local pro-rata economics source and
-adds the in-tree PRF framework and yield integration sources. This qualifies
-the candidate against this checkout; it does not prove clean-consumer
-resolution. The repository-level extension gate is:
-
-```sh
-cd ../..
-scripts/test_extension_packages.sh
-```
-
-## Extraction status
-
-The runtime manifest pins PRF core revision
-`b94b091cfbaf46ec34ae2ade4920f9a3751e3097` and Sew pro-rata economics revision
-`c6d21f852f8fbeff3d29b52c1139ad6f88ed332a`. The core revision predates the
-portable pro-rata API used by the economics adapter, and the economics
-revision is not independently fetchable. Do not treat the runtime dependency
-graph as clean-consumer qualified until both dependencies are available at
-immutable, fetchable revisions and the package passes without local source
-overrides.
-
-The intended destination is
-`~/Code/prf-extensions/packages/sew-protocol-model/`. Move the package only
-after the dependency and clean-consumer gates above are satisfied. The
-destination also needs its incubating extension manifest, explicit package
-and consumer test runners, validation registration, and reproducible package
-instructions.
+The test alias includes the Yield integration source as test support. The
+package runtime paths remain limited to `src`; tests and support sources are
+added only by the explicit `:test` alias.

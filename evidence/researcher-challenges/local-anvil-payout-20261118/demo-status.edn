@@ -1,0 +1,17 @@
+{:artifact/schema "researcher-challenge-local-anvil-payout-status.v1"
+ :status :verified-local-demo
+ :policy/demo-only? true
+ :chain/id 31337
+ :chain/genesis-hash "0x77052c897a5f893ead835668eebde54b155b10506fed9a01c2ebb93cb2508a5d"
+ :challenge/root "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42"
+ :obligation/root "sha256:61dc460f10ed36c0e6703f85cd70c61a70306bfe6d5897f47d46b41a86cb17eb"
+ :transfer/transaction-hash "0x48a5d9a6d1fca53aa8c0a2bbc139a684dc118cc212eaad9f542e5d90923ff6c2"
+ :transfer/amount 100
+ :transfer/asset "0x5fbdb2315678afecb367f032d93f642f64180aa3"
+ :transfer/beneficiary "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+ :transfer/sender "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
+ :funding/backing-root-synthetic? true
+ :chain-process-still-running? false
+ :funding/authorized? false
+ :publication/authorized? false
+ :activation/authorized? false}

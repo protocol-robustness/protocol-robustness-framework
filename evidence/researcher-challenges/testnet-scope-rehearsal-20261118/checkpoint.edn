@@ -1,0 +1,8 @@
+{:configuration/root
+ "sha256:0aecdbac6116c3fea6b85ad07e808a4775ce0f40b7bda6913faab87f4aab44fc",
+ :network/root
+ "sha256:c1021f3b6da1e30fe9a06efe4ad48d441e99d9df46575403e0e1f327d42ce4e2",
+ :history/root
+ "sha256:1922f3e569d9e7669c5bacde5eeeb78ec3607852d807182bda218b74c75807c3",
+ :history/action-count 4}
+

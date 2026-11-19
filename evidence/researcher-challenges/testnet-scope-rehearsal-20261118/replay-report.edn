@@ -1,0 +1,1201 @@
+{:state
+ {:nonces
+  #{["sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3"
+     "043a413a-e725-487f-b887-1ebba213cc44"]
+    ["sha256:47b46aadbe03ebc13d9331864185b424222fb69307174cbc2bb79d873d92ca3e"
+     "testnet-scope-demo-simulated-review-20261118-01"]
+    ["sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3"
+     "ab50a9b8-ded8-4ffb-8fa0-938bb0c24c69"]
+    ["sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3"
+     "ec4c47d8-dab8-47f1-9540-02eef68e5c1e"]},
+  :events
+  [{:action
+    {:network/root
+     "sha256:c1021f3b6da1e30fe9a06efe4ad48d441e99d9df46575403e0e1f327d42ce4e2",
+     :action/signature
+     "bf32f5f2e9b06eb9da8142b030e21fc405ea282d69142b88ceb581001668293c8ca0a6ff74f9bb4b8de891fb9e2c4cafa9d78e2378b0719ed4d9a5b5a157c30b",
+     :action/nonce "ab50a9b8-ded8-4ffb-8fa0-938bb0c24c69",
+     :action/root
+     "sha256:cb4818113300e8047f8bd1dcf5fcb351828dd7626af4f4a02ca988a9669b47df",
+     :action/payload
+     {:public-key
+      "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEANuwr6YgECB2H+QlAoOqmLEN7SnnIz4C/mq6bKl5ifY4=\n-----END PUBLIC KEY-----\n",
+      :disclosure :pseudonymous},
+     :history/root
+     "sha256:0fa7ca6ce7651b7d6da9a45f9d8cb28286fc24b0fb0ce586218357e59ebb5375",
+     :action/kind :enroll,
+     :actor/root
+     "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+     :artifact/schema "researcher-challenge-action.v1",
+     :challenge/root nil},
+    :consequence
+    {:public-key
+     "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEANuwr6YgECB2H+QlAoOqmLEN7SnnIz4C/mq6bKl5ifY4=\n-----END PUBLIC KEY-----\n",
+     :disclosure :pseudonymous},
+    :history/root
+    "sha256:217052056c9a8f62ff4c79023649534b030260b1a6629c47923783da8dabec1f"}
+   {:action
+    {:network/root
+     "sha256:c1021f3b6da1e30fe9a06efe4ad48d441e99d9df46575403e0e1f327d42ce4e2",
+     :action/signature
+     "3e73eecb04a728b0ae75d36ab918db4f6d076e5461d218c55ea1b1339d26fb0c0c87fcaeaff60ac9c9f7a79170ede2e69e813c4600840f25cfbf7a90074d7205",
+     :action/nonce "043a413a-e725-487f-b887-1ebba213cc44",
+     :action/root
+     "sha256:6061703c99a65c645c0ffecb3908cc5fddadd8704e63b3a3f1bb700523f91305",
+     :action/payload {},
+     :history/root
+     "sha256:217052056c9a8f62ff4c79023649534b030260b1a6629c47923783da8dabec1f",
+     :action/kind :claim,
+     :actor/root
+     "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+     :artifact/schema "researcher-challenge-action.v1",
+     :challenge/root
+     "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42"},
+    :consequence
+    {:claim/action-root
+     "sha256:6061703c99a65c645c0ffecb3908cc5fddadd8704e63b3a3f1bb700523f91305",
+     :experience/snapshot
+     {:network/root
+      "sha256:c1021f3b6da1e30fe9a06efe4ad48d441e99d9df46575403e0e1f327d42ce4e2",
+      :history/root
+      "sha256:217052056c9a8f62ff4c79023649534b030260b1a6629c47923783da8dabec1f",
+      :researcher/root
+      "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+      :accepted-contribution-count 0,
+      :accepted-contribution-roots [],
+      :accepted-contribution-keys [],
+      :accepted-review-roots []},
+     :artifact/root
+     "sha256:fa4348676eae008ec0c4c0ff47da2873ca602f34a02f8efded2599ed0f3e7b23",
+     :reward/base-amount 100,
+     :experience/snapshot-root
+     "sha256:bd4ac72fad7b866c90dde2508bfff2e31edfd7de0860dba84fdf9777e27247a1",
+     :reward/amount 100,
+     :artifact/schema "researcher-challenge-task-claim.v1",
+     :reward/tier {:minimum 0, :numerator 1, :denominator 1},
+     :reward/policy-root
+     "sha256:02c0e614cd6e23da0a2df92e88dd2a51d243014cf5afaa023c7bd11c90f40a68",
+     :researcher/root
+     "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+     :challenge/root
+     "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42",
+     :reward/currency "TEST-POINTS"},
+    :history/root
+    "sha256:246b11a403ff0bfcc2741f693787ec5156b4b12992169ac7bf0f605b3bf3600f"}
+   {:action
+    {:network/root
+     "sha256:c1021f3b6da1e30fe9a06efe4ad48d441e99d9df46575403e0e1f327d42ce4e2",
+     :action/signature
+     "7d6db1686e79a00bfe2c45c1187b132dd14102f78be3c2b053e5450f15c321051cdc3de1859f6849ec8408a95c17035d78f28c406645c2793ad7199b83968009",
+     :action/nonce "ec4c47d8-dab8-47f1-9540-02eef68e5c1e",
+     :action/root
+     "sha256:3953d666db511d75806b7a70da579b683d0e2924d487920ee946c5e3bb5b1f19",
+     :action/payload
+     {:task-claim/root
+      "sha256:fa4348676eae008ec0c4c0ff47da2873ca602f34a02f8efded2599ed0f3e7b23",
+      :evidence/context
+      {:deviation-domain
+       {:deviation-domain/baseline-strategy :strategy/first-policy,
+        :deviation-domain/root
+        "sha256:4efc6c3fd3fdd3ae550aa445d3ead76b573245547f13cbf60c6eec3fd4569c51",
+        :deviation-domain/id :domain/shortfall-policy-pair,
+        :deviation-domain/deviations [:strategy/second-policy],
+        :schema-version "incentive-deviation-domain.v1",
+        :deviation-domain/constraints
+        #:case{:root
+               "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f"},
+        :deviation-domain/incentive-model-root
+        "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+        :deviation-domain/coalition-scope :none,
+        :deviation-domain/participants [:actor/claimant],
+        :deviation-domain/evaluation-method :observed-single-trace,
+        :deviation-domain/subject-root
+        "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648"},
+       :outcome-manifest
+       {:benchmark-outcome/hash
+        "sha256:86de6be6aa6a6aeaebfc22e05c77e0b8b84b3a156daabd66c327dabfa4267a70",
+        :outcomes/operational-root
+        "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+        :execution/sampling-policy-root nil,
+        :results/model-coverage-root nil,
+        :execution/model-instance-root nil,
+        :results/incentives {},
+        :benchmark/evaluation-policy-root nil,
+        :execution/generated-case-set-root nil,
+        :schema-version "benchmark-outcome.v1",
+        :outcome-hashes
+        {:command-root
+         "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+         :operational-root
+         "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"},
+        :execution/parameter-domain-root nil,
+        :execution/command-root
+        "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+        :results/claims {},
+        :results/operational {},
+        :benchmark/model-root
+        "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+        :execution/status :completed,
+        :execution/plan-root nil,
+        :evidence/semantic-commitments {},
+        :benchmark/content-root
+        "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648"},
+       :research-command
+       {:command/runner-root
+        "sha256:65e68f20b4253665ce39e9bc9d48f5ba9bcfb7f56567ed86b0f46f465baaacf3",
+        :command/type :invariant-check,
+        :command/id :command/shortfall-policy-comparison,
+        :schema-version "research-command.v2",
+        :command/argv ["prf" "shortfall" "compare"],
+        :command/hash
+        "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+        :command/input-root
+        "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f",
+        :command/output-root
+        "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+        :command/includes [],
+        :command/environment-root
+        "sha256:425ee816ba64fa27ad3afebb627ed70b3f46baf562cf91bc41b8ff4ece502172"},
+       :incentive-model
+       {:incentive-model/subject-root
+        "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648",
+        :incentive-model/rewards {:allocation :capital-units},
+        :schema-version "incentive-model.v1",
+        :incentive-model/penalties {},
+        :incentive-model/payoff-interpretation :terminal-payoff,
+        :incentive-model/id :model/shortfall-policy-comparison,
+        :incentive-model/costs {},
+        :incentive-model/evaluator-semantics-root
+        "sha256:840e8eb65ea36fce98edcf2d43feb8082be4e0fad7ee36e85daee770187b0c45",
+        :incentive-model/policy-roots
+        ["sha256:14c1ae6efdb928b134d91bb6aa61ff2e4c7f7b71ad5dddb3e8b7bf84de588143"
+         "sha256:2e4c81dc89c3a0b5b15f8a110ceeb66fe1a802fb1f0322ae3e58fed4cef9aeb9"],
+        :incentive-model/root
+        "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+        :incentive-model/participant-roles [:actor/claimant]},
+       :research-assignment
+       {:research-assignment/request-root
+        "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f",
+        :research-assignment/plan-root
+        "sha256:0253af20b5dd0005aea323e90a329a209a45778894d74a8ebf4c91a18c03e4a6",
+        :research-assignment/hash
+        "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+        :research-assignment/review-round-hash
+        "sha256:f5d1dc090fe54b21bf4335e415cfb6498b34f41935aa5897b3a45e02df03eaa0",
+        :research-assignment/environment-hash
+        "sha256:425ee816ba64fa27ad3afebb627ed70b3f46baf562cf91bc41b8ff4ece502172",
+        :schema-version "research-assignment.v1",
+        :research-assignment/id :assignment/challenge-001-local-demo,
+        :research-assignment/command-root
+        "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+        :research-assignment/target
+        #:target{:kind :governance-mandated,
+                 :public-force-authorisation-scope-hash
+                 "sha256:6ee2c39dd115ba2ccdf91bcfb81079e5442262b44f462b0626e9415118ff6d03",
+                 :workflow-id 0,
+                 :reason :research},
+        :research-assignment/policy-hash
+        "sha256:cba16c0123b2ba486139bceca49ac8a2409ce1d01365ce657549c261b5dfc46a"},
+       :analysis-output
+       {:analysis-output/outcome-root
+        "sha256:86de6be6aa6a6aeaebfc22e05c77e0b8b84b3a156daabd66c327dabfa4267a70",
+        :analysis-engine/id :engine/shortfall-policy-comparison,
+        :analysis-output/result
+        {:schema-version "research-analysis-result.v2",
+         :result/case-root
+         "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f",
+         :result/value 15N,
+         :result/classification :counterexample-found,
+         :result/witness-root
+         "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+         :result/descriptor-root
+         "sha256:1c86b53e58f91fc34fdf34dcb2835f9d815f74c4ba887fcc641cc0b8754c4aee"},
+        :analysis-output/closure-root
+        "sha256:3190f4578f8fcb8ec894d60c87b0f300fcc23a187fc9f3535ba6340ba3c8cdc3",
+        :analysis-output/proposition-id
+        :claim/allocation-policy-invariance,
+        :analysis-output/assignment-root
+        "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+        :schema-version "research-analysis-output.v1",
+        :analysis-engine/version "1",
+        :analysis-output/model-root
+        "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+        :research-analysis-output/root
+        "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6",
+        :analysis-output/domain-root
+        "sha256:4efc6c3fd3fdd3ae550aa445d3ead76b573245547f13cbf60c6eec3fd4569c51",
+        :analysis-output/metric-id
+        :metric/maximum-row-allocation-difference,
+        :analysis-output/command-root
+        "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+        :analysis-output/evidence-root
+        "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"}}},
+     :history/root
+     "sha256:246b11a403ff0bfcc2741f693787ec5156b4b12992169ac7bf0f605b3bf3600f",
+     :action/kind :submit,
+     :actor/root
+     "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+     :artifact/schema "researcher-challenge-action.v1",
+     :challenge/root
+     "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42"},
+    :consequence
+    {:verification
+     {:errors [],
+      :research-analysis-verification/assignment-root
+      "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+      :research-analysis-verification/output-root
+      "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6",
+      :research-analysis-verification/claim-status
+      :counterexample-found,
+      :schema-version "research-analysis-verification.v1",
+      :research-analysis-verification/model-root
+      "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+      :research-analysis-verification/root
+      "sha256:1164870bfbbf261b1945fc196419dbe36731a26087cfdda7ecb4d15eb85ad6e1",
+      :research-analysis-verification/outcome-root
+      "sha256:86de6be6aa6a6aeaebfc22e05c77e0b8b84b3a156daabd66c327dabfa4267a70",
+      :research-analysis-verification/domain-root
+      "sha256:4efc6c3fd3fdd3ae550aa445d3ead76b573245547f13cbf60c6eec3fd4569c51",
+      :research-analysis-verification/status :verified,
+      :research-analysis-verification/command-root
+      "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf"},
+     :claim
+     {:research-claim/subject-root
+      "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648",
+      :research-claim/proposition-id
+      :claim/allocation-policy-invariance,
+      :research-claim/root
+      "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+      :research-claim/model-root
+      "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+      :schema-version "research-analytical-claim.v2",
+      :research-claim/verification-root
+      "sha256:1164870bfbbf261b1945fc196419dbe36731a26087cfdda7ecb4d15eb85ad6e1",
+      :research-claim/domain-root
+      "sha256:4efc6c3fd3fdd3ae550aa445d3ead76b573245547f13cbf60c6eec3fd4569c51",
+      :research-claim/status :counterexample-found,
+      :research-claim/result
+      {:schema-version "research-analysis-result.v2",
+       :result/case-root
+       "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f",
+       :result/value 15N,
+       :result/classification :counterexample-found,
+       :result/witness-root
+       "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+       :result/descriptor-root
+       "sha256:1c86b53e58f91fc34fdf34dcb2835f9d815f74c4ba887fcc641cc0b8754c4aee"},
+      :research-claim/analysis-output-root
+      "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6",
+      :research-claim/metric-id
+      :metric/maximum-row-allocation-difference,
+      :research-claim/evidence-root
+      "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"},
+     :submission/root
+     "sha256:3953d666db511d75806b7a70da579b683d0e2924d487920ee946c5e3bb5b1f19",
+     :researcher/root
+     "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+     :task-claim/root
+     "sha256:fa4348676eae008ec0c4c0ff47da2873ca602f34a02f8efded2599ed0f3e7b23",
+     :challenge/root
+     "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42",
+     :context
+     {:deviation-domain
+      {:deviation-domain/baseline-strategy :strategy/first-policy,
+       :deviation-domain/root
+       "sha256:4efc6c3fd3fdd3ae550aa445d3ead76b573245547f13cbf60c6eec3fd4569c51",
+       :deviation-domain/id :domain/shortfall-policy-pair,
+       :deviation-domain/deviations [:strategy/second-policy],
+       :schema-version "incentive-deviation-domain.v1",
+       :deviation-domain/constraints
+       #:case{:root
+              "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f"},
+       :deviation-domain/incentive-model-root
+       "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+       :deviation-domain/coalition-scope :none,
+       :deviation-domain/participants [:actor/claimant],
+       :deviation-domain/evaluation-method :observed-single-trace,
+       :deviation-domain/subject-root
+       "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648"},
+      :outcome-manifest
+      {:benchmark-outcome/hash
+       "sha256:86de6be6aa6a6aeaebfc22e05c77e0b8b84b3a156daabd66c327dabfa4267a70",
+       :outcomes/operational-root
+       "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+       :execution/sampling-policy-root nil,
+       :results/model-coverage-root nil,
+       :execution/model-instance-root nil,
+       :results/incentives {},
+       :benchmark/evaluation-policy-root nil,
+       :execution/generated-case-set-root nil,
+       :schema-version "benchmark-outcome.v1",
+       :outcome-hashes
+       {:command-root
+        "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+        :operational-root
+        "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"},
+       :execution/parameter-domain-root nil,
+       :execution/command-root
+       "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+       :results/claims {},
+       :results/operational {},
+       :benchmark/model-root
+       "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+       :execution/status :completed,
+       :execution/plan-root nil,
+       :evidence/semantic-commitments {},
+       :benchmark/content-root
+       "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648"},
+      :research-command
+      {:command/runner-root
+       "sha256:65e68f20b4253665ce39e9bc9d48f5ba9bcfb7f56567ed86b0f46f465baaacf3",
+       :command/type :invariant-check,
+       :command/id :command/shortfall-policy-comparison,
+       :schema-version "research-command.v2",
+       :command/argv ["prf" "shortfall" "compare"],
+       :command/hash
+       "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+       :command/input-root
+       "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f",
+       :command/output-root
+       "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+       :command/includes [],
+       :command/environment-root
+       "sha256:425ee816ba64fa27ad3afebb627ed70b3f46baf562cf91bc41b8ff4ece502172"},
+      :incentive-model
+      {:incentive-model/subject-root
+       "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648",
+       :incentive-model/rewards {:allocation :capital-units},
+       :schema-version "incentive-model.v1",
+       :incentive-model/penalties {},
+       :incentive-model/payoff-interpretation :terminal-payoff,
+       :incentive-model/id :model/shortfall-policy-comparison,
+       :incentive-model/costs {},
+       :incentive-model/evaluator-semantics-root
+       "sha256:840e8eb65ea36fce98edcf2d43feb8082be4e0fad7ee36e85daee770187b0c45",
+       :incentive-model/policy-roots
+       ["sha256:14c1ae6efdb928b134d91bb6aa61ff2e4c7f7b71ad5dddb3e8b7bf84de588143"
+        "sha256:2e4c81dc89c3a0b5b15f8a110ceeb66fe1a802fb1f0322ae3e58fed4cef9aeb9"],
+       :incentive-model/root
+       "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+       :incentive-model/participant-roles [:actor/claimant]},
+      :research-assignment
+      {:research-assignment/request-root
+       "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f",
+       :research-assignment/plan-root
+       "sha256:0253af20b5dd0005aea323e90a329a209a45778894d74a8ebf4c91a18c03e4a6",
+       :research-assignment/hash
+       "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+       :research-assignment/review-round-hash
+       "sha256:f5d1dc090fe54b21bf4335e415cfb6498b34f41935aa5897b3a45e02df03eaa0",
+       :research-assignment/environment-hash
+       "sha256:425ee816ba64fa27ad3afebb627ed70b3f46baf562cf91bc41b8ff4ece502172",
+       :schema-version "research-assignment.v1",
+       :research-assignment/id :assignment/challenge-001-local-demo,
+       :research-assignment/command-root
+       "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+       :research-assignment/target
+       #:target{:kind :governance-mandated,
+                :public-force-authorisation-scope-hash
+                "sha256:6ee2c39dd115ba2ccdf91bcfb81079e5442262b44f462b0626e9415118ff6d03",
+                :workflow-id 0,
+                :reason :research},
+       :research-assignment/policy-hash
+       "sha256:cba16c0123b2ba486139bceca49ac8a2409ce1d01365ce657549c261b5dfc46a"},
+      :analysis-output
+      {:analysis-output/outcome-root
+       "sha256:86de6be6aa6a6aeaebfc22e05c77e0b8b84b3a156daabd66c327dabfa4267a70",
+       :analysis-engine/id :engine/shortfall-policy-comparison,
+       :analysis-output/result
+       {:schema-version "research-analysis-result.v2",
+        :result/case-root
+        "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f",
+        :result/value 15N,
+        :result/classification :counterexample-found,
+        :result/witness-root
+        "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+        :result/descriptor-root
+        "sha256:1c86b53e58f91fc34fdf34dcb2835f9d815f74c4ba887fcc641cc0b8754c4aee"},
+       :analysis-output/closure-root
+       "sha256:3190f4578f8fcb8ec894d60c87b0f300fcc23a187fc9f3535ba6340ba3c8cdc3",
+       :analysis-output/proposition-id
+       :claim/allocation-policy-invariance,
+       :analysis-output/assignment-root
+       "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+       :schema-version "research-analysis-output.v1",
+       :analysis-engine/version "1",
+       :analysis-output/model-root
+       "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+       :research-analysis-output/root
+       "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6",
+       :analysis-output/domain-root
+       "sha256:4efc6c3fd3fdd3ae550aa445d3ead76b573245547f13cbf60c6eec3fd4569c51",
+       :analysis-output/metric-id
+       :metric/maximum-row-allocation-difference,
+       :analysis-output/command-root
+       "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+       :analysis-output/evidence-root
+       "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"}}},
+    :history/root
+    "sha256:9de8b7ca644a4eceb31079f42b28a6d382d3847ed1e32f2bddb95fd3b7752dff"}
+   {:action
+    {:network/root
+     "sha256:c1021f3b6da1e30fe9a06efe4ad48d441e99d9df46575403e0e1f327d42ce4e2",
+     :action/signature
+     "d188cee0fef0169d039292e9aefe7a1f0cf4fa08043cd8d43dfa6aa7a16c9dea67e0a41870954c971671fa802ab7141816dbf28ce473a389a331d8925e77680f",
+     :action/nonce "testnet-scope-demo-simulated-review-20261118-01",
+     :action/root
+     "sha256:9032b5c0bd323d8dd0d17b7ea85bc3f5aba010f4d0b808d0de4d8f02cfc6a2e7",
+     :action/payload
+     {:submission/root
+      "sha256:3953d666db511d75806b7a70da579b683d0e2924d487920ee946c5e3bb5b1f19",
+      :decision :accepted,
+      :incentive/decision :eligible,
+      :incentive/evidence-root
+      "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+      :decision/evidence-root
+      "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6",
+      :accepted-at "2026-11-18T15:30:00Z"},
+     :history/root
+     "sha256:9de8b7ca644a4eceb31079f42b28a6d382d3847ed1e32f2bddb95fd3b7752dff",
+     :action/kind :review,
+     :actor/root
+     "sha256:47b46aadbe03ebc13d9331864185b424222fb69307174cbc2bb79d873d92ca3e",
+     :artifact/schema "researcher-challenge-action.v1",
+     :challenge/root
+     "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42"},
+    :consequence
+    {:acceptance-policy
+     {:schema/version "research-claim-acceptance-policy.v1",
+      :acceptance-policy/id
+      :researcher-challenge/definition-2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42,
+      :acceptance-policy/authority-root
+      "sha256:47b46aadbe03ebc13d9331864185b424222fb69307174cbc2bb79d873d92ca3e",
+      :acceptance-policy/decisions #{:rejected :accepted},
+      :research-claim-acceptance-policy/root
+      "sha256:454ab2d8388103a82556aebec6b305cd01a43fd193f06f2b08b6b48e68782410"},
+     :contribution/root
+     "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+     :obligation
+     {:contribution/root
+      "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+      :researcher-reward-proposal/root
+      "sha256:91efd39096693375dba2ffa077c8b3bf4699a4f6ed72d4b5791c7d9349c871fd",
+      :researcher-reward-policy/root
+      "sha256:b4dcf719944e4482f91aed5629b38a77a1998b399a04bb89588a5cbe5e3e1171",
+      :researcher-reward-obligation/root
+      "sha256:3b7b1924387174b9e3a8a1e6cc15c5d39a64b169261dac353a90907a50a895b4",
+      :schema-version "researcher-reward-obligation.v1",
+      :approval-authority/root
+      "sha256:47b46aadbe03ebc13d9331864185b424222fb69307174cbc2bb79d873d92ca3e",
+      :researcher/id
+      "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+      :researcher-reward-eligibility/root
+      "sha256:c8e5af2baa982080a1a8f0e8ccc47138384532aa5a83c54904f00b21b5cedaca",
+      :reward/amount 100,
+      :research-assignment/root
+      "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+      :approval-authority/id "researcher-challenges-v0-reviewer",
+      :contribution/type :adversarial-finding,
+      :reward/key
+      "sha256:5d7659c44c43da15aecac600319093f0ba69cba81d6e97f30807d1dbc0dbc75f",
+      :reward/currency "TEST-POINTS"},
+     :submission/root
+     "sha256:3953d666db511d75806b7a70da579b683d0e2924d487920ee946c5e3bb5b1f19",
+     :eligibility
+     {:contribution/root
+      "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+      :researcher-reward-policy/root
+      "sha256:b4dcf719944e4482f91aed5629b38a77a1998b399a04bb89588a5cbe5e3e1171",
+      :schema-version "researcher-reward-eligibility.v1",
+      :researcher/id
+      "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+      :researcher-reward-eligibility/root
+      "sha256:c8e5af2baa982080a1a8f0e8ccc47138384532aa5a83c54904f00b21b5cedaca",
+      :reward/amount 100,
+      :research-assignment/root
+      "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+      :verification/evidence
+      {:verified? true,
+       :research-analysis-verification/root
+       "sha256:1164870bfbbf261b1945fc196419dbe36731a26087cfdda7ecb4d15eb85ad6e1",
+       :research-claim-acceptance/root
+       "sha256:966c7eda4e6d8560d806f349b18ac770182e96815ce8bed04c9ac45d642a7862",
+       :incentive/decision :eligible,
+       :incentive/evidence-root
+       "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+       :review/action-root
+       "sha256:9032b5c0bd323d8dd0d17b7ea85bc3f5aba010f4d0b808d0de4d8f02cfc6a2e7",
+       :experience/snapshot-root
+       "sha256:bd4ac72fad7b866c90dde2508bfff2e31edfd7de0860dba84fdf9777e27247a1"},
+      :claim/evidence
+      {:research-claim/subject-root
+       "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648",
+       :research-claim/proposition-id
+       :claim/allocation-policy-invariance,
+       :research-claim/root
+       "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+       :research-claim/model-root
+       "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+       :schema-version "research-analytical-claim.v2",
+       :research-claim/verification-root
+       "sha256:1164870bfbbf261b1945fc196419dbe36731a26087cfdda7ecb4d15eb85ad6e1",
+       :research-claim/domain-root
+       "sha256:4efc6c3fd3fdd3ae550aa445d3ead76b573245547f13cbf60c6eec3fd4569c51",
+       :research-claim/status :counterexample-found,
+       :research-claim/result
+       {:schema-version "research-analysis-result.v2",
+        :result/case-root
+        "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f",
+        :result/value 15N,
+        :result/classification :counterexample-found,
+        :result/witness-root
+        "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+        :result/descriptor-root
+        "sha256:1c86b53e58f91fc34fdf34dcb2835f9d815f74c4ba887fcc641cc0b8754c4aee"},
+       :claimable? true,
+       :research-claim/analysis-output-root
+       "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6",
+       :research-claim/metric-id
+       :metric/maximum-row-allocation-difference,
+       :research-claim/evidence-root
+       "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"},
+      :reward/eligible? true,
+      :contribution/type :adversarial-finding,
+      :reward/reasons [],
+      :reward/key
+      "sha256:5d7659c44c43da15aecac600319093f0ba69cba81d6e97f30807d1dbc0dbc75f",
+      :reward/currency "TEST-POINTS"},
+     :acceptance
+     {:research-claim-acceptance/authority-root
+      "sha256:47b46aadbe03ebc13d9331864185b424222fb69307174cbc2bb79d873d92ca3e",
+      :research-claim-acceptance/accepted-at "2026-11-18T15:30:00Z",
+      :research-claim-acceptance/acceptance-sequence 0,
+      :research-claim-acceptance/decision :accepted,
+      :research-claim-acceptance/root
+      "sha256:966c7eda4e6d8560d806f349b18ac770182e96815ce8bed04c9ac45d642a7862",
+      :research-claim-acceptance/policy-root
+      "sha256:454ab2d8388103a82556aebec6b305cd01a43fd193f06f2b08b6b48e68782410",
+      :research-claim-acceptance/verification-root
+      "sha256:1164870bfbbf261b1945fc196419dbe36731a26087cfdda7ecb4d15eb85ad6e1",
+      :research-claim-acceptance/claim-root
+      "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+      :research-claim-acceptance/decision-evidence-root
+      "sha256:9032b5c0bd323d8dd0d17b7ea85bc3f5aba010f4d0b808d0de4d8f02cfc6a2e7",
+      :schema/version "research-claim-acceptance.v1"},
+     :task-claim/root
+     "sha256:fa4348676eae008ec0c4c0ff47da2873ca602f34a02f8efded2599ed0f3e7b23",
+     :review/action-root
+     "sha256:9032b5c0bd323d8dd0d17b7ea85bc3f5aba010f4d0b808d0de4d8f02cfc6a2e7",
+     :contribution/key
+     ["sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648"
+      :claim/allocation-policy-invariance
+      :metric/maximum-row-allocation-difference
+      "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"],
+     :proposal
+     {:contribution/root
+      "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+      :researcher-reward-proposal/root
+      "sha256:91efd39096693375dba2ffa077c8b3bf4699a4f6ed72d4b5791c7d9349c871fd",
+      :researcher-reward-policy/root
+      "sha256:b4dcf719944e4482f91aed5629b38a77a1998b399a04bb89588a5cbe5e3e1171",
+      :schema-version "researcher-reward-proposal.v1",
+      :researcher/id
+      "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+      :researcher-reward-eligibility/root
+      "sha256:c8e5af2baa982080a1a8f0e8ccc47138384532aa5a83c54904f00b21b5cedaca",
+      :reward/amount 100,
+      :research-assignment/root
+      "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+      :contribution/type :adversarial-finding,
+      :reward/key
+      "sha256:5d7659c44c43da15aecac600319093f0ba69cba81d6e97f30807d1dbc0dbc75f",
+      :reward/currency "TEST-POINTS"},
+     :researcher/root
+     "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+     :reward-policy-v1
+     {:researcher-reward-policy/root
+      "sha256:b4dcf719944e4482f91aed5629b38a77a1998b399a04bb89588a5cbe5e3e1171",
+      :schema-version "researcher-reward-policy.v1",
+      :duplicate-rule {:mode :reject},
+      :reward-amount 100,
+      :reward-currency "TEST-POINTS",
+      :task-claim/root
+      "sha256:fa4348676eae008ec0c4c0ff47da2873ca602f34a02f8efded2599ed0f3e7b23",
+      :required-verification #{:claimable :verified},
+      :reward/policy-v2-root
+      "sha256:02c0e614cd6e23da0a2df92e88dd2a51d243014cf5afaa023c7bd11c90f40a68",
+      :split-rules {:default :full},
+      :challenge/root
+      "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42",
+      :required-claim-statuses #{:counterexample-found},
+      :accepted-contribution-types #{:adversarial-finding},
+      :conflict-of-interest-rule {:mode :authority-reviewed}},
+     :lifecycle-transition
+     {:research-claim-lifecycle/acceptance-root
+      "sha256:966c7eda4e6d8560d806f349b18ac770182e96815ce8bed04c9ac45d642a7862",
+      :research-claim-lifecycle/to :accepted,
+      :research-claim-lifecycle/authority-root
+      "sha256:47b46aadbe03ebc13d9331864185b424222fb69307174cbc2bb79d873d92ca3e",
+      :research-claim-lifecycle/from :unseen,
+      :research-claim-lifecycle/sequence 0,
+      :research-claim-lifecycle/supersession? false,
+      :research-claim-lifecycle/policy-root
+      "sha256:454ab2d8388103a82556aebec6b305cd01a43fd193f06f2b08b6b48e68782410",
+      :research-claim-lifecycle/claim-root
+      "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+      :research-claim-lifecycle/root
+      "sha256:36c7ed03070dcdffc759f643336ab41eed4156078eb200bbe73dd21b71aada61",
+      :schema/version "research-claim-lifecycle-transition.v1"},
+     :decision :accepted,
+     :challenge/root
+     "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42",
+     :incentive/eligible? true},
+    :history/root
+    "sha256:1922f3e569d9e7669c5bacde5eeeb78ec3607852d807182bda218b74c75807c3"}],
+  :researchers
+  {"sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3"
+   {:public-key
+    "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEANuwr6YgECB2H+QlAoOqmLEN7SnnIz4C/mq6bKl5ifY4=\n-----END PUBLIC KEY-----\n",
+    :disclosure :pseudonymous,
+    :enrollment/root
+    "sha256:cb4818113300e8047f8bd1dcf5fcb351828dd7626af4f4a02ca988a9669b47df"}},
+  :submissions
+  {"sha256:3953d666db511d75806b7a70da579b683d0e2924d487920ee946c5e3bb5b1f19"
+   {:verification
+    {:errors [],
+     :research-analysis-verification/assignment-root
+     "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+     :research-analysis-verification/output-root
+     "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6",
+     :research-analysis-verification/claim-status
+     :counterexample-found,
+     :schema-version "research-analysis-verification.v1",
+     :research-analysis-verification/model-root
+     "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+     :research-analysis-verification/root
+     "sha256:1164870bfbbf261b1945fc196419dbe36731a26087cfdda7ecb4d15eb85ad6e1",
+     :research-analysis-verification/outcome-root
+     "sha256:86de6be6aa6a6aeaebfc22e05c77e0b8b84b3a156daabd66c327dabfa4267a70",
+     :research-analysis-verification/domain-root
+     "sha256:4efc6c3fd3fdd3ae550aa445d3ead76b573245547f13cbf60c6eec3fd4569c51",
+     :research-analysis-verification/status :verified,
+     :research-analysis-verification/command-root
+     "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf"},
+    :claim
+    {:research-claim/subject-root
+     "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648",
+     :research-claim/proposition-id
+     :claim/allocation-policy-invariance,
+     :research-claim/root
+     "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+     :research-claim/model-root
+     "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+     :schema-version "research-analytical-claim.v2",
+     :research-claim/verification-root
+     "sha256:1164870bfbbf261b1945fc196419dbe36731a26087cfdda7ecb4d15eb85ad6e1",
+     :research-claim/domain-root
+     "sha256:4efc6c3fd3fdd3ae550aa445d3ead76b573245547f13cbf60c6eec3fd4569c51",
+     :research-claim/status :counterexample-found,
+     :research-claim/result
+     {:schema-version "research-analysis-result.v2",
+      :result/case-root
+      "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f",
+      :result/value 15N,
+      :result/classification :counterexample-found,
+      :result/witness-root
+      "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+      :result/descriptor-root
+      "sha256:1c86b53e58f91fc34fdf34dcb2835f9d815f74c4ba887fcc641cc0b8754c4aee"},
+     :research-claim/analysis-output-root
+     "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6",
+     :research-claim/metric-id
+     :metric/maximum-row-allocation-difference,
+     :research-claim/evidence-root
+     "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"},
+    :submission/root
+    "sha256:3953d666db511d75806b7a70da579b683d0e2924d487920ee946c5e3bb5b1f19",
+    :researcher/root
+    "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+    :task-claim/root
+    "sha256:fa4348676eae008ec0c4c0ff47da2873ca602f34a02f8efded2599ed0f3e7b23",
+    :challenge/root
+    "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42",
+    :context
+    {:deviation-domain
+     {:deviation-domain/baseline-strategy :strategy/first-policy,
+      :deviation-domain/root
+      "sha256:4efc6c3fd3fdd3ae550aa445d3ead76b573245547f13cbf60c6eec3fd4569c51",
+      :deviation-domain/id :domain/shortfall-policy-pair,
+      :deviation-domain/deviations [:strategy/second-policy],
+      :schema-version "incentive-deviation-domain.v1",
+      :deviation-domain/constraints
+      #:case{:root
+             "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f"},
+      :deviation-domain/incentive-model-root
+      "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+      :deviation-domain/coalition-scope :none,
+      :deviation-domain/participants [:actor/claimant],
+      :deviation-domain/evaluation-method :observed-single-trace,
+      :deviation-domain/subject-root
+      "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648"},
+     :outcome-manifest
+     {:benchmark-outcome/hash
+      "sha256:86de6be6aa6a6aeaebfc22e05c77e0b8b84b3a156daabd66c327dabfa4267a70",
+      :outcomes/operational-root
+      "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+      :execution/sampling-policy-root nil,
+      :results/model-coverage-root nil,
+      :execution/model-instance-root nil,
+      :results/incentives {},
+      :benchmark/evaluation-policy-root nil,
+      :execution/generated-case-set-root nil,
+      :schema-version "benchmark-outcome.v1",
+      :outcome-hashes
+      {:command-root
+       "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+       :operational-root
+       "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"},
+      :execution/parameter-domain-root nil,
+      :execution/command-root
+      "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+      :results/claims {},
+      :results/operational {},
+      :benchmark/model-root
+      "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+      :execution/status :completed,
+      :execution/plan-root nil,
+      :evidence/semantic-commitments {},
+      :benchmark/content-root
+      "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648"},
+     :research-command
+     {:command/runner-root
+      "sha256:65e68f20b4253665ce39e9bc9d48f5ba9bcfb7f56567ed86b0f46f465baaacf3",
+      :command/type :invariant-check,
+      :command/id :command/shortfall-policy-comparison,
+      :schema-version "research-command.v2",
+      :command/argv ["prf" "shortfall" "compare"],
+      :command/hash
+      "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+      :command/input-root
+      "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f",
+      :command/output-root
+      "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+      :command/includes [],
+      :command/environment-root
+      "sha256:425ee816ba64fa27ad3afebb627ed70b3f46baf562cf91bc41b8ff4ece502172"},
+     :incentive-model
+     {:incentive-model/subject-root
+      "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648",
+      :incentive-model/rewards {:allocation :capital-units},
+      :schema-version "incentive-model.v1",
+      :incentive-model/penalties {},
+      :incentive-model/payoff-interpretation :terminal-payoff,
+      :incentive-model/id :model/shortfall-policy-comparison,
+      :incentive-model/costs {},
+      :incentive-model/evaluator-semantics-root
+      "sha256:840e8eb65ea36fce98edcf2d43feb8082be4e0fad7ee36e85daee770187b0c45",
+      :incentive-model/policy-roots
+      ["sha256:14c1ae6efdb928b134d91bb6aa61ff2e4c7f7b71ad5dddb3e8b7bf84de588143"
+       "sha256:2e4c81dc89c3a0b5b15f8a110ceeb66fe1a802fb1f0322ae3e58fed4cef9aeb9"],
+      :incentive-model/root
+      "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+      :incentive-model/participant-roles [:actor/claimant]},
+     :research-assignment
+     {:research-assignment/request-root
+      "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f",
+      :research-assignment/plan-root
+      "sha256:0253af20b5dd0005aea323e90a329a209a45778894d74a8ebf4c91a18c03e4a6",
+      :research-assignment/hash
+      "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+      :research-assignment/review-round-hash
+      "sha256:f5d1dc090fe54b21bf4335e415cfb6498b34f41935aa5897b3a45e02df03eaa0",
+      :research-assignment/environment-hash
+      "sha256:425ee816ba64fa27ad3afebb627ed70b3f46baf562cf91bc41b8ff4ece502172",
+      :schema-version "research-assignment.v1",
+      :research-assignment/id :assignment/challenge-001-local-demo,
+      :research-assignment/command-root
+      "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+      :research-assignment/target
+      #:target{:kind :governance-mandated,
+               :public-force-authorisation-scope-hash
+               "sha256:6ee2c39dd115ba2ccdf91bcfb81079e5442262b44f462b0626e9415118ff6d03",
+               :workflow-id 0,
+               :reason :research},
+      :research-assignment/policy-hash
+      "sha256:cba16c0123b2ba486139bceca49ac8a2409ce1d01365ce657549c261b5dfc46a"},
+     :analysis-output
+     {:analysis-output/outcome-root
+      "sha256:86de6be6aa6a6aeaebfc22e05c77e0b8b84b3a156daabd66c327dabfa4267a70",
+      :analysis-engine/id :engine/shortfall-policy-comparison,
+      :analysis-output/result
+      {:schema-version "research-analysis-result.v2",
+       :result/case-root
+       "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f",
+       :result/value 15N,
+       :result/classification :counterexample-found,
+       :result/witness-root
+       "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+       :result/descriptor-root
+       "sha256:1c86b53e58f91fc34fdf34dcb2835f9d815f74c4ba887fcc641cc0b8754c4aee"},
+      :analysis-output/closure-root
+      "sha256:3190f4578f8fcb8ec894d60c87b0f300fcc23a187fc9f3535ba6340ba3c8cdc3",
+      :analysis-output/proposition-id
+      :claim/allocation-policy-invariance,
+      :analysis-output/assignment-root
+      "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+      :schema-version "research-analysis-output.v1",
+      :analysis-engine/version "1",
+      :analysis-output/model-root
+      "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+      :research-analysis-output/root
+      "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6",
+      :analysis-output/domain-root
+      "sha256:4efc6c3fd3fdd3ae550aa445d3ead76b573245547f13cbf60c6eec3fd4569c51",
+      :analysis-output/metric-id
+      :metric/maximum-row-allocation-difference,
+      :analysis-output/command-root
+      "sha256:27991007908174b92bbf9cec876c1aa7cda9c58637744dba24b346710ec1dbaf",
+      :analysis-output/evidence-root
+      "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"}}}},
+  :history/root
+  "sha256:1922f3e569d9e7669c5bacde5eeeb78ec3607852d807182bda218b74c75807c3",
+  :quotes
+  {"sha256:fa4348676eae008ec0c4c0ff47da2873ca602f34a02f8efded2599ed0f3e7b23"
+   {:claim/action-root
+    "sha256:6061703c99a65c645c0ffecb3908cc5fddadd8704e63b3a3f1bb700523f91305",
+    :experience/snapshot
+    {:network/root
+     "sha256:c1021f3b6da1e30fe9a06efe4ad48d441e99d9df46575403e0e1f327d42ce4e2",
+     :history/root
+     "sha256:217052056c9a8f62ff4c79023649534b030260b1a6629c47923783da8dabec1f",
+     :researcher/root
+     "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+     :accepted-contribution-count 0,
+     :accepted-contribution-roots [],
+     :accepted-contribution-keys [],
+     :accepted-review-roots []},
+    :artifact/root
+    "sha256:fa4348676eae008ec0c4c0ff47da2873ca602f34a02f8efded2599ed0f3e7b23",
+    :reward/base-amount 100,
+    :experience/snapshot-root
+    "sha256:bd4ac72fad7b866c90dde2508bfff2e31edfd7de0860dba84fdf9777e27247a1",
+    :reward/amount 100,
+    :artifact/schema "researcher-challenge-task-claim.v1",
+    :reward/tier {:minimum 0, :numerator 1, :denominator 1},
+    :reward/policy-root
+    "sha256:02c0e614cd6e23da0a2df92e88dd2a51d243014cf5afaa023c7bd11c90f40a68",
+    :researcher/root
+    "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+    :challenge/root
+    "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42",
+    :reward/currency "TEST-POINTS"}},
+  :contributions
+  #{[:challenge/shortfall-under-stress-001
+     "sha256:b416f5cb715cada609dd5739fde0edd16e4250acd2cc65159ad32772d9d62010"
+     ["sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648"
+      :claim/allocation-policy-invariance
+      :metric/maximum-row-allocation-difference
+      "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"]]},
+  :reviews
+  {"sha256:3953d666db511d75806b7a70da579b683d0e2924d487920ee946c5e3bb5b1f19"
+   {:acceptance-policy
+    {:schema/version "research-claim-acceptance-policy.v1",
+     :acceptance-policy/id
+     :researcher-challenge/definition-2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42,
+     :acceptance-policy/authority-root
+     "sha256:47b46aadbe03ebc13d9331864185b424222fb69307174cbc2bb79d873d92ca3e",
+     :acceptance-policy/decisions #{:rejected :accepted},
+     :research-claim-acceptance-policy/root
+     "sha256:454ab2d8388103a82556aebec6b305cd01a43fd193f06f2b08b6b48e68782410"},
+    :contribution/root
+    "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+    :obligation
+    {:contribution/root
+     "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+     :researcher-reward-proposal/root
+     "sha256:91efd39096693375dba2ffa077c8b3bf4699a4f6ed72d4b5791c7d9349c871fd",
+     :researcher-reward-policy/root
+     "sha256:b4dcf719944e4482f91aed5629b38a77a1998b399a04bb89588a5cbe5e3e1171",
+     :researcher-reward-obligation/root
+     "sha256:3b7b1924387174b9e3a8a1e6cc15c5d39a64b169261dac353a90907a50a895b4",
+     :schema-version "researcher-reward-obligation.v1",
+     :approval-authority/root
+     "sha256:47b46aadbe03ebc13d9331864185b424222fb69307174cbc2bb79d873d92ca3e",
+     :researcher/id
+     "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+     :researcher-reward-eligibility/root
+     "sha256:c8e5af2baa982080a1a8f0e8ccc47138384532aa5a83c54904f00b21b5cedaca",
+     :reward/amount 100,
+     :research-assignment/root
+     "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+     :approval-authority/id "researcher-challenges-v0-reviewer",
+     :contribution/type :adversarial-finding,
+     :reward/key
+     "sha256:5d7659c44c43da15aecac600319093f0ba69cba81d6e97f30807d1dbc0dbc75f",
+     :reward/currency "TEST-POINTS"},
+    :submission/root
+    "sha256:3953d666db511d75806b7a70da579b683d0e2924d487920ee946c5e3bb5b1f19",
+    :eligibility
+    {:contribution/root
+     "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+     :researcher-reward-policy/root
+     "sha256:b4dcf719944e4482f91aed5629b38a77a1998b399a04bb89588a5cbe5e3e1171",
+     :schema-version "researcher-reward-eligibility.v1",
+     :researcher/id
+     "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+     :researcher-reward-eligibility/root
+     "sha256:c8e5af2baa982080a1a8f0e8ccc47138384532aa5a83c54904f00b21b5cedaca",
+     :reward/amount 100,
+     :research-assignment/root
+     "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+     :verification/evidence
+     {:verified? true,
+      :research-analysis-verification/root
+      "sha256:1164870bfbbf261b1945fc196419dbe36731a26087cfdda7ecb4d15eb85ad6e1",
+      :research-claim-acceptance/root
+      "sha256:966c7eda4e6d8560d806f349b18ac770182e96815ce8bed04c9ac45d642a7862",
+      :incentive/decision :eligible,
+      :incentive/evidence-root
+      "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+      :review/action-root
+      "sha256:9032b5c0bd323d8dd0d17b7ea85bc3f5aba010f4d0b808d0de4d8f02cfc6a2e7",
+      :experience/snapshot-root
+      "sha256:bd4ac72fad7b866c90dde2508bfff2e31edfd7de0860dba84fdf9777e27247a1"},
+     :claim/evidence
+     {:research-claim/subject-root
+      "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648",
+      :research-claim/proposition-id
+      :claim/allocation-policy-invariance,
+      :research-claim/root
+      "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+      :research-claim/model-root
+      "sha256:e30141dd64eb7b45c5b327cde2b5ae8ff2a515d73fe6772a7ed37e25bf6ed256",
+      :schema-version "research-analytical-claim.v2",
+      :research-claim/verification-root
+      "sha256:1164870bfbbf261b1945fc196419dbe36731a26087cfdda7ecb4d15eb85ad6e1",
+      :research-claim/domain-root
+      "sha256:4efc6c3fd3fdd3ae550aa445d3ead76b573245547f13cbf60c6eec3fd4569c51",
+      :research-claim/status :counterexample-found,
+      :research-claim/result
+      {:schema-version "research-analysis-result.v2",
+       :result/case-root
+       "sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f",
+       :result/value 15N,
+       :result/classification :counterexample-found,
+       :result/witness-root
+       "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d",
+       :result/descriptor-root
+       "sha256:1c86b53e58f91fc34fdf34dcb2835f9d815f74c4ba887fcc641cc0b8754c4aee"},
+      :claimable? true,
+      :research-claim/analysis-output-root
+      "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6",
+      :research-claim/metric-id
+      :metric/maximum-row-allocation-difference,
+      :research-claim/evidence-root
+      "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"},
+     :reward/eligible? true,
+     :contribution/type :adversarial-finding,
+     :reward/reasons [],
+     :reward/key
+     "sha256:5d7659c44c43da15aecac600319093f0ba69cba81d6e97f30807d1dbc0dbc75f",
+     :reward/currency "TEST-POINTS"},
+    :acceptance
+    {:research-claim-acceptance/authority-root
+     "sha256:47b46aadbe03ebc13d9331864185b424222fb69307174cbc2bb79d873d92ca3e",
+     :research-claim-acceptance/accepted-at "2026-11-18T15:30:00Z",
+     :research-claim-acceptance/acceptance-sequence 0,
+     :research-claim-acceptance/decision :accepted,
+     :research-claim-acceptance/root
+     "sha256:966c7eda4e6d8560d806f349b18ac770182e96815ce8bed04c9ac45d642a7862",
+     :research-claim-acceptance/policy-root
+     "sha256:454ab2d8388103a82556aebec6b305cd01a43fd193f06f2b08b6b48e68782410",
+     :research-claim-acceptance/verification-root
+     "sha256:1164870bfbbf261b1945fc196419dbe36731a26087cfdda7ecb4d15eb85ad6e1",
+     :research-claim-acceptance/claim-root
+     "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+     :research-claim-acceptance/decision-evidence-root
+     "sha256:9032b5c0bd323d8dd0d17b7ea85bc3f5aba010f4d0b808d0de4d8f02cfc6a2e7",
+     :schema/version "research-claim-acceptance.v1"},
+    :task-claim/root
+    "sha256:fa4348676eae008ec0c4c0ff47da2873ca602f34a02f8efded2599ed0f3e7b23",
+    :review/action-root
+    "sha256:9032b5c0bd323d8dd0d17b7ea85bc3f5aba010f4d0b808d0de4d8f02cfc6a2e7",
+    :contribution/key
+    ["sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648"
+     :claim/allocation-policy-invariance
+     :metric/maximum-row-allocation-difference
+     "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"],
+    :proposal
+    {:contribution/root
+     "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+     :researcher-reward-proposal/root
+     "sha256:91efd39096693375dba2ffa077c8b3bf4699a4f6ed72d4b5791c7d9349c871fd",
+     :researcher-reward-policy/root
+     "sha256:b4dcf719944e4482f91aed5629b38a77a1998b399a04bb89588a5cbe5e3e1171",
+     :schema-version "researcher-reward-proposal.v1",
+     :researcher/id
+     "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+     :researcher-reward-eligibility/root
+     "sha256:c8e5af2baa982080a1a8f0e8ccc47138384532aa5a83c54904f00b21b5cedaca",
+     :reward/amount 100,
+     :research-assignment/root
+     "sha256:09c967d6793bb4125552f00276211a1cf1ca64baf60c82e73c165e55b05c94bf",
+     :contribution/type :adversarial-finding,
+     :reward/key
+     "sha256:5d7659c44c43da15aecac600319093f0ba69cba81d6e97f30807d1dbc0dbc75f",
+     :reward/currency "TEST-POINTS"},
+    :researcher/root
+    "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3",
+    :reward-policy-v1
+    {:researcher-reward-policy/root
+     "sha256:b4dcf719944e4482f91aed5629b38a77a1998b399a04bb89588a5cbe5e3e1171",
+     :schema-version "researcher-reward-policy.v1",
+     :duplicate-rule {:mode :reject},
+     :reward-amount 100,
+     :reward-currency "TEST-POINTS",
+     :task-claim/root
+     "sha256:fa4348676eae008ec0c4c0ff47da2873ca602f34a02f8efded2599ed0f3e7b23",
+     :required-verification #{:claimable :verified},
+     :reward/policy-v2-root
+     "sha256:02c0e614cd6e23da0a2df92e88dd2a51d243014cf5afaa023c7bd11c90f40a68",
+     :split-rules {:default :full},
+     :challenge/root
+     "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42",
+     :required-claim-statuses #{:counterexample-found},
+     :accepted-contribution-types #{:adversarial-finding},
+     :conflict-of-interest-rule {:mode :authority-reviewed}},
+    :lifecycle-transition
+    {:research-claim-lifecycle/acceptance-root
+     "sha256:966c7eda4e6d8560d806f349b18ac770182e96815ce8bed04c9ac45d642a7862",
+     :research-claim-lifecycle/to :accepted,
+     :research-claim-lifecycle/authority-root
+     "sha256:47b46aadbe03ebc13d9331864185b424222fb69307174cbc2bb79d873d92ca3e",
+     :research-claim-lifecycle/from :unseen,
+     :research-claim-lifecycle/sequence 0,
+     :research-claim-lifecycle/supersession? false,
+     :research-claim-lifecycle/policy-root
+     "sha256:454ab2d8388103a82556aebec6b305cd01a43fd193f06f2b08b6b48e68782410",
+     :research-claim-lifecycle/claim-root
+     "sha256:4d6ab7631aedef97b6130e87e35dcd8c82a20af0ae2055f2c579a62bd7bf0451",
+     :research-claim-lifecycle/root
+     "sha256:36c7ed03070dcdffc759f643336ab41eed4156078eb200bbe73dd21b71aada61",
+     :schema/version "research-claim-lifecycle-transition.v1"},
+    :decision :accepted,
+    :challenge/root
+    "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42",
+    :incentive/eligible? true}},
+  :configuration
+  {:network/id :testnet/challenge-001-demo,
+   :network/root
+   "sha256:c1021f3b6da1e30fe9a06efe4ad48d441e99d9df46575403e0e1f327d42ce4e2",
+   :reviewer/public-key
+   "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEACuj5Shbi/PP273g5So0SG774n3lV16tl/w8ScUWc/QI=\n-----END PUBLIC KEY-----\n",
+   :reward/policy
+   {:experience/cutoff :task-claim,
+    :artifact/root
+    "sha256:02c0e614cd6e23da0a2df92e88dd2a51d243014cf5afaa023c7bd11c90f40a68",
+    :reward/rounding :floor-minor-unit,
+    :reward/tiers
+    [{:minimum 0, :numerator 1, :denominator 1}
+     {:minimum 3, :numerator 5, :denominator 4}
+     {:minimum 8, :numerator 3, :denominator 2}],
+    :experience/basis
+    :unique-accepted-verified-incentive-eligible-contributions,
+    :artifact/schema "researcher-reward-policy.v2",
+    :duplicate/rule :challenge-subject-contribution-once,
+    :experience/count-rule :unique-subject-proposition-metric-witness,
+    :experience/scope :network,
+    :reward/currency "TEST-POINTS"},
+   :challenges
+   [{:subject/revision-root
+     "sha256:b416f5cb715cada609dd5739fde0edd16e4250acd2cc65159ad32772d9d62010",
+     :researcher-reward-policy/root
+     "sha256:02c0e614cd6e23da0a2df92e88dd2a51d243014cf5afaa023c7bd11c90f40a68",
+     :subject/root
+     "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648",
+     :challenge/capacity 2,
+     :artifact/root
+     "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42",
+     :reward/base-amount 100,
+     :challenge/id :challenge/shortfall-under-stress-001,
+     :acceptance/criteria
+     {:proposition-id :claim/allocation-policy-invariance,
+      :metric-id :metric/maximum-row-allocation-difference,
+      :result-classifications #{:counterexample-found}},
+     :artifact/schema "researcher-challenge.v1",
+     :contribution/type :adversarial-finding}],
+   :artifact/schema "researcher-challenges-configuration.v1",
+   :artifact/root
+   "sha256:0aecdbac6116c3fea6b85ad07e808a4775ce0f40b7bda6913faab87f4aab44fc"},
+  :payouts {}},
+ :replay/nodes
+ [{:execution
+   {:execution-id :execution/validation,
+    :execution-kind :validation,
+    :runner :registry-validator,
+    :registry-hash
+    "b81500eda8fc3406fecba25a9f425f86bad988bad93de527820ebf0d3cbc9543",
+    :policy-id :evidence-policy/computed,
+    :policy-hash
+    "8e6fb2fe9cbb20a26ff24e64abde5784a37b384d7cfaa2cbef91dd8876c02d28",
+    :creation/provenance :in-band,
+    :source/creation {:provenance :in-band}},
+   :content-hash
+   "659ab06e31c8b1100b8ee94f3cdd797d237570fc8e6f9b3d4da8312de2ff43e0",
+   :attestations [],
+   :evidence
+   {:inputs-hash
+    "eb7fcdde6e0b27de60d54c1c5c62e172053de10c8f4eb25d4593731cd214e7c7",
+    :outputs-hash
+    "288c012553d4528e5637151e71f422da6fc85d96081928fb69dc824f3ccaab2c"},
+   :node-hash
+   "659ab06e31c8b1100b8ee94f3cdd797d237570fc8e6f9b3d4da8312de2ff43e0",
+   :schema-version 1,
+   :bootstrap-roots
+   ["sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f"
+    "sha256:0aecdbac6116c3fea6b85ad07e808a4775ce0f40b7bda6913faab87f4aab44fc"
+    "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6"
+    "sha256:6c0d2df35c623938fd9a892e0a59c6b8238a4f2964c5377917c37a29ebd19075"
+    "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"
+    "sha256:840e8eb65ea36fce98edcf2d43feb8082be4e0fad7ee36e85daee770187b0c45"],
+   :result
+   {:status :pass,
+    :summary
+    {:failure-count 0,
+     :expected-failure-count 0,
+     :unexpected-failure-count 0,
+     :visible-failure-count 0,
+     :filtered-failure-count 0}},
+   :extensions
+   #:forensic{:cutpoint nil,
+              :gap nil,
+              :role :validated,
+              :visibility :public,
+              :subject
+              #:subject{:kind :research/shortfall-replay,
+                        :root
+                        "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6"},
+              :consequence? false,
+              :observation-key nil,
+              :actor nil,
+              :observed-root nil,
+              :causal-parent-roots
+              ["sha256:08c24281ec8944e780cadaf076aa0a55dcfa955959be9d400aecfb6998b8394f"
+               "sha256:0aecdbac6116c3fea6b85ad07e808a4775ce0f40b7bda6913faab87f4aab44fc"
+               "sha256:6c0d2df35c623938fd9a892e0a59c6b8238a4f2964c5377917c37a29ebd19075"
+               "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"
+               "sha256:840e8eb65ea36fce98edcf2d43feb8082be4e0fad7ee36e85daee770187b0c45"],
+              :custody-roots []},
+   :node-id
+   "659ab06e31c8b1100b8ee94f3cdd797d237570fc8e6f9b3d4da8312de2ff43e0",
+   :record-hash
+   "b994af73e4b828c13dd32b9d2620e4f8b730ca327f7dbf78f006e12895998164",
+   :policy-output
+   {:visible
+    {:status :pass,
+     :outputs
+     #:forensic{:role :validated, :observed-root nil, :gap nil}},
+    :excluded-classes #{:debug :environment}},
+   :timestamp "2026-11-18T15:28:46.809588816Z",
+   :parent-hashes []}]}
+

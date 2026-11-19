@@ -1,0 +1,27 @@
+{:artifact/schema "researcher-challenge-testnet-scope-rehearsal-status.v1"
+ :status :local-offline-protocol-rehearsal
+ :configuration/root "sha256:0aecdbac6116c3fea6b85ad07e808a4775ce0f40b7bda6913faab87f4aab44fc"
+ :network/root "sha256:c1021f3b6da1e30fe9a06efe4ad48d441e99d9df46575403e0e1f327d42ce4e2"
+ :challenge/root "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42"
+ :candidate/root "sha256:94a974fd5c2d30c2574cd82b6159b147812fe21788b07ed21f4212a9ac794f73"
+ :comparison/root "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"
+ :research-input/root "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6"
+ :researcher/root "sha256:853e0d750e8d5bd3e5c0a9cc52dda9d72f151a0b29b4ce95c9b48d429487b1f3"
+ :submission/root "sha256:3953d666db511d75806b7a70da579b683d0e2924d487920ee946c5e3bb5b1f19"
+ :review/action-root "sha256:9032b5c0bd323d8dd0d17b7ea85bc3f5aba010f4d0b808d0de4d8f02cfc6a2e7"
+ :obligation/root "sha256:3b7b1924387174b9e3a8a1e6cc15c5d39a64b169261dac353a90907a50a895b4"
+ :history/root "sha256:1922f3e569d9e7669c5bacde5eeeb78ec3607852d807182bda218b74c75807c3"
+ :history/action-count 4
+ :review/status :simulated-with-development-key
+ :service/status :ready
+ :service/environment :local-devnet
+ :service/network-id :testnet/challenge-001-demo
+ :service/bind-address "127.0.0.1"
+ :service/port 18787
+ :service/history-action-count 4
+ :service/stopped-after-check? true
+ :funding/authorized? false
+ :publication/authorized? false
+ :activation/authorized? false
+ :public-testnet/deployed? false
+ :participant-independence/established? false}
