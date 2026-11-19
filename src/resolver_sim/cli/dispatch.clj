@@ -321,8 +321,7 @@
     "--out" "--output" "--package-a" "--package-b" "--key" "--check"
     "--trust-context" "--input" "--cas-dir" "--params" "--output-file"
     "--baseline" "--candidate" "--dir" "--mailbox-dir" "--config" "--history"
-    "--evidence-context" "--checkpoint" "--research-input" "--public-key"
-    "--challenge-root" "--task-claim-root"})
+    "--evidence-context" "--checkpoint" "--research-input" "--public-key"})
 
 (defn- caller-directory []
   (or (System/getenv "PRF_CLI_CALLER_DIR") (System/getProperty "user.dir")))

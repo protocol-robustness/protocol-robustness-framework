@@ -4,6 +4,7 @@
 
 (def ^:private unit-test-namespaces
   '[resolver-sim.research.shortfall-pilot-test
+    resolver-sim.research.researcher-challenges-devnet-test
     resolver-sim.research.researcher-challenges-test
     resolver-sim.research.shortfall-publication-test
     resolver-sim.economics.with-bounty.obligation-settlement-test])

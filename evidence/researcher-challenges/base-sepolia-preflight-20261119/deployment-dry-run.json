@@ -1,0 +1,17 @@
+{
+  "schema": "researcher-challenge-testnet-deployment-dry-run.v1",
+  "observed_at_utc": "2026-11-19T12:05:51.362019+00:00",
+  "network": "Base Sepolia",
+  "rpc": "https://sepolia.base.org",
+  "command": "forge create src/BountySettlement.sol:BountySettlement --root examples/assured-operations --rpc-url https://sepolia.base.org --keystore <local development funder keystore> --password-file <local protected password file> --constructor-args <funder> <award authority> (without --broadcast)",
+  "result": "passed; Foundry reported dry run enabled and did not broadcast",
+  "from": "0xbe6f78f336a746451d1b9a1133ba6fec1f1b8e2e",
+  "constructor_authorities": {
+    "funding": "0xbe6f78f336a746451d1b9a1133ba6fec1f1b8e2e",
+    "award": "0xde4e014d59a0ec53d8a462c0dc4d7d7f1e92d1da"
+  },
+  "gas_estimate": "0x152b29",
+  "transactions_submitted": false,
+  "deployed_address": null,
+  "note": "Creation transaction/input was not sent. Gas estimate is a dry-run result, not a deployment receipt."
+}
