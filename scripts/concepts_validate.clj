@@ -1,10 +1,13 @@
 (require '[clojure.edn :as edn]
          '[clojure.java.io :as io]
          '[clojure.set :as set]
-         '[resolver-sim.concepts.registry :as concepts-registry])
+         '[resolver-sim.concepts.registry :as concepts-registry]
+         '[resolver-sim.concepts.bundles :as concept-bundles])
 
 (def concept-root (io/file "data/concepts"))
 (def registry-path (io/file concept-root "registry.edn"))
+(def concept-bundle-root (io/file "data/concept-bundles"))
+(def concept-bundle-registry-path (io/file concept-bundle-root "registry.edn"))
 (def known-protocols #{:protocol/sew-v1 :protocol/prf})
 (def supported-maps-to-types #{:protocol.actor :protocol.role :protocol.entity :protocol.action :protocol.outcome :protocol.guard :protocol.parameter})
 
@@ -244,6 +247,90 @@
                     (check-value-maps-to (str mapping-file "/" concept-id "/" category "/" mapping-id)
                                          values errors)))))))))))
 
+(defn check-concept-bundle-inventory
+  "Check the incubating bundle manifests are a complete, exact inventory of
+   the current monolithic catalogue. This prepares extraction without making
+   the bundle manifests runtime authority yet."
+  [registry errors]
+  (let [[bundle-registry parse-error] (parse-edn concept-bundle-registry-path)]
+    (if parse-error
+      (swap! errors conj (str (.getPath concept-bundle-registry-path) ": " parse-error))
+      (let [bundle-entries (:concept-bundle-registry/bundles bundle-registry)
+            bundle-ids (map :bundle/id bundle-entries)
+            bundle-files (map :bundle/manifest bundle-entries)
+            allowed-owners (conj known-protocols :shared)
+            expected-concepts (set (map (juxt :concept/owner :concept/id :concept/file)
+                                        (:concepts registry)))
+            expected-mappings (set (map (fn [entry]
+                                          [(if (= :shared (:mapping/protocol entry))
+                                             :shared (:mapping/protocol entry))
+                                           (:mapping/protocol entry) (:mapping/file entry)])
+                                        (:concept-mapping-files registry)))
+            actual-concepts (atom [])
+            actual-mappings (atom [])
+            known-bundle-ids (set bundle-ids)]
+        (when-not (= 1 (:concept-bundle-registry/version bundle-registry))
+          (swap! errors conj "concept bundle registry has unsupported version"))
+        (when-not (vector? bundle-entries)
+          (swap! errors conj "concept bundle registry :bundles must be a vector"))
+        (when-not (= (count bundle-ids) (count (distinct bundle-ids)))
+          (swap! errors conj "concept bundle registry contains duplicate bundle IDs"))
+        (when-not (= bundle-ids (vec (sort-by str bundle-ids)))
+          (swap! errors conj "concept bundle registry must be ordered by bundle ID"))
+        (when-not (= (count bundle-files) (count (distinct bundle-files)))
+          (swap! errors conj "concept bundle registry contains duplicate manifest paths"))
+        (doseq [[entry path] (map vector bundle-entries bundle-files)]
+          (let [[manifest manifest-error] (parse-edn (io/file path))
+                bundle-id (:bundle/id entry)]
+            (if manifest-error
+              (swap! errors conj (str path ": " manifest-error))
+              (do
+                (when-not (= "prf.concept-bundle.v1" (:bundle/schema manifest))
+                  (swap! errors conj (str path " has unsupported bundle schema")))
+                (when-not (= bundle-id (:bundle/id manifest))
+                  (swap! errors conj (str path " manifest ID does not match registry entry")))
+                (when-not (and (string? (:bundle/version manifest))
+                               (= 1 (:bundle/catalogue-schema-version manifest))
+                               (keyword? (:bundle/status manifest))
+                               (vector? (:bundle/dependencies manifest))
+                               (vector? (:bundle/concepts manifest))
+                               (vector? (:bundle/mapping-files manifest)))
+                  (swap! errors conj (str path " has malformed bundle metadata")))
+                (when-not (contains? allowed-owners (:bundle/owner manifest))
+                  (swap! errors conj (str path " has an unsupported bundle owner")))
+                (when-not (= (:bundle/owner entry) (:bundle/owner manifest))
+                  (swap! errors conj (str path " owner does not match the bundle registry entry")))
+                (doseq [{dependency-id :bundle/id dependency-version :bundle/version}
+                        (:bundle/dependencies manifest)]
+                  (when-not (contains? known-bundle-ids dependency-id)
+                    (swap! errors conj (str path " depends on unknown bundle " dependency-id)))
+                  (when (= dependency-id bundle-id)
+                    (swap! errors conj (str path " depends on itself")))
+                  (when-not (string? dependency-version)
+                    (swap! errors conj (str path " has an unpinned bundle dependency"))))
+                (when-not (= (mapv :bundle/id (:bundle/dependencies manifest))
+                             (vec (sort-by str (map :bundle/id (:bundle/dependencies manifest)))))
+                  (swap! errors conj (str path " dependencies must be ordered by bundle ID")))
+                (when-not (= (mapv :concept/id (:bundle/concepts manifest))
+                             (vec (sort-by str (map :concept/id (:bundle/concepts manifest)))))
+                  (swap! errors conj (str path " concepts must be ordered by concept ID")))
+                (when-not (= (mapv :mapping/protocol (:bundle/mapping-files manifest))
+                             (vec (sort-by str (map :mapping/protocol (:bundle/mapping-files manifest)))))
+                  (swap! errors conj (str path " mapping files must be ordered by protocol")))
+                (doseq [{:keys [concept/id concept/file]} (:bundle/concepts manifest)]
+                  (swap! actual-concepts conj [(:bundle/owner manifest) id file]))
+                (doseq [{:keys [mapping/protocol mapping/file]} (:bundle/mapping-files manifest)]
+                  (swap! actual-mappings conj
+                         [(if (= :shared protocol) :shared protocol) protocol file]))))))
+        (when-not (= expected-concepts (set @actual-concepts))
+          (swap! errors conj "concept bundle inventories do not exactly cover registry concepts"))
+        (when-not (= expected-mappings (set @actual-mappings))
+          (swap! errors conj "concept bundle inventories do not exactly cover registry mapping files"))
+        (when-not (= (count @actual-concepts) (count (distinct @actual-concepts)))
+          (swap! errors conj "concept bundle inventories contain duplicate concepts"))
+        (when-not (= (count @actual-mappings) (count (distinct @actual-mappings)))
+          (swap! errors conj "concept bundle inventories contain duplicate mapping files"))))))
+
 (def known-gaps-root (io/file "data/known-gaps"))
 (def known-gap-required-keys
   #{:issue/id :current-behaviour :intended-contract
@@ -331,6 +418,19 @@
           known-gap-ids (set (keys known-gaps-by-id))
           kg-dup-ids (set (for [[id freq] (frequencies (map #(name (:issue/id %)) kg-issues))
                                 :when (> freq 1)] id))]
+      (println "  Checking concept bundle inventories...")
+      (check-concept-bundle-inventory registry errors)
+      (try
+        (let [catalogue (concept-bundles/load-bundles)
+              loaded-ids (set (map :concept/id
+                                   (:concept-bundle-catalogue/concepts catalogue)))
+              registered-ids (set (map :concept/id reg-entries))]
+          (when-not (= loaded-ids registered-ids)
+            (swap! errors conj "bundle loader output differs from the legacy concept registry"))
+          (println "    OK" (count (:concept-bundle-catalogue/bundles catalogue))
+                   "bundles; root" (:concept-bundle-catalogue/root catalogue)))
+        (catch Exception e
+          (swap! errors conj (str "bundle loading failed: " (.getMessage e)))))
       (println "    OK" (count reg-entries) "entries")
       (println "  Checking registry...")
       (doseq [[cid entry] reg-by-id]

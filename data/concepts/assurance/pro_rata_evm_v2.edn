@@ -60,6 +60,11 @@
    :protocol-mechanisms [:configuration-binding :authority-separation]
    :stakeholder-impact "The statement may be internally consistent while its configuration authority remains unverified."}]
 
+ :concept/metrics
+ {:reconstruction-consistent?
+  {:description "Whether retained semantic inputs independently reconstruct the committed transition roots."
+   :source :derived-from-trace}}
+
  :concept/assumptions
  ["The implementation follows the named portable-pro-rata-contract.v1 semantics and the additive Pro-rata EVM V2 conformance profile."
   "Independent verification requires the retained semantic bodies referenced by the statement's committed compilation material."

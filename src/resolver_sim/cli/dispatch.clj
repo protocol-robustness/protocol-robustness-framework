@@ -30,6 +30,8 @@
    :forensic-validate 'resolver-sim.commands.forensic/validate
    :forensic-verify 'resolver-sim.commands.forensic/verify
    :forensic-reproduce 'resolver-sim.commands.forensic/reproduce
+   :dispute-review-new 'resolver-sim.commands.dispute-review/new-review
+   :dispute-review-verify 'resolver-sim.commands.dispute-review/verify-review
    :simulation-simplified 'resolver-sim.commands.simulation/simplified
    :protocol-pro-rata-derive-operation 'resolver-sim.commands.protocol-pro-rata/derive-operation
    :protocol-pro-rata-check-admission 'resolver-sim.commands.protocol-pro-rata/check-admission
@@ -319,8 +321,7 @@
     "--out" "--output" "--package-a" "--package-b" "--key" "--check"
     "--trust-context" "--input" "--cas-dir" "--params" "--output-file"
     "--baseline" "--candidate" "--dir" "--mailbox-dir" "--config" "--history"
-    "--evidence-context" "--checkpoint" "--research-input" "--public-key"
-    "--challenge-root" "--task-claim-root"})
+    "--evidence-context" "--checkpoint" "--research-input" "--public-key"})
 
 (defn- caller-directory []
   (or (System/getenv "PRF_CLI_CALLER_DIR") (System/getProperty "user.dir")))

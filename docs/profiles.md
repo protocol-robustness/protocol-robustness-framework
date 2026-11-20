@@ -62,7 +62,7 @@ the artifact tested with `java -jar`.
 | `sew-protocol` | candidate | framework + Sew protocol model + optional force-authorisation and slash-evidence adapters, without runner or analysis assembly |
 | `sew-protocol-model-core` | candidate | Sew protocol model and slash economics without force-authorisation, analysis, or slash-evidence adapters; those operations fail closed or return no analysis |
 | `sew-kernel` | candidate | framework + Sew escrow world and guarded state-transition kernel |
-| `sew-core-extension` | candidate | framework + full Sew model + optional `extensions/sew-core-model` adapter that rejects operations outside the Solidity Sew Core profile |
+| `sew-core-extension` | candidate | framework + full Sew model + optional `extensions/sew-core-profile-adapter` adapter that rejects operations outside the Solidity Sew Core profile |
 | `yield-runtime` | candidate | framework + portable yield state, accounting, modules, risk, and evidence runtime |
 | `pro-rata` | supported | Sew + portable pro-rata core + Sew settlement adapter |
 | `pro-rata-bounty` | supported | pro-rata + semantic bounty |
@@ -124,7 +124,7 @@ source component.
 
 `sew-protocol` is an extraction-preparation view, not a release-qualified
 package. It removes runner entrypoints from the composition, but its current
-transitive source closure is 199 files. Moving Sew analysis behind an optional
+transitive source closure is 202 files. Moving Sew analysis behind an optional
 component reduced it from 239 files; the remaining closure includes Sew
 research, yield, benchmark, a small scenario subset, and shared PRF framework
 internals.
@@ -133,7 +133,7 @@ internals.
 root; 28 are in Sew's current dependency closure. Its standalone candidate
 profile resolves 69 Clojure source files with zero declared component crossings
 and passes its isolated profile load check. Sew still depends on this component,
-so the model-core source closure is 175 files. The Sew model component owns its
+so the model-core source closure is 144 files. The Sew model component owns its
 yield capability adapter and explicitly requires the shared yield runtime.
 
 `sew-kernel` is a smaller candidate view of the escrow state model and guarded

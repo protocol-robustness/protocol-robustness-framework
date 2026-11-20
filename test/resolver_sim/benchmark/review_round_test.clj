@@ -298,3 +298,15 @@
                 :review-round/policy-root "sha256:policy"})]
     (is (nil? (rr/member-bit-width round))
         "legacy unkeyed round must return nil for bit-width")))
+
+(deftest member-bit-width-nil-for-malformed-truthy-key
+  (let [round (assoc-in (rr/build-review-round
+                         {:benchmark/content-root "sha256:abc"
+                          :review-round/purpose :model-admission
+                          :review-round/members keyed-members
+                          :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                          :review-round/policy-root "sha256:policy"})
+                        [:review-round/members 2 :review-member/key]
+                        "not-an-integer")]
+    (is (nil? (rr/member-bit-width round))
+        "malformed keyed rounds must not throw while deriving width")))

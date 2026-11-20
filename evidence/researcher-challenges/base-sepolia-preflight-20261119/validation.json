@@ -1,0 +1,73 @@
+{
+  "schema": "researcher-challenge-testnet-preflight-validation.v1",
+  "observed_at_utc": "2026-11-19T12:45:29.710718+00:00",
+  "network": "Base Sepolia (eip155:84532)",
+  "checks": [
+    {
+      "file": "rpc-preflight.json",
+      "sha256": "sha256:e05812a38b48d90cadf37a7ff16ad5424deb2a8a056b61aa25767f1f02a48c34"
+    },
+    {
+      "file": "dev-accounts.json",
+      "sha256": "sha256:6033c251aae38d546fd8c83a1c295a474e0057ab8dbb7c0797c9eb2ade2955b3"
+    },
+    {
+      "file": "deployment-dry-run.json",
+      "sha256": "sha256:27c61332da861695c56d2acbffcf76c0366cb87126fa901f42b8d2dc61d57cc4"
+    }
+  ],
+  "local_validation": [
+    {
+      "command": "clojure -M:test -e ... (shortfall-pilot-test + researcher-challenges-devnet-test)",
+      "result": "passed",
+      "tests": 16,
+      "assertions": 118,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "command": "forge test --offline --force --match-path test/BountySettlementERC20.t.sol",
+      "result": "passed",
+      "solc": "0.8.33",
+      "compiled_files": 7,
+      "tests": 8,
+      "failures": 0,
+      "skipped": 0
+    },
+    {
+      "command": "forge create src/BountySettlement.sol:BountySettlement ... without --broadcast",
+      "result": "passed dry run; no transaction sent",
+      "gas_estimate": "0x152b29"
+    }
+  ],
+  "dev_accounts": {
+    "three_encrypted_keystores_outside_repository": true,
+    "funding_received": false,
+    "contracts_deployed": false,
+    "transactions_submitted": false,
+    "challenge_published_or_activated": false,
+    "keystores_stored_outside_repository": true,
+    "local_paths_omitted_from_tracked_evidence": true,
+    "keystore_directory_mode": "0700",
+    "keystore_files_mode": "0600",
+    "password_file_mode": "0600"
+  },
+  "rpc_observation_summary": {
+    "public_endpoints_checked": 8,
+    "chain_id_consistency": "all eight returned 0x14a34",
+    "genesis_readable_endpoints": [
+      "tenderly-public",
+      "onfinality-public",
+      "nodies-public",
+      "pocket-public"
+    ],
+    "public_archive_endpoints_with_matching_token_runtime_and_decimals": [
+      "tenderly-public",
+      "nodies-public",
+      "pocket-public"
+    ],
+    "onfinality_token_reads": "HTTP 429",
+    "provider_operational_independence": "not established by endpoint responses; requires review",
+    "payout_verification": "not run; requires funded deployment and actual test payout"
+  }
+}

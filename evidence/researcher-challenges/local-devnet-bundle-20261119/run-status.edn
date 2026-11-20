@@ -1,0 +1,19 @@
+{:artifact/schema "researcher-challenge-local-devnet-bundle-run.v1"
+ :run/date "2026-11-19"
+ :bundle/generation :passed
+ :offline/replay :passed
+ :history/action-count 0
+ :service/status :ready
+ :service/environment :local-devnet
+ :service/bind-address "127.0.0.1"
+ :service/port 18788
+ :service/health-check :passed
+ :service/checkpoint-check :passed
+ :service/history/root "sha256:1272a89965c4a802d844b34ca59f7b06b84e87501f87f747be201eac0334a24e"
+ :service/history-action-count 0
+ :service/stopped-after-check? true
+ :funding/authorized? false
+ :publication/authorized? false
+ :activation/authorized? false
+ :public-testnet/deployed? false
+ :status :test-only-not-authorized}

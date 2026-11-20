@@ -42,7 +42,51 @@
     :paths/test          ["test"]
     :paths/scripts       ["scripts"]
     :paths/protocols-src ["protocols_src"]
-    :paths/protocols     ["protocols_src" "protocols_src/test"]
+    :paths/sew-protocol-model ["packages/sew-protocol-model/src"
+                               "packages/sew-protocol-model/test"]
+    :paths/protocols     ["packages/sew-protocol-model/src"
+                          "extensions/sew-yield-integration/src"
+                          "extensions/sew-pro-rata-economics/src"
+                          "extensions/sew-pro-rata-test-vectors/src"
+                          "extensions/sew-analysis/src"
+                          "extensions/sew-pro-rata-slashing/src"
+                          "extensions/sew-financial-lifecycle/src"
+                          "extensions/sew-bounty-route/src"
+                          "extensions/sew-bounty/src"
+                          "extensions/sew-pro-rata-application/src"
+                          "extensions/sew-research-models/src"
+                          "extensions/sew-research/src"
+                          "extensions/sew-runner/src"
+                          "extensions/sew-runner/resources"
+                          "protocols_src"
+                          "packages/sew-protocol-model/test"
+                          "extensions/sew-yield-integration/test"
+                          "extensions/sew-pro-rata-economics/test"
+                          "extensions/sew-pro-rata-test-vectors/test"
+                          "extensions/sew-analysis/test"
+                          "extensions/sew-pro-rata-slashing/test"
+                          "extensions/sew-financial-lifecycle/test"
+                          "extensions/sew-bounty-route/test"
+                          "extensions/sew-bounty/test"
+                          "extensions/sew-pro-rata-application/test"
+                          "extensions/sew-research-models/test"
+                          "extensions/sew-research/test"
+                          "extensions/sew-runner/test"
+                          "protocols_src/test"]
+    :paths/protocols-runtime ["packages/sew-protocol-model/src"
+                              "extensions/sew-yield-integration/src"
+                              "extensions/sew-pro-rata-economics/src"
+                              "extensions/sew-analysis/src"
+                              "extensions/sew-pro-rata-slashing/src"
+                              "extensions/sew-financial-lifecycle/src"
+                              "extensions/sew-bounty-route/src"
+                              "extensions/sew-bounty/src"
+                              "extensions/sew-pro-rata-application/src"
+                              "extensions/sew-research-models/src"
+                              "extensions/sew-research/src"
+                              "extensions/sew-runner/src"
+                              "extensions/sew-runner/resources"
+                              "protocols_src"]
     :paths/dev           ["dev" "test"]              ;; = dev + test
      :paths/src           ["src" "yield_runtime_src"]
      :paths/pro-rata-contract ["pro-rata/contract-source"]
@@ -50,10 +94,40 @@
     :paths/held-custody-rt       ["extensions/held-custody/src"]
     :paths/force-authorisation   ["extensions/force-authorisation/src" "extensions/force-authorisation/test"]
     :paths/force-authorisation-rt ["extensions/force-authorisation/src"]
-    :paths/sew-core-model ["extensions/sew-core-model/src" "extensions/sew-core-model/test"]
-    :paths/sew-core-model-rt ["extensions/sew-core-model/src"]
-    :paths/all           ["src" "yield_runtime_src" "test" "protocols_src" "protocols_src/test" "dev" "scripts"
-                          :paths/held-custody :paths/force-authorisation]
+    :paths/sew-core-profile-adapter ["extensions/sew-core-profile-adapter/src" "extensions/sew-core-profile-adapter/test"]
+    :paths/sew-core-profile-adapter-rt ["extensions/sew-core-profile-adapter/src"]
+    :paths/sew-pro-rata-economics ["extensions/sew-pro-rata-economics/src"
+                                  "extensions/sew-pro-rata-economics/test"]
+    :paths/sew-pro-rata-economics-rt ["extensions/sew-pro-rata-economics/src"]
+    :paths/sew-analysis ["extensions/sew-analysis/src" "extensions/sew-analysis/test"]
+    :paths/sew-analysis-rt ["extensions/sew-analysis/src"]
+    :paths/sew-pro-rata-slashing ["extensions/sew-pro-rata-slashing/src"
+                                  "extensions/sew-pro-rata-slashing/test"]
+    :paths/sew-pro-rata-slashing-rt ["extensions/sew-pro-rata-slashing/src"]
+    :paths/sew-financial-lifecycle ["extensions/sew-financial-lifecycle/src"
+                                    "extensions/sew-financial-lifecycle/test"]
+    :paths/sew-financial-lifecycle-rt ["extensions/sew-financial-lifecycle/src"]
+    :paths/sew-bounty-route ["extensions/sew-bounty-route/src"
+                             "extensions/sew-bounty-route/test"]
+    :paths/sew-bounty-route-rt ["extensions/sew-bounty-route/src"]
+    :paths/sew-bounty ["extensions/sew-bounty/src" "extensions/sew-bounty/test"]
+    :paths/sew-bounty-rt ["extensions/sew-bounty/src"]
+    :paths/sew-pro-rata-application ["extensions/sew-pro-rata-application/src"
+                                     "extensions/sew-pro-rata-application/test"]
+    :paths/sew-pro-rata-application-rt ["extensions/sew-pro-rata-application/src"]
+    :paths/sew-runner ["extensions/sew-runner/src" "extensions/sew-runner/test"]
+    :paths/sew-runner-rt ["extensions/sew-runner/src"]
+    :paths/sew-research-models ["extensions/sew-research-models/src"
+                                "extensions/sew-research-models/test"]
+    :paths/sew-research-models-rt ["extensions/sew-research-models/src"]
+    :paths/sew-research ["extensions/sew-research/src"
+                         "extensions/sew-research/test"]
+    :paths/sew-research-rt ["extensions/sew-research/src"]
+    :paths/all           ["src" "yield_runtime_src" "test" "packages/sew-protocol-model/src"
+                          "packages/sew-protocol-model/test" "protocols_src" "protocols_src/test"
+                          :paths/sew-financial-lifecycle :paths/sew-bounty-route :paths/sew-bounty
+                          :paths/sew-pro-rata-application :paths/sew-research-models :paths/sew-research :paths/sew-runner "dev" "scripts"
+                          :paths/held-custody :paths/force-authorisation :paths/sew-pro-rata-economics :paths/sew-analysis :paths/sew-pro-rata-slashing]
     ;; Researchers: opt-in local paths (defined in ~/.clojure/deps.edn as
     ;; :researcher/paths, e.g. {:aliases {:researcher/paths [".researcher/src"]}}).
     ;; Compose with: clojure -M:test:researcher/env  (see .researcher/ note)
@@ -83,7 +157,7 @@
    ;; Optional extracted notebook source; only notebook commands select this.
    :notebooks
    {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}}
+                                :git/sha "07ff7a18da15cfc6402de199179fe17457b8c253"}}}
 
    ;; Corruption guard: load-all / def-inventory integrity checks.
    :check
@@ -112,11 +186,25 @@
    {:extra-paths [:paths/force-authorisation-rt]}
 
    ;; Optional Sew Core behavior profile adapter. The runtime alias omits tests.
-   :extension/sew-core-model
-   {:extra-paths [:paths/sew-core-model]}
+   :extension/sew-core-profile-adapter
+   {:extra-paths [:paths/sew-core-profile-adapter]}
 
-   :extension/sew-core-model-rt
-   {:extra-paths [:paths/sew-core-model-rt]}
+   :extension/sew-core-profile-adapter-rt
+   {:extra-paths [:paths/sew-core-profile-adapter-rt]}
+
+   ;; Optional Sew adversarial and economic research models.
+   :extension/sew-research-models
+   {:extra-paths [:paths/sew-research-models]}
+
+   :extension/sew-research-models-rt
+   {:extra-paths [:paths/sew-research-models-rt]}
+
+   ;; Optional Sew-specific falsification studies and analysis phases.
+   :extension/sew-research
+   {:extra-paths [:paths/sew-research]}
+
+   :extension/sew-research-rt
+   {:extra-paths [:paths/sew-research-rt]}
 
    ;; flow-storm
 ;;   {:1.12-storm {:classpath-overrides {org.clojure/clojure nil}
@@ -269,10 +357,12 @@
    :main-opts ["-m" "cljfmt.main" "check" "src" "yield_runtime_src" "test"]}
 
    :run
-   {:main-opts ["-m" "resolver-sim.core"]}
+   {:extra-paths [:paths/protocols-runtime]
+    :main-opts ["-m" "resolver-sim.core"]}
 
    :cli
-   {:main-opts ["-m" "resolver-sim.cli.main"]}
+   {:extra-paths [:paths/protocols-runtime]
+    :main-opts ["-m" "resolver-sim.cli.main"]}
 
    :cli/sew
    {:main-opts ["-m" "resolver-sim.cli.main"]
@@ -315,12 +405,12 @@
 
    :clerk
    {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}
+                                :git/sha "07ff7a18da15cfc6402de199179fe17457b8c253"}}
     :main-opts ["-m" "notebooks.serve"]}
 
    :build-clerk
    {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}
+                                :git/sha "07ff7a18da15cfc6402de199179fe17457b8c253"}}
     :main-opts ["-m" "prf.notebooks.build"]}
 
    :observability
@@ -329,7 +419,7 @@
      {:git/url "https://github.com/nextjournal/clerk"
       :git/sha "8772a0889218274384a30e79165b4c194b59560f"}}
     :extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}
+                                :git/sha "07ff7a18da15cfc6402de199179fe17457b8c253"}}
     :main-opts ["-m" "notebooks.serve"]}
 
    :telemetry-seed
@@ -381,7 +471,15 @@
            com.github.seancorfield/next.jdbc {:mvn/version "1.3.939"}
            org.postgresql/postgresql         {:mvn/version "42.7.2"}
            metosin/malli                     {:mvn/version "0.17.0"}}
-    :paths ["src" "yield_runtime_src" "protocols_src" "resources" "scenarios"]}
+    :paths ["src" "yield_runtime_src" "packages/sew-protocol-model/src"
+            "extensions/sew-pro-rata-economics/src" "extensions/sew-pro-rata-slashing/src"
+            "extensions/sew-financial-lifecycle/src"
+            "extensions/sew-bounty-route/src"
+            "extensions/sew-bounty/src"
+            "extensions/sew-pro-rata-application/src"
+            "extensions/sew-runner/src"
+            "extensions/sew-analysis/src"
+            "protocols_src" "resources" "scenarios"]}
 
    :speds-comparator-shadow
    {:extra-paths [:paths/scripts]
@@ -390,7 +488,7 @@
    :search-docs
    {:extra-paths [:paths/scripts]
     :extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "78d94619be0ba1407799b414e41da56c2b14129a"}}
+                                :git/sha "07ff7a18da15cfc6402de199179fe17457b8c253"}}
     :main-opts ["-m" "scripts.search_docs_sentinel.run"]}
 
 }}

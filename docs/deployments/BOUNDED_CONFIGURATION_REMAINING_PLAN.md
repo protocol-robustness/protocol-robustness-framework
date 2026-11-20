@@ -45,12 +45,28 @@ capital-flow transactions, and no capital-flow evidence root. It records the
 C0 deployment, genesis seal and empty-registry seal, but no C0→C1 execution.
 The policy-v3 EIP-191 request remains unsigned; the required validator address
 is `0xc78884593859e84524e41ce94cce38fbcb58c5f8`. The previously supplied
-signature recovers to `0x44fbdfadcfc329615ac56c4375cb058518acb5d0`; the known
-`0xC0E…` keystore is also a different identity. Neither authenticates as that
-validator. The local
-RPC is currently unavailable and no Anvil process or candidate-specific state
-file was found in the inspected locations, so these retained readbacks are
-historical rather than current chain observations.
+signature recovers to `0x44fbdfadcfc329615ac56c4375cb058518acb5d0`. The reported
+external `transition-validator` keystore was checked read-only: UUID
+`c3d8fc61-2476-4529-a608-0837af69bb13` matched, but Cast derived
+`0xc0e09b04327fe31061cb1e7b869ba274d3a90c6c`, not the policy-pinned address.
+The checker returned `FAIL`; no signature was created. This confirms the
+reported keystore is not the required transition signer. A separate key
+matching the policy pin is still needed for v8. A separate v9 candidate now
+declares the operator-supplied address `0xea2dd67de25f8046b3ba4483a8de2330d22e9413`;
+its policy and authority-state roots are rederived. The operator subsequently
+provided a passing keystore-check result for UUID
+`af373504-9451-4972-831a-2844a1c279fd`; the report is retained with the v9
+candidate, but was not independently rerun in this workspace. Its review
+manifest is unsigned, and it has no fresh deployment or chain-instance
+observations. See
+`etc/deployments/bounded-configuration-local-candidate-v9/README.md`. The local
+RPC is now available at chain ID 31337, block 347. Read-only calls confirm the
+existing Genesis at `0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07` is sealed to
+the v8 chain-instance root `0xcddcc621c4f7f0e0d1952203785de6099e4819b2dbc8268b68b28cd76bf2c154`
+and initial authority-state root `0x062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e`.
+It is not the v9 instance. No reset or v9 transaction was performed; the
+retained earlier readbacks remain historical, and v9 still needs fresh
+deployment observations.
 
 Current protocol-deployments checks pass: `npm test` reports 41 files and 314
 tests passed, and `npm run typecheck` passes. These code checks do not change

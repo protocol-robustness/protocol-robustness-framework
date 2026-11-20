@@ -42,7 +42,7 @@
   :terms ["fork isolation" "S33" "two-escrow-fork-isolation"]
    :expected-paths ["scenarios/edn/S33_forking-strategist-two-escrow-fork-isolation.edn"
                     "docs/scenarios.md"
-                    "protocols_src/resolver_sim/protocols/sew/invariant_scenarios/forking_strategist.clj"
+                    "extensions/sew-runner/src/resolver_sim/protocols/sew/invariant_scenarios/forking_strategist.clj"
                     "data/fixtures/suites/forking-strategist.edn"]
   :tags [:scenario :invariant :adversarial]
   :note "Fork isolation is a key safety property; must be traceable from docs to code."}
@@ -119,7 +119,7 @@
                     "src/resolver_sim/sim/batch.clj"
                     "src/resolver_sim/sim/sweep.clj"
                     "scripts/run_sweep.sh"
-                    "protocols_src/resolver_sim/research/sew/analytic/phase_c_corruption_economics.clj"
+                    "extensions/sew-research/src/resolver_sim/research/sew/analytic/phase_c_corruption_economics.clj"
                    "src/resolver_sim/sim/trial_router.clj"
                    "docs/overview/REUSABLE_COMPONENTS.md"]
   :tags [:simulation :infrastructure]
@@ -160,7 +160,7 @@
                     "scenarios/edn/S42_resolver-buyer-bribery-loop.edn"
                     "scenarios/edn/S08_state-machine-attack-gauntlet.edn"
                     "data/fixtures/suites/forking-strategist.edn"
-                    "protocols_src/resolver_sim/protocols/sew/invariant_scenarios/adversarial.clj"]
+                    "extensions/sew-runner/src/resolver_sim/protocols/sew/invariant_scenarios/adversarial.clj"]
   :tags [:adversarial :scenario :invariant]
   :note "Adversarial scenarios are the main evidence of protocol robustness."}
 

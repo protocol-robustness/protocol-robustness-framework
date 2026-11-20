@@ -1,0 +1,21 @@
+#:bundle{:schema "prf.concept-bundle.v1",
+         :id :prf.concepts/prf,
+         :version "0.1.0",
+         :catalogue-schema-version 1,
+         :status :incubating,
+         :owner :protocol/prf,
+         :dependencies [#:bundle{:id :prf.concepts/foundation,
+                                 :version "0.1.0"}],
+         :concepts
+         [#:concept{:id :assurance/pro-rata-evm-v2,
+                    :file
+                    "data/concepts/assurance/pro_rata_evm_v2.edn"}
+          #:concept{:id :framework/current-privacy-policy,
+                    :file
+                    "data/concepts/framework/current_privacy_policy.edn"}
+          #:concept{:id :framework/privacy-policy,
+                    :file
+                    "data/concepts/framework/privacy_policy.edn"}],
+         :mapping-files
+         [#:mapping{:protocol :protocol/prf,
+                    :file "data/concept-mappings/prf.edn"}]}

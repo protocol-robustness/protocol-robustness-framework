@@ -1,6 +1,6 @@
 (ns resolver-sim.notebook-support.manifest.claims
   "Claim registry operations: load, validate, and query the falsifiable
-  claim set from data/claims/sew-claims.edn."
+  Sew claim set shipped by the Sew runner extension."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
@@ -8,25 +8,34 @@
             [resolver-sim.config.paths :as paths]))
 
 (def ^:private default-path (paths/claims-file))
+(def ^:private claims-resource "data/claims/sew-claims.edn")
+
+(defn- claims-source [path]
+  (let [file (io/file path)]
+    (cond
+      (.exists file) (slurp file)
+      (= (str path) default-path)
+      (when-let [resource (io/resource claims-resource)]
+        (slurp resource))
+      :else nil)))
 
 ;; ── loading ───────────────────────────────────────────────────────────────────
 
 (defn load-claims
-  "Read and return claims from path (default: data/claims/sew-claims.edn).
+  "Read and return claims from path (default: Sew runner's bundled registry).
   Invalid entries are logged and excluded — never throws."
   ([]      (load-claims default-path))
   ([path]
    (try
-     (let [f (io/file path)]
-       (if (.exists f)
-         (->> (edn/read-string (slurp f))
-              (filter (fn [c]
-                        (if (schema/valid-claim? c)
-                          true
-                          (do (println (str "WARN: invalid claim " (:claim/id c)
-                                            " — " (schema/explain-manifest c)))
-                              false)))))
-         (do (println (str "WARN: claims file not found: " path)) [])))
+     (if-let [source (claims-source path)]
+       (->> (edn/read-string source)
+            (filter (fn [c]
+                      (if (schema/valid-claim? c)
+                        true
+                        (do (println (str "WARN: invalid claim " (:claim/id c)
+                                          " — " (schema/explain-claim c)))
+                            false)))))
+       (do (println (str "WARN: claims file not found: " path)) []))
      (catch Exception e
        (println (str "WARN: could not load claims: " (.getMessage e)))
        []))))

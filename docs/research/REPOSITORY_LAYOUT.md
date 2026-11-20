@@ -61,9 +61,11 @@ reproducibility. The separate clean-room qualification below proves the
 manifest-declared source closure can be staged and tested without the monorepo
 root on its classpath.
 
-Their supported core source boundary is now
-`resolver-sim.extensions.api.v1`; its exported functions and compatibility
-rules are recorded in [`EXTENSION_CORE_API_V1.md`](../architecture/EXTENSION_CORE_API_V1.md).
+Their supported core source boundaries are the general
+`resolver-sim.extensions.api.v1` and portable pro-rata
+`resolver-sim.extensions.api.pro-rata.v1` facades. Their exported functions
+and compatibility rules are recorded in
+[`EXTENSION_CORE_API_V1.md`](../architecture/EXTENSION_CORE_API_V1.md).
 The recommended first extraction slice and its release gates are recorded in
 [`PRF_CORE_EXTRACTION_READINESS.md`](PRF_CORE_EXTRACTION_READINESS.md).
 
@@ -88,10 +90,12 @@ The current production source imports PRF through this supported namespace:
 |---|---|
 | `force-authorisation` | `resolver-sim.extensions.api.v1` |
 | `held-custody` | `resolver-sim.extensions.api.v1` |
+| `sew-pro-rata-economics` | `resolver-sim.extensions.api.pro-rata.v1` |
 
-The versioned facade currently delegates to PRF assurance, configuration,
-artifact, hash, and sensitivity implementations. Those are implementation
-dependencies behind the facade, not additional package-facing API imports.
+The versioned facades delegate to PRF assurance, configuration, artifact,
+hash, sensitivity, registry, evidence, execution, and pro-rata implementations.
+Those are implementation dependencies behind the facades, not additional
+package-facing API imports.
 The complete source closure and a clean-room qualification are recorded in
 [`packages/prf-extension-api-v1/DEPENDENCIES.edn`](../../packages/prf-extension-api-v1/DEPENDENCIES.edn).
 The facade and its compatibility rules are the API contract; the packages

@@ -62,6 +62,8 @@
     "coverage": "coverage-emitter.v1",
     "findings": "findings-emitter.v1",
     "issues": "issues-emitter.v1",
+    "speds-findings": "speds-findings-emitter.v1",
+    "speds-issues": "speds-issues-emitter.v1",
     "telemetry": "telemetry-emitter.v1",
     "mc-summary": "mc-emitter.v1",
     "mc-failures": "mc-emitter.v1",
@@ -280,6 +282,38 @@
       ],
       "input_dependencies": [
         "test-summary"
+      ]
+    },
+    {
+      "id": "speds-findings",
+      "file": "speds-findings.json",
+      "kind": "speds-findings",
+      "schema_key": "speds-findings",
+      "producer_key": "speds-findings",
+      "importance": "DIAGNOSTIC",
+      "verifies_against": [
+        "test-summary.v2",
+        "coverage.v1"
+      ],
+      "input_dependencies": [
+        "test-summary",
+        "test-run",
+        "coverage",
+        "equivalence-summary"
+      ]
+    },
+    {
+      "id": "speds-issues",
+      "file": "speds-issues.json",
+      "kind": "speds-issues",
+      "schema_key": "speds-issues",
+      "producer_key": "speds-issues",
+      "importance": "DIAGNOSTIC",
+      "verifies_against": [
+        "speds.findings.v1"
+      ],
+      "input_dependencies": [
+        "speds-findings"
       ]
     },
     {

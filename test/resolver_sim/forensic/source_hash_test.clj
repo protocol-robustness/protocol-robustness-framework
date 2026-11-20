@@ -75,9 +75,11 @@
                (vcs/code-hash)))))))
 
 (deftest default-source-roots-cover-replay-critical-surfaces
-  (is (= ["src"
+  (is (= ["yield_runtime_src"
+          "src"
           "protocols_src"
           "benchmarks"
+          "data/concepts"
           "data/concept-mappings"
           "scenarios"
           "suites"

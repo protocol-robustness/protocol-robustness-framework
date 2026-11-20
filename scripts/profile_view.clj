@@ -15,8 +15,19 @@
 
 (def repo-root (fs/path (System/getProperty "user.dir")))
 (def profiles-dir (fs/path repo-root "profiles"))
-(def source-roots ["yield_runtime_src" "src" "protocols_src" "pro-rata/contract-source"
-                   "extensions/sew-core-model/src"])
+(def source-roots ["yield_runtime_src" "src" "packages/sew-protocol-model/src"
+                   "extensions/sew-yield-integration/src"
+                   "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
+                   "extensions/sew-pro-rata-test-vectors/src"
+                   "extensions/sew-pro-rata-slashing/src"
+                   "extensions/sew-financial-lifecycle/src"
+                   "extensions/sew-bounty-route/src" "extensions/sew-bounty/src"
+                   "extensions/sew-pro-rata-application/src"
+                   "extensions/sew-research-models/src"
+                   "extensions/sew-research/src"
+                   "extensions/sew-runner/src"
+                   "protocols_src"
+                   "pro-rata/contract-source" "extensions/sew-core-profile-adapter/src"])
 
 (defn read-edn [path] (edn/read-string (slurp (str path))))
 (defn profile-files [] (fs/glob profiles-dir "*.edn"))
@@ -162,6 +173,36 @@
     (when (fs/exists? target) (fs/delete target))
     (java.nio.file.Files/createSymbolicLink target source (make-array java.nio.file.attribute.FileAttribute 0))))
 
+(defn symlink-at! [view-root source target-relative]
+  (let [source (safe-source! source)
+        relative (java.nio.file.Paths/get target-relative (make-array String 0))
+        _ (when (or (.isAbsolute relative)
+                    (some #{"." ".." ""} (str/split target-relative #"/")))
+            (throw (ex-info "Profile material target must be a normalized relative path"
+                            {:target target-relative})))
+        view-root (.normalize (.toAbsolutePath (fs/path view-root)))
+        target (.normalize (.resolve view-root relative))
+        profile-root (.normalize (.toAbsolutePath (fs/path repo-root ".profile-view")))
+        real-profile-root (.toRealPath profile-root (make-array java.nio.file.LinkOption 0))
+        real-view-root (.toRealPath view-root (make-array java.nio.file.LinkOption 0))]
+    (when-not (.startsWith target view-root)
+      (throw (ex-info "Profile material target escapes its view root"
+                      {:view-root (str view-root) :target (str target)})))
+    (when-not (.startsWith real-view-root real-profile-root)
+      (throw (ex-info "Profile material view root is outside .profile-view"
+                      {:profile-root (str real-profile-root)
+                       :view-root (str real-view-root)})))
+    (fs/create-dirs (fs/parent target))
+    (let [real-target-parent (.toRealPath (fs/parent target)
+                                          (make-array java.nio.file.LinkOption 0))]
+      (when-not (.startsWith real-target-parent real-view-root)
+        (throw (ex-info "Profile material target traverses outside its view root"
+                        {:view-root (str real-view-root)
+                         :target-parent (str real-target-parent)}))))
+    (when (fs/exists? target) (fs/delete target))
+    (java.nio.file.Files/createSymbolicLink target source
+                                            (make-array java.nio.file.attribute.FileAttribute 0))))
+
 (defn symlink-directory-files! [view-root source]
   (let [source (safe-source! source)]
     (with-open [paths (java.nio.file.Files/walk source (make-array java.nio.file.FileVisitOption 0))]
@@ -225,10 +266,32 @@
   (let [base (read-edn (fs/path repo-root "deps.edn"))]
     (spit (str (fs/path view-root "deps.edn"))
           (pr-str (assoc (select-keys base [:mvn/repos :deps])
-                         :paths ["src" "yield_runtime_src" "protocols_src"
-                                 "pro-rata/contract-source" "extensions/sew-core-model/src"
+                         :paths ["src" "yield_runtime_src" "packages/sew-protocol-model/src"
+                                 "extensions/sew-yield-integration/src"
+                                 "extensions/sew-pro-rata-economics/src" "extensions/sew-analysis/src"
+                                 "extensions/sew-pro-rata-test-vectors/src"
+                                 "extensions/sew-pro-rata-slashing/src"
+                                 "extensions/sew-financial-lifecycle/src"
+                                 "extensions/sew-bounty-route/src" "extensions/sew-bounty/src"
+                                 "extensions/sew-pro-rata-application/src"
+                                 "extensions/sew-research-models/src"
+                                 "extensions/sew-research/src"
+                                 "extensions/sew-runner/src"
+                                 "protocols_src"
+                                 "pro-rata/contract-source" "extensions/sew-core-profile-adapter/src"
                                  "resources"]
-                         :aliases {:profile/check {:extra-paths ["test"]}})))))
+                         :aliases {:profile/check
+                                   {:extra-paths ["test" "packages/sew-protocol-model/test"
+                                                  "extensions/sew-pro-rata-economics/test"
+                                                  "extensions/sew-analysis/test"
+                                                  "extensions/sew-pro-rata-slashing/test"
+                                                  "extensions/sew-financial-lifecycle/test"
+                                                  "extensions/sew-bounty-route/test"
+                                                  "extensions/sew-bounty/test"
+                                                  "extensions/sew-pro-rata-application/test"
+                                                  "extensions/sew-research-models/test"
+                                                  "extensions/sew-research/test"
+                                                  "extensions/sew-runner/test"]}})))))
 
 (defn symlink-local-dependencies! [view-root]
   (let [deps (:deps (read-edn (fs/path repo-root "deps.edn")))]
@@ -335,9 +398,10 @@
         (let [source (fs/path repo-root path)]
           (when-not (fs/exists? source)
             (throw (ex-info "Declared profile material is missing" {:path path})))
-          (if (fs/directory? source)
-            (symlink-directory-files! view-root source)
-            (symlink! view-root source)))))
+          (cond
+            (:view-path material) (symlink-at! view-root source (:view-path material))
+            (fs/directory? source) (symlink-directory-files! view-root source)
+            :else (symlink! view-root source)))))
     (generated-deps view-root)
     (when runtime-profile
       (spit (str (fs/path view-root "runtime-options.edn")) (pr-str runtime-profile)))
@@ -356,6 +420,39 @@
   (some #(fs/exists? (fs/path view-root % (ns->relative-path ns-sym)))
         source-roots))
 
+(defn- check-sew-pro-rata-economics! [view-root integration-selected?]
+  (let [expression
+        (str "(require '[resolver-sim.protocols.sew.economics :as economics])"
+             "(let [input {:slash-amount 10"
+             "             :liable-parties [{:id :resolver-a"
+             "                               :slashable-stake 10"
+             "                               :available-slashable 10}]}"
+             "      result (try"
+             "               {:status :returned"
+             "                :value (economics/calculate-sew-slash-allocation input)}"
+             "               (catch clojure.lang.ExceptionInfo error"
+             "                 {:status :threw :data (ex-data error)}))]"
+             (if integration-selected?
+               (str "  (when-not (and (= :returned (:status result))"
+                    "                 (= 10 (get-in result [:value :recovered-total])))"
+                    "    (throw (ex-info \"Selected Sew pro-rata economics integration failed\""
+                    "                    {:result result})))")
+               (str "  (when-not (and (= :threw (:status result))"
+                    "                 (= :prf/sew-pro-rata-economics-v1"
+                    "                    (get-in result [:data :component]))"
+                    "                 (= :sew-pro-rata-economics/calculate-slash-allocation"
+                    "                    (get-in result [:data :capability/id])))"
+                    "    (throw (ex-info \"Unselected Sew pro-rata economics did not fail closed\""
+                    "                    {:result result})))"))
+             ")")
+        {:keys [exit]} (process/shell {:dir (str view-root) :continue true}
+                                      "clojure" "-M" "-e" expression)]
+    (when-not (zero? exit)
+      (throw (ex-info "Sew pro-rata economics profile contract failed"
+                      {:profile-view (str view-root)
+                       :integration-selected? integration-selected?
+                       :exit exit})))))
+
 (defn check! [name]
   (let [view-root (generate! name)
         {:keys [components]} (resolved-profile name)
@@ -363,6 +460,9 @@
         expected (set (mapcat :component/entry-namespaces (vals components)))
         owned (into {} (map (juxt key #(set (:component/owned-namespaces (val %)))) all-components))
         selected-ids (set (keys components))
+        sew-model-selected? (contains? selected-ids :prf/sew-protocol-model-v1)
+        sew-pro-rata-economics-selected?
+        (contains? selected-ids :prf/sew-pro-rata-economics-v1)
         forbidden (->> owned
                        (filter #(get-in all-components [(key %) :component/absence-enforced?]))
                        (remove #(contains? selected-ids (key %)))
@@ -386,6 +486,9 @@
       (when-not (zero? exit)
         (throw (ex-info "Generated profile cannot load its declared entry namespaces"
                         {:profile name :exit exit}))))
+    (when sew-model-selected?
+      (check-sew-pro-rata-economics! view-root
+                                     sew-pro-rata-economics-selected?))
     (println "Profile boundary and load checks passed:" name)))
 
 (defn describe! [name]

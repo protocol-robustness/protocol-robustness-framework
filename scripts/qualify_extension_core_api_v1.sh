@@ -16,14 +16,21 @@ actual_closure=$(clojure -M:check -e '
               "extensions/force-authorisation/src"
               "extensions/held-custody/src"
               "extensions/force-authorisation/test"
-              "extensions/held-custody/test"]
+              "extensions/held-custody/test"
+              "test"]
         forms (mapcat #(clojure.tools.namespace.find/find-ns-decls-in-dir
                         (clojure.java.io/file %)) dirs)
         deps (into {} (map (fn [form]
                              [(clojure.tools.namespace.parse/name-from-ns-decl form)
                               (clojure.tools.namespace.parse/deps-from-ns-decl form)])
                            forms))
-        roots (concat [(symbol "resolver-sim.extensions.api.v1")]
+        roots (concat [(symbol "resolver-sim.extensions.api.v1")
+                       (symbol "resolver-sim.extensions.api.protocol.v1")
+                       (symbol "resolver-sim.protocols.protocol")
+                       (symbol "resolver-sim.extensions.api.pro-rata.v1")
+                       (symbol "prf.extensions.api.protocol-interface-v1-test")
+                       (symbol "prf.extensions.api.protocol-v1-test")
+                       (symbol "prf.extensions.api.pro-rata-v1-test")]
                       (clojure.tools.namespace.find/find-namespaces-in-dir
                        (clojure.java.io/file "extensions/force-authorisation/test"))
                       (clojure.tools.namespace.find/find-namespaces-in-dir
@@ -57,16 +64,21 @@ while IFS= read -r namespace; do
   cp "$source_path" "$probe_dir/src/$relative_path"
 done <<< "$actual_closure"
 
-mkdir -p "$probe_dir/resources/config" \
+mkdir -p "$probe_dir/resources/config" "$probe_dir/config" \
          "$probe_dir/extensions/force-authorisation" \
          "$probe_dir/extensions/held-custody"
 cp config/defaults.edn "$probe_dir/resources/config/defaults.edn"
+cp config/evidence.json "$probe_dir/config/evidence.json"
 cp -R extensions/force-authorisation/src "$probe_dir/extensions/force-authorisation/"
 cp -R extensions/force-authorisation/test "$probe_dir/extensions/force-authorisation/"
 cp -R extensions/held-custody/src "$probe_dir/extensions/held-custody/"
 cp -R extensions/held-custody/test "$probe_dir/extensions/held-custody/"
+mkdir -p "$probe_dir/test/prf/extensions/api"
+cp test/prf/extensions/api/protocol_v1_test.clj "$probe_dir/test/prf/extensions/api/"
+cp test/prf/extensions/api/protocol_interface_v1_test.clj "$probe_dir/test/prf/extensions/api/"
+cp test/prf/extensions/api/pro_rata_v1_test.clj "$probe_dir/test/prf/extensions/api/"
 
-source_root=$(cd "$probe_dir" && find src resources extensions -type f -print0 \
+source_root=$(cd "$probe_dir" && find src resources extensions config test -type f -print0 \
   | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
 printf 'isolated-source-closure=sha256:%s\n' "$source_root"
 
@@ -75,13 +87,24 @@ clojure -Srepro -Sdeps '{:paths ["src" "resources"
                                    "extensions/force-authorisation/src"
                                    "extensions/force-authorisation/test"
                                    "extensions/held-custody/src"
-                                   "extensions/held-custody/test"]
+                                   "extensions/held-custody/test"
+                                   "test"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        org.clojure/data.json {:mvn/version "2.4.0"}
+        org.slf4j/slf4j-api {:mvn/version "1.7.36"}
+        org.slf4j/slf4j-simple {:mvn/version "1.7.36"}
+        buddy/buddy-core {:mvn/version "1.12.0-430"}
         org.clojure/test.check {:mvn/version "1.1.1"}
         prf/canonical {:git/url "https://github.com/protocol-robustness/prf-canonical.git"
                        :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
-                       :deps/root "clj"}}}' -M -e '
+                       :deps/root "clj"}
+        prf/pro-rata-allocation {:git/url "https://github.com/protocol-robustness/prf-pro-rata-allocation.git"
+                                 :git/sha "cf38de1ea4ef03654ee3de8bead56c32ef078b10"
+                                 :deps/root "clj"}}}' -M -e '
   (require (quote clojure.test)
+           (quote prf.extensions.api.protocol-interface-v1-test)
+           (quote prf.extensions.api.protocol-v1-test)
+           (quote prf.extensions.api.pro-rata-v1-test)
            (quote prf.extensions.force-authorisation.manifest-test)
            (quote prf.extensions.force-authorisation.scope-verification-test)
            (quote prf.extensions.held-custody.authoritative-gate-test)
@@ -95,6 +118,9 @@ clojure -Srepro -Sdeps '{:paths ["src" "resources"
            (quote prf.extensions.held-custody.semantic-admission-test)
            (quote prf.extensions.held-custody.aggregate-test))
   (let [result (clojure.test/run-tests
+                (quote prf.extensions.api.protocol-interface-v1-test)
+                (quote prf.extensions.api.protocol-v1-test)
+                (quote prf.extensions.api.pro-rata-v1-test)
                 (quote prf.extensions.force-authorisation.manifest-test)
                 (quote prf.extensions.force-authorisation.scope-verification-test)
                 (quote prf.extensions.held-custody.authoritative-gate-test)

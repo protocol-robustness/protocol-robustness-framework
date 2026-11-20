@@ -93,14 +93,13 @@
                 :fault/kind :distribution-dependency-failure
                 :fault/event-seq (:seq event)}})))
 
-(defn- protocol-transition-receipt
+(defn- protocol-transition-evidence
   [protocol event result operation-id pre-world post-world]
-  (when (= "sew-v1" (proto/protocol-id protocol))
-    (when-let [adapter (protocol-registry/get-capability
-                        "sew-v1" :replay/appeal-bond-transition-receipt)]
-      (adapter event result operation-id
-               (analysis/action->transition-id (:action event))
-               pre-world post-world))))
+  (when-let [adapter (protocol-registry/get-capability
+                      (proto/protocol-id protocol) :replay/transition-evidence)]
+    (adapter event result operation-id
+             (analysis/action->transition-id (:action event))
+             pre-world post-world)))
 
 (defn apply-action-with-evidence
   "Dispatch an action through the protocol layer and emit a content-hashed
@@ -508,9 +507,9 @@
                 metadata (if (satisfies? proto/AnalysisModule protocol)
                            (proto/classify-transition protocol (:action event) result-kw)
                            nil)
-                appeal-bond-receipt (protocol-transition-receipt
-                                     protocol event result (:ctx/evidence-hash replay-ctx)
-                                     world-t final-world)
+                protocol-evidence (protocol-transition-evidence
+                                   protocol event result (:ctx/evidence-hash replay-ctx)
+                                   world-t final-world)
                 yield-delta (when (and ok? (yield-accounting-action? (:action event)))
                               (yield-accounting-delta world-t final-world))
                 yield-node (when (and yield-delta
@@ -529,34 +528,35 @@
               {:ok? (and ok? (not violated?))
                :world final-world
                :trace-entry
-               {:seq (:seq event)
-                :time event-time
-                :time-before time-before
-                :time-after time-after
-                :agent (:agent event)
-                :action (:action event)
-                :params (:params event)
-                :save-id-as (:save-id-as event)
-                :transition/id (analysis/action->transition-id (:action event))
-                :transition/hash (:ctx/evidence-hash replay-ctx)
-                :result result-kw
-                :error error-kw
-                :extra (:extra result)
-                :detail (:detail result)
-                :event-tags event-tags
-                :invariant-phase :post-event
-                :invariants-ok? (if (and ok? check-inv?)
-                                  (and (:ok? inv-single) (:ok? inv-trans) (:ok? assurance true))
-                                  true)
-                :violations all-violations
-                :transition-assurance (:result assurance)
-                :trace-metadata metadata
-                :appeal-bond/transition-receipt appeal-bond-receipt
-                :yield/accounting-delta yield-delta
-                :yield/execution-node-hash (:node-hash yield-node)
-                :world (proto/world-snapshot protocol final-world)
-                :projection proj
-                :projection-hash (:ctx/projection-hash projection-ctx)}
+               (merge
+                {:seq (:seq event)
+                 :time event-time
+                 :time-before time-before
+                 :time-after time-after
+                 :agent (:agent event)
+                 :action (:action event)
+                 :params (:params event)
+                 :save-id-as (:save-id-as event)
+                 :transition/id (analysis/action->transition-id (:action event))
+                 :transition/hash (:ctx/evidence-hash replay-ctx)
+                 :result result-kw
+                 :error error-kw
+                 :extra (:extra result)
+                 :detail (:detail result)
+                 :event-tags event-tags
+                 :invariant-phase :post-event
+                 :invariants-ok? (if (and ok? check-inv?)
+                                   (and (:ok? inv-single) (:ok? inv-trans) (:ok? assurance true))
+                                   true)
+                 :violations all-violations
+                 :transition-assurance (:result assurance)
+                 :trace-metadata metadata
+                 :yield/accounting-delta yield-delta
+                 :yield/execution-node-hash (:node-hash yield-node)
+                 :world (proto/world-snapshot protocol final-world)
+                 :projection proj
+                 :projection-hash (:ctx/projection-hash projection-ctx)}
+                protocol-evidence)
                :halted? violated?})))))))
 
 ;; ---------------------------------------------------------------------------

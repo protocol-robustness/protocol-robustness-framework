@@ -1,0 +1,9 @@
+;; In-tree candidate. Independent package qualification awaits an immutable
+;; PRF core artifact containing the generic bounty APIs used by this adapter.
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        org.protocol-robustness/prf-sew-protocol-model
+        {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
+         :git/sha "b94b091cfbaf46ec34ae2ade4920f9a3751e3097"
+         :deps/root "packages/sew-protocol-model"}}
+ :aliases {:test {:extra-paths ["test"]}}}

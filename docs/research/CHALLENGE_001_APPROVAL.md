@@ -1,13 +1,13 @@
 # Challenge 001 approval preparation
 
-This is an unsigned, inactive approval payload. It is not the frozen challenge
-configuration, a publication, a reward promise, an obligation, or payment
-authorization. The payload is
+This is a proposed, inactive approval payload with development-only signatures.
+It is not owner-approved and is not the frozen challenge configuration, a
+publication, a reward promise, an obligation, or payment authorization. The payload is
 [`challenge-001-approval-payload.v1.edn`](../../examples/researcher-challenges/shortfall-stress/challenge-001-approval-payload.v1.edn)
 and its root is
-`sha256:6895b7bc2d413c92aa02c3e54188e9d85954d012edf2d2937bb026e5fcb6171b`.
+`sha256:2832a447b01cc04301d082eb544315cfbd2e5a41bb4364065458c591f82aa89d`.
 
-The payload binds the approved scope/method/source/policy roots, the bounded
+The payload binds the proposed scope/method/source/policy roots, the bounded
 domain, calibration exclusion, novelty and acceptance rules, Base USDC asset,
 reward schedule, and the challenge-specific pseudonymous network scope. The
 subject root is the existing candidate subject map hashed under
@@ -20,13 +20,28 @@ the pilot.
 
 ## Local approval-key procedure
 
-Repository searches found no dedicated Challenge 001 operator/reviewer keys.
-Checked-in signing keys are fixtures or unrelated release keys and must not be
-reused. The local SSH agent was unavailable for inspection. Each role owner
-must provision a distinct Ed25519 key on their own machine; the owners should
-keep private material there and provide only public-key content and the
-detached signature. Distinct keys establish key distinction, not distinct
-people or organizations.
+For the current local demo, the supplied development-only Ed25519 operator and
+reviewer private keys are outside this repository at
+`/home/user/Code/challenge-001-keys` with mode `600`. The previously requested
+`/secure/path/challenge` directory is not present in this environment. The
+checked-in bundle contains only the public keys and detached signatures over
+this exact root. Their fingerprints are
+`sha256:f8f8f25db85a261697cd02b58300c933452ffb1e5659f5bdf3c3ab6749ddf907`
+and
+`sha256:7d31f496fdfa39a117e694fc1e71815b5d73ae5f7ea2474d6ab350504294a0e7`.
+These development keys do not establish owner identity or approval. The
+detached signatures and public-key content are in
+[`challenge-001-approval-signatures.devtest.v1.edn`](../../examples/researcher-challenges/shortfall-stress/challenge-001-approval-signatures.devtest.v1.edn).
+Both signatures verify against the exact payload root above, and the public-key
+fingerprints differ. This bundle exercises signing and verification only: it
+does not establish owner identity, approve the challenge, authorize funding,
+or activate publication. The approval payload remains in proposed/inactive
+state.
+
+For any later live authorization, role owners must use separately provisioned
+owner-controlled keys and provide fresh signatures over the exact then-current
+payload root. Distinct keys establish key distinction, not distinct people or
+organizations.
 
 One file-based procedure compatible with the PRF Ed25519 signer is to generate
 an encrypted PKCS#8 key in an owner-controlled, encrypted local directory
@@ -57,7 +72,7 @@ the owner can prompt for the passphrase and print only the signature:
 (let [console (System/console)
       password (String. (.readPassword console "Private-key passphrase: " (object-array 0)))]
   (println (signing/sign-hash
-            "sha256:6895b7bc2d413c92aa02c3e54188e9d85954d012edf2d2937bb026e5fcb6171b"
+            "sha256:2832a447b01cc04301d082eb544315cfbd2e5a41bb4364065458c591f82aa89d"
             "/secure/local/path/challenge-001-operator.pem"
             password)))
 ```
@@ -73,13 +88,16 @@ any change requires a new root and both signatures again.
 
 ## Validation and activation boundary
 
-The source manifest was refreshed for the current local checkout and
-independently rechecked: 219 entries, zero digest mismatches; manifest file root
-`sha256:790402f2ecd202dcdf2d7b509f34c31d3a09b2ee06d7df4ee2e0b1201ab3bffb`.
-This is a new unsigned local approval candidate. Approval of the prior source
-content-set root does not transfer to it.
-It is a content-set identity, not a captured `jj` revision or hermetic build
-environment. The V2 reward-policy root for the payload's chain-qualified
+The source manifest was refreshed against source revision
+`0b1c907e00c6982ebe7b5b557906effec1dbc498` and contains 245 entries. Its root is
+`sha256:b416f5cb715cada609dd5739fde0edd16e4250acd2cc65159ad32772d9d62010`;
+the scope candidate root is
+`sha256:94a974fd5c2d30c2574cd82b6159b147812fe21788b07ed21f4212a9ac794f73`.
+The devtest signatures bind the exact payload root above but do not authorize
+the challenge. Prior signatures do not transfer to updated roots. Any future
+owner signatures must cover the exact then-current payload root.
+The manifest root identifies this content set; the candidate separately records
+the source `jj` revision. It is not a hermetic build identity. The V2 reward-policy root for the payload's chain-qualified
 currency string is
 `sha256:b1e0a7d2c608ccffbc768612a9b21347dfd9e49b52ef4d23a0fb46a823dde119`.
 With empty network history, six accepted contributions, two researchers, and

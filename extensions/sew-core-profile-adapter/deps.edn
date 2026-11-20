@@ -1,0 +1,7 @@
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        org.protocol-robustness/prf-sew-protocol-model
+        {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"
+         :git/sha "fd696ba2ed5f8dcdbdeb02db9e5ce2c5f0f92cb0"
+         :deps/root "packages/sew-protocol-model"}}
+ :aliases {:test {:extra-paths ["test" "../../extensions/sew-yield-integration/src"]}}}

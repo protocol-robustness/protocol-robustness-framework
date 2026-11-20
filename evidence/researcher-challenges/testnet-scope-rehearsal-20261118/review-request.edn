@@ -1,0 +1,10 @@
+{:actor "sha256:47b46aadbe03ebc13d9331864185b424222fb69307174cbc2bb79d873d92ca3e"
+ :kind :review
+ :challenge-root "sha256:2d63d9ebc44783cbad4238116f701107ce9280bfd6b26e8e242a139741410b42"
+ :nonce "testnet-scope-demo-simulated-review-20261118-01"
+ :payload {:submission/root "sha256:3953d666db511d75806b7a70da579b683d0e2924d487920ee946c5e3bb5b1f19"
+           :decision :accepted
+           :incentive/decision :eligible
+           :incentive/evidence-root "sha256:75269ff3f197a741d06d7a68cf9b3bb741075fca036e357dc18d438da0386a6d"
+           :decision/evidence-root "sha256:4515245b7b1a6e534c4e4997d684f64d439a8069f8e5cd2651194e14c5af3ba6"
+           :accepted-at "2026-11-18T15:30:00Z"}}

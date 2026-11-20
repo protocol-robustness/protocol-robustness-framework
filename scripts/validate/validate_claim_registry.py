@@ -99,7 +99,7 @@ def collect_theory_claim_ids(scenarios: list[dict[str, Any]]) -> set[str]:
 
 
 def load_sew_claims(path: Path) -> list[dict[str, Any]]:
-    """Load data/claims/sew-claims.edn via Clojure (EDN list of claim maps)."""
+    """Load the Sew runner extension's claim registry via Clojure."""
     cmd = [
         "clojure",
         "-M",
@@ -148,7 +148,10 @@ def validate_sew_claims(scenarios_dir: Path, sew_claims_path: Path) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--scenarios-dir", default="scenarios")
-    ap.add_argument("--sew-claims", default="data/claims/sew-claims.edn")
+    ap.add_argument(
+        "--sew-claims",
+        default="extensions/sew-runner/resources/data/claims/sew-claims.edn",
+    )
     ap.add_argument("--strict-theory-claims", action="store_true")
     args = ap.parse_args()
 

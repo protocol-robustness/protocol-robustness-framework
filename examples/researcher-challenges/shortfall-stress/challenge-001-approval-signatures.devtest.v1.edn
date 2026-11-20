@@ -1,0 +1,16 @@
+{:artifact/schema "research-challenge-approval-devtest-signatures.v1"
+ :demo/status :test-only-not-owner-authorization
+ :key-origin :user-provided-development-keypairs
+ :approval/root "sha256:2832a447b01cc04301d082eb544315cfbd2e5a41bb4364065458c591f82aa89d"
+ :activation/authorized? false
+ :signatures
+ [{:role :operator
+   :algorithm :ed25519
+   :signature/hex "9d90ad7e4553b7faebce2518ee861a4569084ae7d18654b2b968afcbb29536e042aab4f1edae93e98de018c3e08126e55bb919e9d442914ae70cca4f9470e00f"
+   :public-key/fingerprint "sha256:f8f8f25db85a261697cd02b58300c933452ffb1e5659f5bdf3c3ab6749ddf907"
+   :public-key/content "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA3118Uv6SPNHO7g4Gv1bjZ6g7iobP3fhmKsgK7gIAzN0=\n-----END PUBLIC KEY-----\n"}
+  {:role :reviewer
+   :algorithm :ed25519
+   :signature/hex "b0785170cf71fc80e85dbfb349d422d5cb066c3514221b26562f4cee605e2763fb075e9035833dc28e2a72652b139f15f21c0c9e788c2c9478aaa4461ed9b809"
+   :public-key/fingerprint "sha256:7d31f496fdfa39a117e694fc1e71815b5d73ae5f7ea2474d6ab350504294a0e7"
+   :public-key/content "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAgQ/HS17OWC3v3Sn94HJ+K+9rIh/lYRNCadsqW5PVFKE=\n-----END PUBLIC KEY-----\n"}]}

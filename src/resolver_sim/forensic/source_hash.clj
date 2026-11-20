@@ -9,7 +9,8 @@
   (:import [java.security MessageDigest]))
 
 (def default-source-roots
-  ["src"
+  ["yield_runtime_src"
+   "src"
    "protocols_src"
    "benchmarks"
    (paths/concepts-dir)

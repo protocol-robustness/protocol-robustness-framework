@@ -10,6 +10,16 @@
 
 ## Unreleased
 
+- Added PRF Dispute Review V0 with per-review canonical identity, pinned subject and policy references, structured nonbinding findings, declared trust classes, and fail-closed verification for changed sources, evidence and reproduction outputs. External authentication and adjudication remain outside this review workflow.
+
+- Benchmark validation now reports framework concept-registry load failures with their validation details instead of misreporting referenced concepts as unknown.
+
+- Added `configuration-review preflight-initial-inputs`, a read-only check of reviewer-supplied source-lock, manifest, action, principal, and active approver-key bindings before initial-input signing.
+
+- Added a read-only deployment utility that compares an external validator keystore UUID and its derived EVM address with the bounded local-authority policy; it does not sign approvals or transitions.
+
+- Added an unsigned authority-transition request builder that reuses the canonical PRF envelope derivation and semantic validator. It writes only to a new output path and does not sign or submit the transition.
+
 - Added `allocation-matches-request?` to independently recompute a committed
   pro-rata allocation from its canonical request. Hash integrity and
   mathematical correctness remain separate checks; neither establishes

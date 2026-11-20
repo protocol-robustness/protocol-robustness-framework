@@ -5,10 +5,12 @@
             [resolver-sim.network.shortfall-pilot-adapter :as pilot-adapter]
             [resolver-sim.network.researcher-challenges :as challenges]
             [resolver-sim.research.researcher-challenges-cli :as cli]
+            [resolver-sim.research.shortfall-pilot-cli :as pilot-cli]
             [resolver-sim.research.researcher-challenges-test :as helpers]
             [resolver-sim.benchmark.research-analysis :as analysis]
             [resolver-sim.pro-rata-contract.contract :as portable-contract]
             [resolver-sim.evidence.node :as node]
+            [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.hash.reference :as reference]
             [resolver-sim.hash.canonical :as canonical])
   (:import [java.nio.file Files]))
@@ -47,6 +49,31 @@
     (assoc f :config config :definition definition :comparison comparison :metadata metadata
            :context (pilot/build-context metadata comparison)
            :profile (pilot-adapter/build-profile config comparison)
+           :evidence {(:artifact/root comparison) comparison})))
+
+(defn- challenge-001-fixture []
+  (let [f (fixture)
+        candidate (scope-candidate)
+        subject-root (reference/sha256-ref
+                      (canonical/domain-hash "challenge-001-subject.v1" (:subject candidate)))
+        definition (challenges/build-challenge
+                    {:id (:challenge/id candidate) :subject-root subject-root
+                     :subject-revision (get-in candidate [:source/revision-observation
+                                                          :source-content-manifest/root])
+                     :contribution-type :adversarial-finding
+                     :acceptance-criteria {:proposition-id pilot/proposition :metric-id pilot/metric
+                                           :result-classifications #{:counterexample-found}}
+                     :base-reward 100 :capacity 2
+                     :reward-policy-root (get-in f [:config :reward/policy :artifact/root])})
+        config (challenges/configuration (get-in f [:config :network/id])
+                                         (get-in f [:reviewer :public])
+                                         (get-in f [:config :reward/policy]) [definition])
+        comparison (pilot/execute-comparison (candidate-inputs))
+        metadata (assoc (:metadata f) :subject-root subject-root)
+        context (pilot/build-context metadata comparison)
+        profile (pilot-cli/build-challenge-001-profile config candidate comparison)]
+    (assoc f :config config :definition definition :candidate candidate
+           :comparison comparison :metadata metadata :context context :profile profile
            :evidence {(:artifact/root comparison) comparison})))
 
 (defn- submission [f history context]
@@ -164,6 +191,101 @@
                  (pilot/validate-challenge-001-scope-candidate!
                   (reroot-candidate (assoc-in candidate [:input-domain :allocation-row-count :maximum] 99))
                   comparison)))))
+
+(deftest challenge-001-profile-binds-candidate-scope-at-admission-and-replay
+  (let [f (challenge-001-fixture)
+        profile (:profile f)
+        candidate (:candidate f)
+        definition (:definition f)
+        validate #(pilot/validate-context! (:config f) profile
+                                           (:artifact/root definition) %1 %2)]
+    (is (= pilot/challenge-001-profile-schema (:artifact/schema profile)))
+    (is (= (:candidate/root candidate) (:scope/candidate-root profile)))
+    (is (= :proposed-not-authorized
+           (get-in profile [:scope/candidate :candidate/status])))
+    (is (map? (validate (:context f) (:evidence f))))
+    (let [directory (.toFile (Files/createTempDirectory "challenge-001-profile-cli-"
+                                                        (make-array java.nio.file.attribute.FileAttribute 0)))
+          path #(str directory "/" %)]
+      (spit (path "config.edn") (pr-str (:config f)))
+      (spit (path "candidate.edn") (pr-str candidate))
+      (doseq [[index request] (map-indexed vector (:requests (:comparison f)))]
+        (spit (path (str "request-" index ".edn")) (pr-str request)))
+      (let [cli-profile (edn/read-string
+                         (with-out-str
+                           (pilot-cli/-main "challenge-001-profile"
+                                            (path "config.edn") (path "candidate.edn")
+                                            (path "request-0.edn") (path "request-1.edn"))))]
+        (is (= profile cli-profile)))
+      (doseq [file (reverse (file-seq directory))] (.delete file)))
+    (let [initial (before-submission f)
+          valid-history (submission f initial (:context f))
+          directory (.toFile (Files/createTempDirectory "challenge-001-in-bound-admission-"
+                                                        (make-array java.nio.file.attribute.FileAttribute 0)))
+          path #(str directory "/" %)
+          gate #(pilot-adapter/replay %1 profile %2 (:evidence f))]
+      (spit (path "config.edn") (pr-str (:config f)))
+      (spit (path "history.edn") (pr-str initial))
+      (spit (path "action.edn") (pr-str (last valid-history)))
+      (is (map? (cli/apply-checked-file! (path "config.edn") (path "history.edn")
+                                         (path "action.edn") nil gate)))
+      (is (= valid-history (edn/read-string (slurp (path "history.edn")))))
+      (doseq [file (reverse (file-seq directory))] (.delete file)))
+    (is (= (:state (pilot-adapter/replay (:config f) profile
+                                         (submission f (before-submission f) (:context f))
+                                         (:evidence f)))
+           (challenges/replay (:config f)
+                              (submission f (before-submission f) (:context f)))))
+    (let [outside-inputs (mapv #(-> %
+                                    (assoc-in [:rows 0 :requested] 1000001)
+                                    (assoc-in [:rows 0 :weight] 1000001))
+                               (candidate-inputs))
+          outside (pilot/execute-comparison outside-inputs)
+          outside-context (pilot/build-context (:metadata f) outside)]
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (pilot/validate-context! (:config f) profile
+                                            (:artifact/root definition) outside-context
+                                            {(:artifact/root outside) outside}))))
+    (let [changed-candidate (assoc-in profile [:scope/candidate :input-domain
+                                               :allocation-row-count :maximum] 99)
+          changed-profile (reroot changed-candidate)]
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (pilot/validate-profile! (:config f) changed-profile))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (pilot-cli/build-challenge-001-profile
+                  (:config (fixture)) candidate (:comparison f))))
+    (let [comparison (:comparison f)
+          tampered (update-in comparison [:results 0 :rows 0 :allocated] inc)
+          tampered (assoc tampered :artifact/root
+                          (reference/sha256-ref
+                           (canonical/domain-hash (:artifact/schema tampered)
+                                                  (dissoc tampered :artifact/root))))]
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (pilot/validate-challenge-001-scope-candidate! candidate tampered))))))
+
+(deftest challenge-001-out-of-scope-submission-does-not-change-history
+  (let [f (challenge-001-fixture)
+        initial (before-submission f)
+        outside-inputs (mapv #(-> %
+                                  (assoc-in [:rows 0 :requested] 1000001)
+                                  (assoc-in [:rows 0 :weight] 1000001))
+                             (candidate-inputs))
+        outside (pilot/execute-comparison outside-inputs)
+        context (pilot/build-context (:metadata f) outside)
+        proposed (submission f initial context)
+        directory (.toFile (Files/createTempDirectory "challenge-001-bounds-"
+                                                      (make-array java.nio.file.attribute.FileAttribute 0)))
+        path #(str directory "/" %)
+        gate #(pilot-adapter/replay %1 (:profile f) %2
+                                    {(:artifact/root outside) outside})]
+    (spit (path "config.edn") (pr-str (:config f)))
+    (spit (path "history.edn") (pr-str initial))
+    (spit (path "action.edn") (pr-str (last proposed)))
+    (let [before (slurp (path "history.edn"))]
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (cli/apply-checked-file! (path "config.edn") (path "history.edn")
+                                            (path "action.edn") nil gate)))
+      (is (= before (slurp (path "history.edn")))))))
 
 (deftest signed-economic-evidence-remains-separate-from-review-and-reward
   (let [f (fixture) history (submission f (before-submission f) (:context f))
@@ -290,3 +412,42 @@
                  (path "config.edn") (path "policy.edn") (path "history.edn") (path "action.edn") nil
                  #(pilot-adapter/replay-controlled %1 profile control-policy %2 (:evidence f)))))
       (is (= history (edn/read-string (slurp (path "history.edn"))))))))
+
+(deftest devtest-approval-signatures-bind-the-current-payload-without-authorizing-it
+  (let [payload (edn/read-string
+                 (slurp "examples/researcher-challenges/shortfall-stress/challenge-001-approval-payload.v1.edn"))
+        bundle (edn/read-string
+                (slurp "examples/researcher-challenges/shortfall-stress/challenge-001-approval-signatures.devtest.v1.edn"))
+        signatures (:signatures bundle)
+        root (:approval/root payload)
+        expected-root (reference/sha256-ref
+                       (canonical/domain-hash (:artifact/schema payload)
+                                              (dissoc payload :approval/root)))
+        public-key-content (mapv :public-key/content signatures)
+        public-key-bytes (mapv #(.getEncoded (signing/parse-public-key-content %))
+                               public-key-content)
+        operator (first signatures)
+        reviewer (second signatures)
+        operator-signature (:signature/hex operator)
+        tampered-signature (str (subs operator-signature 0 (dec (count operator-signature)))
+                                (if (= \0 (last operator-signature)) \1 \0))]
+    (is (= root expected-root))
+    (is (= root (:approval/root bundle)))
+    (is (= [:operator :reviewer] (mapv :role signatures)))
+    (is (= 2 (count (set public-key-bytes))))
+    (is (reference/valid-sha256-ref? root))
+    (is (not (reference/valid-sha256-ref? "sha256:not-a-root")))
+    (is (signing/verify-signature-with-public-key-content
+         root operator-signature (:public-key/content operator)))
+    (is (signing/verify-signature-with-public-key-content
+         root (:signature/hex reviewer) (:public-key/content reviewer)))
+    (is (not (signing/verify-signature-with-public-key-content
+              root operator-signature (:public-key/content reviewer))))
+    (is (not (signing/verify-signature-with-public-key-content
+              root (:signature/hex reviewer) (:public-key/content operator))))
+    (is (not (signing/verify-signature-with-public-key-content
+              (str root "stale") operator-signature (:public-key/content operator))))
+    (is (not (signing/verify-signature-with-public-key-content
+              root tampered-signature (:public-key/content operator))))
+    (is (= :test-only-not-owner-authorization (:demo/status bundle)))
+    (is (false? (:activation/authorized? bundle)))))
