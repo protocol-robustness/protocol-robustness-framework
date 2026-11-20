@@ -17,7 +17,7 @@ single-actor execution.
 ## 1. Purpose
 
 PRF uses "consensus" to mean **contested-outcome confidence** — decision
-quality, not blockchain validator consensus (`data/concepts/README.md`). Today
+quality, not blockchain validator consensus (see the [concept layer](../conceptual/README.md)). Today
 that confidence is engineered consistently in exactly one place: the benchmark
 review pipeline. Everything else decides contested outcomes through a
 patchwork of single actors, procedural rules, and threshold mechanisms with no

@@ -117,7 +117,8 @@ must not be presented as cross-implementation equivalence evidence.
 force-authorisation claims (`:force-authorisation/scope-enforced`,
 `:force-authorisation/single-use`, `:force-authorisation/expiry-enforced`,
 `:force-authorisation/evidence-linkage`, `:force-authorisation/custody-isolation`),
-and concept vocabulary (`data/concepts/security/force_authorisation.edn`) are
+and concept vocabulary (`:security/force-authorisation` in the pinned concept
+package) are
 owned by PRF core. Sew supplies the scenario suite
 (`:suite/sew-force-authorisation-custody-v1`) and protocol adapter.
 

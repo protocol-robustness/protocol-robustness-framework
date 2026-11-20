@@ -7,23 +7,24 @@
             [clojure.java.io :as io]
 
             [clojure.test :refer [deftest is testing]]
-            [resolver-sim.hash.reference :as hash-ref]))
+            [resolver-sim.concepts.registry :as concepts-registry]))
 
-(def concept-registry-path hash-ref/concept-registry-path)
-(def force-auth-concept-path "data/concepts/security/force_authorisation.edn")
+(def force-auth-concept-path "concepts/definitions/security/force_authorisation.edn")
 (def claims-path "data/claims/force_authorisation_claims.edn")
 
 (defn- edn-read [path]
-  (edn/read-string (slurp path)))
+  (if-let [resource (io/resource path)]
+    (edn/read-string (slurp resource))
+    (edn/read-string (slurp path))))
 
 (defn- registry-ids []
-  (map :concept/id (:concepts (edn-read concept-registry-path))))
+  (map :concept/id (:concepts (:registry (concepts-registry/load-registry)))))
 
 (deftest force-authorisation-concept-file-is-registered
   (let [entry (first (filter #(= :security/force-authorisation (:concept/id %))
-                             (:concepts (edn-read concept-registry-path))))]
+                             (:concepts (:registry (concepts-registry/load-registry)))))]
     (is (some? entry) "Concept :security/force-authorisation must be in the registry")
-    (is (= "data/concepts/security/force_authorisation.edn" (:concept/file entry))
+    (is (= force-auth-concept-path (:concept/file entry))
         "Registry must point to the correct file")
     (is (= :security (:concept/type entry)) "Concept type must be :security")
     (is (= :stakeholder (:concept/layer entry)) "Concept layer must be :stakeholder")
@@ -31,7 +32,7 @@
         "Concept must span both :protocol/sew-v1 and :protocol/prf")))
 
 (deftest force-authorisation-concept-file-exists-and-reads
-  (is (.isFile (io/file force-auth-concept-path))
+  (is (some? (io/resource force-auth-concept-path))
       "Force-authorisation concept file must exist")
   (let [concept (edn-read force-auth-concept-path)]
     (is (= :security/force-authorisation (:concept/id concept)) "Concept ID must match")
@@ -49,7 +50,8 @@
 (deftest every-claim-namespace-has-matching-concept-entry
   (let [claims (edn-read claims-path)
         claim-namespaces (set (map namespace (keep :claim/id claims)))
-        concept-names (set (map (comp name :concept/id) (:concepts (edn-read concept-registry-path))))]
+        concept-names (set (map (comp name :concept/id)
+                                (:concepts (:registry (concepts-registry/load-registry)))))]
     (testing "all claim namespaces have a corresponding concept entry"
       (doseq [ns claim-namespaces]
         (is (contains? concept-names ns)

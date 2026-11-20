@@ -4,8 +4,7 @@
    Used by bb hash:source and by pre-run commitment generation."
   (:require [clojure.java.io :as io]
             [clojure.java.shell :as sh]
-            [clojure.string :as str]
-            [resolver-sim.config.paths :as paths])
+            [clojure.string :as str])
   (:import [java.security MessageDigest]))
 
 (def default-source-roots
@@ -13,8 +12,6 @@
    "src"
    "protocols_src"
    "benchmarks"
-   (paths/concepts-dir)
-   "data/concept-mappings"
    "scenarios"
    "suites"
    "resources"])

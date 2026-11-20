@@ -78,7 +78,7 @@
 
 (def ^:const concept-registry-path
   "Concept registry file path (bare — use resource-prefix for classpath)."
-  "data/concepts/registry.edn")
+  "concepts/registry.edn")
 
 (def ^:const benchmark-registry-path
   "Benchmark pack registry resource path (with resource: prefix for classpath)."

@@ -13,7 +13,7 @@
 (def bundle-schema "prf.concept-bundle.v1")
 (def bundle-domain "PRF_CONCEPT_BUNDLE_ROOT_V1")
 (def catalogue-domain "PRF_CONCEPT_BUNDLE_CATALOGUE_ROOT_V1")
-(def default-bundle-registry "data/concept-bundles/registry.edn")
+(def default-bundle-registry "resource:concepts/registry.edn")
 
 (def ^:private registry-fields
   #{:concept-bundle-registry/version :concept-bundle-registry/bundles})

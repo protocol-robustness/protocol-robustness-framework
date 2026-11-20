@@ -228,7 +228,7 @@ files. See `docs/forensic/FORENSIC_HARDENING.md` for the full reference.
 Example:
 
 ```bash
-PRF_SOURCE_ROOTS="src,yield_runtime_src,protocols_src,benchmarks,data/concepts,data/concept-mappings,scenarios,suites,resources" \
+PRF_SOURCE_ROOTS="src,yield_runtime_src,protocols_src,benchmarks,scenarios,suites,resources" \
 PRF_RUNS_ROOT=/mnt/evidence-archive \
 PRF_EVIDENCE_USER=dedicated-runner \
   bb forensic:run

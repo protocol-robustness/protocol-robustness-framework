@@ -73,7 +73,7 @@
                           :env     "PRF_GOLDEN_DIR"}
    :fixture-manifest     {:default hash-ref/fixture-suite-manifest-path}
    :concepts-registry    {:default hash-ref/concept-registry-path}
-   :concepts-dir         {:default "data/concepts"
+   :concepts-dir         {:default "concepts/definitions"
                           :env     "PRF_CONCEPTS_DIR"}
    :claims-file          {:default "extensions/sew-runner/resources/data/claims/sew-claims.edn"
                           :env     "PRF_CLAIMS_FILE"}

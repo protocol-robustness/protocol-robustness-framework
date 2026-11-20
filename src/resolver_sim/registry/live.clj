@@ -7,7 +7,7 @@
    Registry types:
      :benchmark    — Benchmark suite registry (benchmarks/registry.edn, inlines packs)
      :pack         — Single pack registry (requires :pack/id option)
-     :concept      — Concept definitions (data/concepts/registry.edn)
+     :concept      — Concept definitions (pinned prf-concepts bundle registry)
      :command      — CLI command dispatch (prf/commands/registry.edn)
      :claim        — Global claim definitions (benchmarks/claim-registry.edn)
      :protocol     — Protocol var/symbol registry (in-memory, extensible)
@@ -20,6 +20,7 @@
    provenance metadata. register-registry! adds new registry types at runtime."
   (:require [clojure.string :as str]
             [resolver-sim.benchmark.claim-registry :as claim-registry]
+            [resolver-sim.concepts.registry :as concepts-registry]
             [resolver-sim.io.resource-path :as rp]
             [resolver-sim.logging :as log]
             [resolver-sim.hash.reference :as hash-ref])
@@ -67,7 +68,7 @@
 
 (defn- resolve-concept-registry
   ([] (resolve-concept-registry nil))
-  ([_] (edn-read-path (str hash-ref/resource-prefix hash-ref/concept-registry-path))))
+  ([_] (:registry (concepts-registry/load-registry))))
 
 (defn- resolve-command-registry
   ([] (resolve-command-registry nil))

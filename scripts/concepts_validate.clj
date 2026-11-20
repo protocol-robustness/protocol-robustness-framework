@@ -1,13 +1,14 @@
 (require '[clojure.edn :as edn]
          '[clojure.java.io :as io]
          '[clojure.set :as set]
+         '[clojure.string :as str]
          '[resolver-sim.concepts.registry :as concepts-registry]
-         '[resolver-sim.concepts.bundles :as concept-bundles])
+         '[resolver-sim.concepts.bundles :as concept-bundles]
+         '[resolver-sim.hash.reference :as hash-ref]
+         '[resolver-sim.io.resource-path :as resource-path])
 
-(def concept-root (io/file "data/concepts"))
-(def registry-path (io/file concept-root "registry.edn"))
-(def concept-bundle-root (io/file "data/concept-bundles"))
-(def concept-bundle-registry-path (io/file concept-bundle-root "registry.edn"))
+(def registry-path (str hash-ref/resource-prefix hash-ref/concept-registry-path))
+(def concept-bundle-registry-path "resource:concepts/registry.edn")
 (def known-protocols #{:protocol/sew-v1 :protocol/prf})
 (def supported-maps-to-types #{:protocol.actor :protocol.role :protocol.entity :protocol.action :protocol.outcome :protocol.guard :protocol.parameter})
 
@@ -44,7 +45,7 @@
     :layer :maturity :metrics :name :note :notes :out-of-scope :outcomes
     :primitives :properties :protocols :related :relations :roles
     :security-significance :stakeholder-question :subconcepts :summary
-    :support-status :type :variants :version :vocabulary})
+    :status :support-status :type :variants :version :vocabulary})
 
 (def known-id-namespaces
   "Allowlist of :concept/id namespace segments currently in use across the
@@ -83,7 +84,13 @@
           (file-seq (io/file dir))))
 
 (defn parse-edn [f]
-  (try [(edn/read-string (slurp f)) nil]
+  (try [(if (instance? java.io.File f)
+          (edn/read-string (slurp f))
+          (let [path (str f)
+                resource (if (str/starts-with? path "resource:")
+                           path
+                           (str hash-ref/resource-prefix path))]
+            (resource-path/edn-read resource))) nil]
        (catch Exception e [nil (str (.getMessage e))])))
 
 (defn missing-keys [data]
@@ -196,8 +203,7 @@
     (doseq [mapping-entry mapping-files]
       (let [protocol (:mapping/protocol mapping-entry)
             mapping-file (:mapping/file mapping-entry)
-            f (io/file mapping-file)
-            [mapping-set parse-error] (if (.exists f) (parse-edn f) [nil "file not found"])]
+            [mapping-set parse-error] (parse-edn mapping-file)]
         (when-not (or (= :shared protocol) (contains? known-protocols protocol))
           (swap! errors conj (str mapping-file " declares unknown protocol " protocol)))
         (if parse-error
@@ -254,7 +260,7 @@
   [registry errors]
   (let [[bundle-registry parse-error] (parse-edn concept-bundle-registry-path)]
     (if parse-error
-      (swap! errors conj (str (.getPath concept-bundle-registry-path) ": " parse-error))
+      (swap! errors conj (str concept-bundle-registry-path ": " parse-error))
       (let [bundle-entries (:concept-bundle-registry/bundles bundle-registry)
             bundle-ids (map :bundle/id bundle-entries)
             bundle-files (map :bundle/manifest bundle-entries)
@@ -280,7 +286,7 @@
         (when-not (= (count bundle-files) (count (distinct bundle-files)))
           (swap! errors conj "concept bundle registry contains duplicate manifest paths"))
         (doseq [[entry path] (map vector bundle-entries bundle-files)]
-          (let [[manifest manifest-error] (parse-edn (io/file path))
+          (let [[manifest manifest-error] (parse-edn path)
                 bundle-id (:bundle/id entry)]
             (if manifest-error
               (swap! errors conj (str path ": " manifest-error))
@@ -318,10 +324,12 @@
                              (vec (sort-by str (map :mapping/protocol (:bundle/mapping-files manifest)))))
                   (swap! errors conj (str path " mapping files must be ordered by protocol")))
                 (doseq [{:keys [concept/id concept/file]} (:bundle/concepts manifest)]
-                  (swap! actual-concepts conj [(:bundle/owner manifest) id file]))
+                  (swap! actual-concepts conj
+                         [(:bundle/owner manifest) id (str/replace-first file #"^resource:" "")]))
                 (doseq [{:keys [mapping/protocol mapping/file]} (:bundle/mapping-files manifest)]
                   (swap! actual-mappings conj
-                         [(if (= :shared protocol) :shared protocol) protocol file]))))))
+                         [(if (= :shared protocol) :shared protocol) protocol
+                          (str/replace-first file #"^resource:" "")]))))))
         (when-not (= expected-concepts (set @actual-concepts))
           (swap! errors conj "concept bundle inventories do not exactly cover registry concepts"))
         (when-not (= expected-mappings (set @actual-mappings))
@@ -403,140 +411,114 @@
 
 (defn run-validation []
   (println "▶ concepts:validate\n")
-  (println "  Parsing registry...")
-  (let [[registry reg-err] (parse-edn registry-path)]
-    (when reg-err
-      (println "    FAIL" (.getPath registry-path) "-" reg-err "\n\nVALIDATION FAILED")
-      (System/exit 1))
-    (let [reg-entries (:concepts registry)
-          reg-by-id (into {} (map (fn [e] [(:concept/id e) e]) reg-entries))
+  (try
+    (let [{:keys [registry]} (concepts-registry/load-registry)
+          reg-entries (:concepts registry)
+          reg-by-id (into {} (map (fn [entry] [(:concept/id entry) entry]) reg-entries))
           errors (atom [])
           files-ok (atom 0)
           loaded-concepts (atom [])
           {kg-issues :issues kg-errors :errors} (load-known-gap-registry)
-          known-gaps-by-id (into {} (map (fn [i] [(name (:issue/id i)) i]) kg-issues))
+          known-gaps-by-id (into {} (map (fn [issue] [(name (:issue/id issue)) issue]) kg-issues))
           known-gap-ids (set (keys known-gaps-by-id))
           kg-dup-ids (set (for [[id freq] (frequencies (map #(name (:issue/id %)) kg-issues))
                                 :when (> freq 1)] id))]
-      (println "  Checking concept bundle inventories...")
+      (println "  Checking pinned bundle inventory...")
       (check-concept-bundle-inventory registry errors)
-      (try
-        (let [catalogue (concept-bundles/load-bundles)
-              loaded-ids (set (map :concept/id
-                                   (:concept-bundle-catalogue/concepts catalogue)))
-              registered-ids (set (map :concept/id reg-entries))]
-          (when-not (= loaded-ids registered-ids)
-            (swap! errors conj "bundle loader output differs from the legacy concept registry"))
-          (println "    OK" (count (:concept-bundle-catalogue/bundles catalogue))
-                   "bundles; root" (:concept-bundle-catalogue/root catalogue)))
-        (catch Exception e
-          (swap! errors conj (str "bundle loading failed: " (.getMessage e)))))
-      (println "    OK" (count reg-entries) "entries")
-      (println "  Checking registry...")
-      (doseq [[cid entry] reg-by-id]
-        (let [f (io/file (:concept/file entry))]
-          (when-not (.exists f)
-            (swap! errors conj (str "registry entry " cid " references " (:concept/file entry) " but file not found"))
-            (println "    FAIL registry entry" cid "file not found:" (:concept/file entry)))))
+      (let [catalogue (concept-bundles/load-bundles)
+            loaded-ids (set (map :concept/id
+                                 (:concept-bundle-catalogue/concepts catalogue)))
+            registered-ids (set (map :concept/id reg-entries))]
+        (when-not (= loaded-ids registered-ids)
+          (swap! errors conj "bundle loader output differs from the pinned concept registry"))
+        (when-not (= (:concept-bundle-catalogue/root catalogue)
+                     (:concept-bundle-catalogue/root
+                      (concepts-registry/load-registry)))
+          (swap! errors conj "runtime registry root differs from the pinned bundle catalogue"))
+        (println "    OK" (count (:concept-bundle-catalogue/bundles catalogue))
+                 "bundles; root" (:concept-bundle-catalogue/root catalogue)))
+      (println "    OK" (count reg-entries) "registered concepts")
       (let [ids (map :concept/id reg-entries)
             dups (set (for [[id freq] (frequencies ids) :when (> freq 1)] id))]
         (doseq [id dups]
-          (swap! errors conj (str "duplicate concept ID " id " in registry"))
-          (println "    FAIL duplicate concept ID" id)))
+          (swap! errors conj (str "duplicate concept ID " id " in bundle registry"))))
       (doseq [entry reg-entries]
-        (let [ps (:concept/protocols entry)
-              owner (:concept/owner entry)]
+        (let [file (:concept/file entry)
+              path (str hash-ref/resource-prefix file)
+              owner (:concept/owner entry)
+              protocols (:concept/protocols entry)]
+          (when-not (resource-path/path-exists? path)
+            (swap! errors conj (str "bundle registry references missing concept resource " path)))
           (when-not (or (= :shared owner) (contains? known-protocols owner))
-            (swap! errors conj (str "entry " (:concept/id entry) " has invalid or missing :concept/owner " owner))
-            (println "    FAIL entry" (:concept/id entry) "invalid or missing owner:" owner))
-          (when (and (contains? known-protocols owner) (not (contains? ps owner)))
-            (swap! errors conj (str "entry " (:concept/id entry) " owner " owner " is not in :concept/protocols"))
-            (println "    FAIL entry" (:concept/id entry) "owner is not an applicable protocol:" owner))
-          (when (and (= :shared owner) (< (count ps) 2))
-            (swap! errors conj (str "entry " (:concept/id entry) " is shared but applies to fewer than two protocols"))
-            (println "    FAIL entry" (:concept/id entry) "shared owner requires at least two applicable protocols"))
-          (when ps
-            (doseq [p ps]
-              (when-not (known-protocols p)
-                (swap! errors conj (str "entry " (:concept/id entry) " unknown protocol " p))
-                (println "    FAIL entry" (:concept/id entry) "unknown protocol" p))))))
+            (swap! errors conj (str "entry " (:concept/id entry) " has invalid owner " owner)))
+          (when (and (contains? known-protocols owner) (not (contains? protocols owner)))
+            (swap! errors conj (str "entry " (:concept/id entry) " owner is not an applicable protocol")))
+          (when (and (= :shared owner) (< (count protocols) 2))
+            (swap! errors conj (str "entry " (:concept/id entry) " is shared but applies to fewer than two protocols")))
+          (doseq [protocol protocols]
+            (when-not (known-protocols protocol)
+              (swap! errors conj (str "entry " (:concept/id entry) " has unknown protocol " protocol))))))
       (println "  Parsing known-gaps registry...")
-      (doseq [e kg-errors]
-        (swap! errors conj e)
-        (println "    FAIL" e))
-      (println "    OK" (count kg-issues) "issues across" (count (distinct (map :known-gap/file kg-issues))) "files")
+      (doseq [error kg-errors]
+        (swap! errors conj error))
+      (println "    OK" (count kg-issues) "issues across"
+               (count (distinct (map :known-gap/file kg-issues))) "files")
       (doseq [id (sort kg-dup-ids)]
-        (swap! errors conj (str "duplicate known-gap :issue/id " (pr-str id) " across data/known-gaps/"))
-        (println "    FAIL duplicate known-gap :issue/id" id))
-      (println "  Parsing concept files...")
-      (doseq [f (sort (edn-files concept-root))]
-        (when-not (= (.getName f) "registry.edn")
-          (let [rel (str (.relativize (.toPath (.getCanonicalFile concept-root)) (.toPath (.getCanonicalFile f))))
-                [data parse-err] (parse-edn f)]
-            (if parse-err
-              (do (swap! errors conj (str rel ": " parse-err))
-                  (println "    FAIL" rel "-" parse-err))
-              (let [ctype (:concept/type data)
-                         is-standard (contains? standard-concept-types ctype)
-                         missing (when is-standard (missing-keys data))]
-                 (if missing
-                   (do (swap! errors conj (str rel ": missing keys " (pr-str missing)))
-                       (println "    FAIL" rel "missing keys:" (pr-str missing)))
-                  (let [cid (:concept/id data)
-                        ctype (:concept/type data)
-                        reg-entry (get reg-by-id cid)]
-                    (swap! files-ok inc)
-                    (swap! loaded-concepts conj data)
-                    (when (nil? reg-entry)
-                      (swap! errors conj (str rel ": not registered in registry.edn"))
-                      (println "    WARN" rel "not registered"))
-                    (when reg-entry
-                      (let [expected-file (:concept/file reg-entry)
-                            expected-rel (clojure.string/replace-first expected-file "data/concepts/" "")]
-                        (when (not= expected-rel rel)
-                          (swap! errors conj (str rel ": registry file mismatch, expected " expected-file))
-                          (println "    FAIL" rel "registry file mismatch, expected" expected-file)))
-                      (let [ft ctype rt (:concept/type reg-entry)]
-                        (when (not= ft rt)
-                          (swap! errors conj (str rel ": type mismatch, file has " ft ", registry has " rt))
-                          (println "    FAIL" rel "type mismatch")))
-                      (let [fl (:concept/layer data) rl (:concept/layer reg-entry)]
-                        (when (not= fl rl)
-                          (swap! errors conj (str rel ": layer mismatch, file has " fl ", registry has " rl))
-                          (println "    FAIL" rel "layer mismatch")))
-                      (when (not= (:concept/protocols data) (:concept/protocols reg-entry))
-                        (swap! errors conj (str rel ": :concept/protocols differs from registry entry"))
-                        (println "    FAIL" rel "protocol applicability differs from registry")))
-                    (let [expected-dir (get type-dir-map ctype)]
-                      (when (and expected-dir (not (.startsWith rel (str expected-dir "/")))
-                                 (not= rel (str expected-dir ".edn")))
-                        (swap! errors conj (str rel ": expected in " expected-dir "/ directory for type " ctype))
-                        (println "    FAIL" rel "wrong directory for type" ctype "expected" (str expected-dir "/"))))
-                    (let [ps (:concept/protocols data)]
-                      (doseq [p ps]
-                        (when-not (known-protocols p)
-                          (swap! errors conj (str rel ": unknown protocol " p))
-                          (println "    FAIL" rel "unknown protocol" p))))
-(check-value-maps-to rel data errors)
-                      (check-unknown-concept-keys rel data errors)
-                      (check-id-namespace-known rel data errors)
-                     (check-use-case-contract rel data errors)
-                     (check-evidence rel data errors)
-                     (check-mapping-statuses rel data errors)
-                     (check-out-of-scope rel data errors)
-                     (check-known-gaps rel data known-gaps-by-id known-gap-ids errors))))))))
+        (swap! errors conj (str "duplicate known-gap :issue/id " (pr-str id) " across data/known-gaps/")))
+      (println "  Validating pinned concept resources...")
+      (doseq [entry reg-entries]
+        (let [file (:concept/file entry)
+              path (str hash-ref/resource-prefix file)
+              rel (str/replace-first file #"^concepts/definitions/" "")
+              [data parse-error] (parse-edn path)]
+          (if parse-error
+            (swap! errors conj (str path ": " parse-error))
+            (let [ctype (:concept/type data)
+                  is-standard (contains? standard-concept-types ctype)
+                  missing (when is-standard (missing-keys data))]
+              (if missing
+                (swap! errors conj (str rel ": missing keys " (pr-str missing)))
+                (do
+                  (swap! files-ok inc)
+                  (swap! loaded-concepts conj data)
+                  (when-not (= (:concept/id data) (:concept/id entry))
+                    (swap! errors conj (str rel ": concept ID differs from bundle registry")))
+                  (when-not (= (:concept/type data) (:concept/type entry))
+                    (swap! errors conj (str rel ": concept type differs from bundle registry")))
+                  (when-not (= (:concept/layer data) (:concept/layer entry))
+                    (swap! errors conj (str rel ": concept layer differs from bundle registry")))
+                  (when-not (= (:concept/protocols data) (:concept/protocols entry))
+                    (swap! errors conj (str rel ": protocol applicability differs from bundle registry")))
+                  (let [expected-dir (get type-dir-map ctype)]
+                    (when (and expected-dir
+                               (not (.startsWith rel (str expected-dir "/")))
+                               (not= rel (str expected-dir ".edn")))
+                      (swap! errors conj (str rel ": expected in " expected-dir "/ for type " ctype))))
+                  (doseq [protocol (:concept/protocols data)]
+                    (when-not (known-protocols protocol)
+                      (swap! errors conj (str rel ": unknown protocol " protocol))))
+                  (check-value-maps-to rel data errors)
+                  (check-unknown-concept-keys rel data errors)
+                  (check-id-namespace-known rel data errors)
+                  (check-use-case-contract rel data errors)
+                  (check-evidence rel data errors)
+                  (check-mapping-statuses rel data errors)
+                  (check-out-of-scope rel data errors)
+                  (check-known-gaps rel data known-gaps-by-id known-gap-ids errors)))))))
       (println "  Checking protocol mapping files...")
       (check-protocol-mapping-files registry @loaded-concepts errors)
       (println "  Checking related concept references...")
       (doseq [{:keys [from to]} (concepts-registry/missing-related-concepts @loaded-concepts)]
-        (swap! errors conj (str "concept " from " references missing related concept " to))
-        (println "    FAIL concept" from "references missing related concept" to))
+        (swap! errors conj (str "concept " from " references missing related concept " to)))
       (println)
       (if (empty? @errors)
-        (println "  OK" @files-ok "files, all valid\n\nVALIDATION PASSED")
+        (println "  OK" @files-ok "concept resources, all valid\n\nVALIDATION PASSED")
         (do (println "  ERRORS:" (count @errors))
-            (doseq [e @errors] (println "    -" e))
+            (doseq [error @errors] (println "    -" error))
             (println "\nVALIDATION FAILED")
-            (System/exit 1))))))
+            (System/exit 1))))
+    (catch Exception e
+      (println "  FAIL" (.getMessage e) "\n\nVALIDATION FAILED")
+      (System/exit 1))))
 
 (run-validation)

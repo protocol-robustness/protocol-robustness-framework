@@ -143,7 +143,7 @@ benchmarks/
 |---|---|
 | `/scenarios/` | Reusable protocol scenarios (shared across tools) |
 | `/benchmarks/scenarios/` | Benchmark-owned fixed regression cases |
-| `/data/concepts/` | Reusable framework-level concept definitions |
+| Pinned `prf-extensions` concept package | Reusable framework-level concept definitions |
 | `/benchmarks/concepts/` | Benchmark-local concept definitions (may shadow global) |
 
 ## Generated vs Maintained

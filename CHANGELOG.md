@@ -10,6 +10,8 @@
 
 ## Unreleased
 
+- Canonical concept bundles, mappings, and registry inputs now resolve from the pinned `prf-extensions` package instead of the in-tree concept files.
+
 - Added PRF Dispute Review V0 with per-review canonical identity, pinned subject and policy references, structured nonbinding findings, declared trust classes, and fail-closed verification for changed sources, evidence and reproduction outputs. External authentication and adjudication remain outside this review workflow.
 
 - Benchmark validation now reports framework concept-registry load failures with their validation details instead of misreporting referenced concepts as unknown.

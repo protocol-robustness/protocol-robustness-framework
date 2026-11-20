@@ -5,7 +5,7 @@
             [resolver-sim.concepts.registry :as cr]))
 
 (defn- registry-entry
-  ([id] (registry-entry id (str "data/concepts/t/" (name id) ".edn")))
+  ([id] (registry-entry id (str "concepts/definitions/t/" (name id) ".edn")))
   ([id file] {:concept/id id :concept/type :framework :concept/file file}))
 
 (defn- full-concept
@@ -29,13 +29,13 @@
 (deftest duplicate-concept-ids-fail-closed
   (testing "duplicate :concept/id across files is an integrity violation with
             both sources reported (file load order is not hidden semantic state)"
-    (let [entries [(registry-entry :test/dup "data/concepts/t/a.edn")
-                   (registry-entry :test/dup "data/concepts/t/b.edn")]
+    (let [entries [(registry-entry :test/dup "concepts/definitions/t/a.edn")
+                   (registry-entry :test/dup "concepts/definitions/t/b.edn")]
           violations (cr/registry-integrity-violations
                       entries [(full-concept :test/dup) (full-concept :test/dup)])]
       (is (= [{:concept/id :test/dup
                :violation/id :violation/duplicate-concept-id
-               :sources ["data/concepts/t/a.edn" "data/concepts/t/b.edn"]}]
+               :sources ["concepts/definitions/t/a.edn" "concepts/definitions/t/b.edn"]}]
              violations)))))
 
 (deftest missing-required-keys-fail-closed
@@ -62,8 +62,16 @@
 
 (deftest load-registry-publishes-only-when-valid
   (testing "the real registry is integrity-clean and publishes"
-    (let [{:keys [concepts]} (cr/load-registry)]
+    (let [{:keys [concepts mapping-sets] :concept-bundle-catalogue/keys [root]}
+          (cr/load-registry)]
       (is (seq concepts))
+      (is (= 50 (count concepts)))
+      (is (= #{:shared :protocol/prf :protocol/sew-v1} (set (keys mapping-sets))))
+      (is (= "sha256:96b8e0d5d7a7dc71ad83100481475b7caadc5291fec274fc751dc6efc6b9ed10"
+             root))
+      (is (= :verifiable-assurance/forensic-confidence
+             (:concept/id (first concepts))))
+      (is (every? #(= :draft (:concept/status %)) (:concepts (:registry (cr/load-registry)))))
       (is (empty? (cr/registry-integrity-violations
                    (:concepts (:registry (cr/load-registry)))
                    concepts))))))

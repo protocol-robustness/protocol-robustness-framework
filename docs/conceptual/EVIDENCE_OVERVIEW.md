@@ -99,7 +99,7 @@ A forensic-grade chain satisfies all five criteria. The `src/resolver_sim/eviden
 
 **Key docs:**
 - `docs/architecture/FORENSIC_EVIDENCE.md`
-- `data/concepts/assurance/evidence_chain.edn` — forensic concept model with roles, entities, outcomes, failure modes
+- The pinned `prf-extensions` concept bundle `:assurance/evidence-chain` — forensic concept model with roles, entities, outcomes, failure modes
 - `docs/specs/ATTESTATION_SPEC_V1.md`
 - `docs/specs/evidence/EVIDENCE_COMMITMENT_SPEC_V1.md`
 
@@ -241,10 +241,10 @@ Evidence from scenario replays maps to protocol invariants. The mapping from evi
 
 ## Evidence in the Wider Concept Model
 
-The concept data files in `data/concepts/` define evidence at the stakeholder/assurance level:
+The pinned `prf-extensions` concept bundle defines evidence at the stakeholder/assurance level:
 
-- **`data/concepts/decision-quality/evidence.edn`** — Consensus evidence: what facts were available to the decision process. Roles (evidence-submitter, examiner, keeper), entities (submission, deadline, registry), failure modes (missing, contradictory, late, ignored).
-- **`data/concepts/assurance/evidence_chain.edn`** — Forensic evidence chain: how evidence binds into a self-verifiable chain. Five forensic-grade criteria, roles (producer, verifier, signer, TSA), failure modes (tampered hash, broken signature, broken cursor, unverifiable timestamp, unreconciled).
+- **`:consensus/evidence`** — Consensus evidence: what facts were available to the decision process. Roles (evidence-submitter, examiner, keeper), entities (submission, deadline, registry), failure modes (missing, contradictory, late, ignored).
+- **`:forensic/evidence-chain`** — Forensic evidence chain: how evidence binds into a self-verifiable chain. Five forensic-grade criteria, roles (producer, verifier, signer, TSA), failure modes (tampered hash, broken signature, broken cursor, unverifiable timestamp, unreconciled).
 
 The general glossary (`docs/concepts/GLOSSARY.md`) provides a quick-reference mapping of evidence, evaluation, and protocol terms.
 
@@ -269,5 +269,4 @@ The general glossary (`docs/concepts/GLOSSARY.md`) provides a quick-reference ma
 | `docs/specs/evidence/EVIDENCE_POLICY_SPEC_V1.md` | Evidence policy specification | Implementers |
 | `docs/specs/evidence/CANONICAL_HASH_SPEC_V1.md` | Canonical hash algorithm specification | Implementers |
 | `docs/specs/evidence/IDENTITY_ALGEBRA_SPEC_V1.md` | Identity algebra for evidence | Implementers |
-| `data/concepts/decision-quality/evidence.edn` | Stakeholder-level evidence concept model | Concept modelers |
-| `data/concepts/assurance/evidence_chain.edn` | Forensic assurance concept model | Concept modelers |
+| `prf-extensions/concepts/` | Stakeholder-level and forensic assurance concept models | Concept modelers |

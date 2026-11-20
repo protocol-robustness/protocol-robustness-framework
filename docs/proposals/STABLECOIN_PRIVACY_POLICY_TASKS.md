@@ -32,8 +32,8 @@ Use existing repository validation and canonical registration conventions.
 Dependencies: none. Own new concept files, their registry/mapping entries, and
 an inventory note beside this handoff. Do not edit runtime code.
 
-Inspect `data/concepts/registry.edn`, `data/concept-mappings/`,
-`data/concepts/assurance/evidence_backed_classification.edn`, configuration and
+Inspect the pinned concept bundle registry and mappings from `prf-extensions`,
+including `:assurance/evidence-backed-classification`, configuration and
 authority resolution, and domain-qualified asset identity. Add draft concepts
 for stablecoin context, privacy policy, and current policy resolution. Record
 exact reusable functions, schemas, signing roles, head stores, registration

@@ -15,6 +15,7 @@
             [clojure.java.io :as io]
             [clojure.java.shell :as shell]
             [clojure.string :as str]
+            [resolver-sim.concepts.registry :as concepts-registry]
             [clojure.tools.build.api :as b])
   (:import [java.nio.file Files StandardCopyOption]))
 
@@ -39,6 +40,45 @@
             (recur (.read in buffer))))))
     (format "%064x" (java.math.BigInteger. 1 (.digest digest)))))
 
+(defn- classpath-file [path]
+  (if-let [resource (io/resource path)]
+    (try
+      (io/file (.toURI resource))
+      (catch Exception error
+        (throw (ex-info "Sew corpus packaging requires directory-backed concept resources"
+                        {:path path :url (str resource)} error))))
+    (throw (ex-info "Concept package resource is missing" {:path path}))))
+
+(defn- read-classpath-edn [path]
+  (if-let [resource (io/resource path)]
+    (edn/read-string (slurp resource))
+    (throw (ex-info "Concept package resource is missing" {:path path}))))
+
+(defn- concept-corpus-files [entry]
+  ;; The runtime loader checks the immutable catalogue root against the PRF
+  ;; source lock before the resource inventory is admitted to the Sew corpus.
+  (concepts-registry/load-registry)
+  (let [registry-path (:resource-bundle-registry entry)
+        registry (read-classpath-edn registry-path)
+        bundles (:concept-bundle-registry/bundles registry)
+        manifests (map (fn [bundle]
+                         (let [path (str/replace-first (:bundle/manifest bundle) #"^resource:" "")]
+                           [path (read-classpath-edn path)]))
+                       bundles)
+        resource-paths (->> (concat [registry-path]
+                                    (map first manifests)
+                                    (mapcat (fn [[_ manifest]]
+                                              (concat (map :concept/file (:bundle/concepts manifest))
+                                                      (map :mapping/file (:bundle/mapping-files manifest))))
+                                            manifests))
+                           (map #(str/replace-first % #"^resource:" ""))
+                           distinct
+                           sort)]
+    (mapv (fn [path]
+            (safe-relative-path! path)
+            [(:kind entry) path (classpath-file path)])
+          resource-paths)))
+
 (defn- write-distribution-provenance! [jar-file variant main-class]
   (let [jar (io/file jar-file)
         target (io/file (str jar-file ".provenance.json"))
@@ -57,7 +97,11 @@
   (let [paths (:paths entry)
         files (:files entry)
         root (:root entry)]
-    (if (or paths files)
+    (cond
+      (:resource-bundle-registry entry)
+      (concept-corpus-files entry)
+
+      (or paths files)
       (mapv (fn [{:keys [source path]}]
               (safe-relative-path! source)
               (safe-relative-path! path)
@@ -66,6 +110,8 @@
                   (throw (ex-info "Declared Sew release corpus file is missing" {:path source})))
                 [(:kind entry) path file]))
             (or files (mapv (fn [path] {:source path :path path}) paths)))
+
+      :else
       (let [root (safe-relative-path! root)
             directory (io/file root)
             extensions (set (:extensions entry))

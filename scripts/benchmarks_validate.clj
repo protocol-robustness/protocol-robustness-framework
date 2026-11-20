@@ -306,7 +306,7 @@
  
 (defn check-benchmark-out-of-scope!
   "Validate :concept/out-of-scope parity for benchmark concepts.
-   Enforces the same rules as data/concepts: required, vector of strings,
+   Enforces the same rules as the pinned global concept package: required, vector of strings,
    non-empty, no duplicates."
   [errors path id c]
   (let [oos (:concept/out-of-scope c)]
@@ -500,7 +500,7 @@
                     (when-not (get c k)
                       (swap! errors conj (str (path-str path) " concept " id " missing " k))
                       (println "    FAIL" (path-str path) "concept" id "missing" k)))
-                  ;; Out-of-scope parity with data/concepts validation
+                  ;; Out-of-scope parity with global concept validation
                   (check-benchmark-out-of-scope! errors path id c)
                   (let [maps-to (:concept/maps-to c)]
                     (when-not (map? maps-to)

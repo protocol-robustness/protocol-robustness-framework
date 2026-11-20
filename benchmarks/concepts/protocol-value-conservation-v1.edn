@@ -103,7 +103,7 @@
     :concept/note
    "This benchmark concept is not the canonical definition of conservation.
     The canonical reusable definition lives in
-    data/concepts/framework/conservation.edn. This file explains how that
+    the pinned PRF concept package's framework conservation definition. This file explains how that
     concept is operationalised by benchmarks grouped under the
     protocol-value-conservation domain."}
 

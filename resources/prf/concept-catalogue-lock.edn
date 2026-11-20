@@ -1,0 +1,9 @@
+{:schema "prf.concept-source-lock.v1"
+ :source/repository "https://github.com/protocol-robustness/prf-extensions.git"
+ :source/commit "0078ab6c8e4b07d281629ce78a20a76fa8624bd4"
+ :catalogue/root "sha256:96b8e0d5d7a7dc71ad83100481475b7caadc5291fec274fc751dc6efc6b9ed10"
+ :concept-count 50
+ :historical/source-repository "https://github.com/protocol-robustness/protocol-robustness-framework.git"
+ :historical/source-commit "84ca777e0fca16030c40f158cf593b2a45184c73"
+ :historical/catalogue-root "sha256:5dee6023ad4c3820391603e2f427b5a275f2114c3c0b78cf169b5fcef7a63cec"
+ :historical/root-equivalent? false}

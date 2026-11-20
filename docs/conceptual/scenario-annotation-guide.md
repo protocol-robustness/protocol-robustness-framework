@@ -43,6 +43,7 @@ For scenarios exercising multiple concepts, use a vector:
 
 ## Validation
 
-Annotations must reference concepts registered in
-`data/concepts/registry.edn`. Unregistered concept IDs will be flagged
-by the concepts registry loader.
+Annotations must reference concepts registered in the pinned
+`org.protocol-robustness/prf-concepts` dependency at
+`resource:concepts/registry.edn`. Unregistered concept IDs are rejected by the
+concept registry loader.

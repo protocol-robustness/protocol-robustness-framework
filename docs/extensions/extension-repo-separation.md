@@ -3,7 +3,7 @@
 - **Status:** Proposed
 - **Date:** 2026-11-02
 - **Decision owners:** PRF maintainers
-- **Related:** ADR-0005 — Framework Extension Packages; `EXTRACTION_CANDIDATE_ASSESSMENT.md`; `packages/prf-extension-api-v1/`; `data/concepts/README.md`; `data/concept-mappings/README.md`
+- **Related:** ADR-0005 — Framework Extension Packages; `EXTRACTION_CANDIDATE_ASSESSMENT.md`; `packages/prf-extension-api-v1/`; the concept bundles in `prf-extensions/concepts/`
 - **Scope:** PRF executable extensions, adapters, declarative concept bundles and third-party extension distribution
 
 ## 1. Context

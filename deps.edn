@@ -11,6 +11,9 @@
         prf/pro-rata-allocation          {:git/url "https://github.com/protocol-robustness/prf-pro-rata-allocation.git"
                                            :git/sha "cf38de1ea4ef03654ee3de8bead56c32ef078b10"
                                            :deps/root "clj"}
+        org.protocol-robustness/prf-concepts {:git/url "https://github.com/protocol-robustness/prf-extensions.git"
+                                               :git/sha "0078ab6c8e4b07d281629ce78a20a76fa8624bd4"
+                                               :deps/root "concepts"}
         prf/accounting-reductions        {:local/root "packages/accounting-reductions/clj"}
         org.clojure/tools.logging         {:mvn/version "1.2.4"}
         org.slf4j/slf4j-api               {:mvn/version "1.7.36"}

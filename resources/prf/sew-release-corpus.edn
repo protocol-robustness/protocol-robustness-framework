@@ -15,11 +15,10 @@
    :root "data/fixtures"
    :extensions [".edn" ".json"]}
   {:kind "data"
-   :root "data/concepts"
-   :extensions [".edn" ".json"]}
+   :resource-bundle-registry "concepts/registry.edn"}
   {:kind "data"
-   :root "data/concept-mappings"
-   :extensions [".edn"]}
+   :files [{:source "resources/prf/concept-catalogue-lock.edn"
+            :path "resources/prf/concept-catalogue-lock.edn"}]}
   {:kind "data"
    :root "data/params"
    :extensions [".edn" ".json"]}

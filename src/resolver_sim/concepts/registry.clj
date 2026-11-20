@@ -1,5 +1,5 @@
 (ns resolver-sim.concepts.registry
-  "Load and validate concept metadata from data/concepts/.
+  "Load and validate concept metadata from the pinned prf-concepts package.
 
    Phase 1 scope:
    - Load registry index and individual concept definitions.
@@ -8,6 +8,8 @@
 
    No protocol execution changes, no scenario generation."
   (:require [clojure.set :as set]
+            [clojure.string :as str]
+            [resolver-sim.concepts.bundles :as concept-bundles]
             [resolver-sim.io.resource-path :as rp]
             [resolver-sim.logging :as log]
             [resolver-sim.hash.reference :as hash-ref]))
@@ -256,7 +258,122 @@
    Returns {:registry <registry-map> :concepts <vec-of-concept-maps>}.
    Cached after first load — disk is read once per process."
   ([]
-   (load-registry concept-registry-path))
+   (or @registry-cache
+       (let [catalogue (concept-bundles/load-bundles concept-registry-path)
+             package-lock (rp/edn-read "resource:concepts/catalogue-lock.edn")
+             legacy-order (rp/edn-read "resource:concepts/legacy-registry-order.edn")
+             prf-lock (rp/edn-read "resource:prf/concept-catalogue-lock.edn")
+             concept-order (:concept-order legacy-order)
+             catalogue-ids (set (map :concept/id
+                                     (:concept-bundle-catalogue/concepts catalogue)))
+             _ (when-not (and (= "prf.concept-source-lock.v1" (:schema prf-lock))
+                              (= (:catalogue/root prf-lock)
+                                 (:concept-bundle-catalogue/root catalogue))
+                              (= (:concept-count prf-lock)
+                                 (count (:concept-bundle-catalogue/concepts catalogue)))
+                              (= (:catalogue/root package-lock)
+                                 (:concept-bundle-catalogue/root catalogue))
+                              (= (:concept-order package-lock) concept-order)
+                              (= :prf.concept-legacy-order.v1 (:schema legacy-order))
+                              (= (:historical/source-commit prf-lock)
+                                 (:source/commit legacy-order))
+                              (= (:historical/catalogue-root prf-lock)
+                                 (:source/registry-root legacy-order))
+                              (= (:concept-count package-lock)
+                                 (count (:concept-bundle-catalogue/concepts catalogue)))
+                              (= (:concept-count package-lock) (count concept-order))
+                              (= (count concept-order) (count (distinct concept-order)))
+                              (= catalogue-ids (set concept-order)))
+                 (throw (ex-info "resolved concept catalogue does not match its lock"
+                                 {:error :concepts/lock-mismatch
+                                  :expected-root (:catalogue/root prf-lock)
+                                  :actual-root (:concept-bundle-catalogue/root catalogue)
+                                  :expected-count (:concept-count prf-lock)
+                                  :actual-count (count (:concept-bundle-catalogue/concepts catalogue))})))
+             bundles (:concept-bundle-catalogue/bundles catalogue)
+             concepts-by-id (into {}
+                                  (map (juxt :concept/id identity))
+                                  (:concept-bundle-catalogue/concepts catalogue))
+             bundle-entries (vec
+                      (mapcat (fn [bundle]
+                                (map (fn [{:keys [concept/id concept/file]}]
+                                       (let [concept (get concepts-by-id id)]
+                                         (assoc (select-keys concept
+                                                             [:concept/id :concept/type :concept/layer
+                                                              :concept/name :concept/status :concept/protocols])
+                                                :concept/owner (:bundle/owner bundle)
+                                                :concept/file (str/replace-first file #"^resource:" ""))))
+                                     (:bundle/concepts bundle)))
+                              bundles))
+             overrides (:registry-entry-overrides package-lock)
+             _ (when-not (and (every? catalogue-ids (keys overrides))
+                              (every? (fn [[_ fields]]
+                                        (and (map? fields)
+                                             (= #{:concept/name} (set (keys fields)))
+                                             (string? (:concept/name fields))))
+                                      overrides))
+                 (throw (ex-info "concept registry compatibility overrides are invalid"
+                                 {:error :concepts/invalid-registry-overrides
+                                  :overrides overrides})))
+             entries (let [by-id (into {} (map (juxt :concept/id identity)) bundle-entries)]
+                       (mapv (fn [id] (merge (by-id id) (get overrides id))) concept-order))
+             mapping-files (vec
+                            (mapcat (fn [bundle]
+                                      (map (fn [{:keys [mapping/protocol mapping/file]}]
+                                             {:mapping/protocol protocol
+                                              :mapping/file (str/replace-first file #"^resource:" "")})
+                                           (:bundle/mapping-files bundle)))
+                                    bundles))
+             registry {:concept-registry/version 1
+                       :concept-registry/description
+                       "Canonical stakeholder-facing concept catalogue. Ownership identifies semantic ownership; protocol applicability identifies supported protocol contexts."
+                       :concepts entries
+                       :concept-mapping-files mapping-files}
+             mapping-indexes
+             (into {}
+                   (map (fn [mapping-set]
+                          [(:mapping-set/protocol mapping-set)
+                           (reduce (fn [index mapping]
+                                     (assoc index
+                                            [(:concept/id mapping)
+                                             (:mapping/category mapping)
+                                             (:mapping/id mapping)]
+                                            (:mapping/values mapping)))
+                                   {}
+                                   (:mappings mapping-set))]))
+                   (:concept-bundle-catalogue/mapping-files catalogue))
+             loaded (mapv (fn [entry]
+                            (let [concept (get concepts-by-id (:concept/id entry))
+                                  validated (validate-concept concept)]
+                              (assoc validated :entry entry)))
+                          entries)
+             integrity (registry-integrity-violations entries (map :concept loaded))]
+         (when (seq integrity)
+           (throw (ex-info "concept registry validation failed"
+                           {:error :concepts/validation-failed
+                            :violations integrity})))
+         (log/info! "concepts/loaded" {:count (count entries)
+                                       :ids (mapv :concept/id (map :concept loaded))
+                                       :catalogue/root (:concept-bundle-catalogue/root catalogue)})
+         (let [concepts (mapv (fn [{:keys [concept entry]}]
+                                (let [base (assoc concept
+                                                  :concept/owner (:concept/owner entry)
+                                                  :concept/protocols (:concept/protocols entry))
+                                      owner (:concept/owner entry)
+                                      mapped (concept-for-protocol
+                                              (with-mapping-context base base mapping-indexes)
+                                              owner)]
+                                  (with-mapping-context mapped base mapping-indexes)))
+                              loaded)
+               result {:registry (assoc registry
+                                         :concept-bundle-catalogue/root
+                                         (:concept-bundle-catalogue/root catalogue))
+                       :mapping-sets mapping-indexes
+                       :concepts concepts
+                       :concept-bundle-catalogue/root
+                       (:concept-bundle-catalogue/root catalogue)}]
+           (reset! registry-cache result)
+           result))))
   ([registry-path]
    (or @registry-cache
        (let [registry (load-edn registry-path)
