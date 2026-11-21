@@ -2,6 +2,7 @@
   "Parameter schemas and types for the Sew Protocol dispute resolution simulation."
   (:require [resolver-sim.stochastic.detection :as detection]
             [resolver-sim.stochastic.economics :as econ]
+            [resolver-sim.math.constants :as math-constants]
             [malli.core :as m]
             [malli.error :as me]))
 
@@ -23,18 +24,18 @@
                    [:lazy [:>= 0]]
                    [:malicious [:>= 0]]
                    [:collusive [:>= 0]]]]
-   [:resolver-fee-bps [:and number? [:>= 0] [:<= 10000]]]
-   [:appeal-bond-bps [:and number? [:>= 0] [:<= 10000]]]
-   [:resolver-bond-bps [:and number? [:>= 0] [:<= 10000]]]
+   [:resolver-fee-bps [:and number? [:>= 0] [:<= math-constants/basis-point-denominator]]]
+   [:appeal-bond-bps [:and number? [:>= 0] [:<= math-constants/basis-point-denominator]]]
+   [:resolver-bond-bps [:and number? [:>= 0] [:<= math-constants/basis-point-denominator]]]
    [:slash-multiplier [:>= 0]]
    [:appeal-probability-if-correct [:and number? [:>= 0] [:<= 1]]]
    [:appeal-probability-if-wrong [:and number? [:>= 0] [:<= 1]]]
    [:slashing-detection-probability [:and number? [:>= 0] [:<= 1]]]
    [:fraud-detection-probability [:and number? [:>= 0] [:<= 1]]]
-   [:fraud-slash-bps [:and number? [:>= 0] [:<= 10000]]]
+   [:fraud-slash-bps [:and number? [:>= 0] [:<= math-constants/basis-point-denominator]]]
    [:reversal-detection-probability [:and number? [:>= 0] [:<= 1]]]
-   [:reversal-slash-bps [:and number? [:>= 0] [:<= 10000]]]
-   [:timeout-slash-bps [:and number? [:>= 0] [:<= 10000]]]
+   [:reversal-slash-bps [:and number? [:>= 0] [:<= math-constants/basis-point-denominator]]]
+   [:timeout-slash-bps [:and number? [:>= 0] [:<= math-constants/basis-point-denominator]]]
    [:l1-honest-detection-probability [:and number? [:>= 0] [:<= 1]]]
    [:l1-lazy-detection-probability [:and number? [:>= 0] [:<= 1]]]
    [:l1-collusive-detection-probability [:and number? [:>= 0] [:<= 1]]]
@@ -66,7 +67,7 @@
    [:has-kleros? {:optional true} boolean?]
    [:escrow-size {:optional true} [:>= 0]]
    [:fraud-success-rate {:optional true} [:and number? [:>= 0] [:<= 1]]]
-   [:l2-slash-bps {:optional true} [:and number? [:>= 0] [:<= 10000]]]
+   [:l2-slash-bps {:optional true} [:and number? [:>= 0] [:<= math-constants/basis-point-denominator]]]
 
    ;; Optional keys
    [:panel-size {:optional true} [:>= 0]]

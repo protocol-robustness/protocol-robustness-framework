@@ -7,9 +7,10 @@
 (defn- test-namespaces []
   (->> (file-seq (io/file "test"))
        (filter #(and (.isFile %) (.endsWith (.getName %) "_test.clj")))
-       (map (fn [file]
+       (keep (fn [file]
               (with-open [reader (java.io.PushbackReader. (io/reader file))]
-                (second (read reader)))))
+                (when-let [form (read reader false nil)]
+                  (second form)))))
        sort
        vec))
 

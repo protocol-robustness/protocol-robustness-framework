@@ -1,4 +1,4 @@
-{:paths ["src"]
+{:paths ["src" "resources"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
         org.protocol-robustness/prf-core
         {:git/url "https://github.com/protocol-robustness/protocol-robustness-framework.git"

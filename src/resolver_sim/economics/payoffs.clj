@@ -12,6 +12,7 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.economics.progress :as progress]
             [resolver-sim.economics.verification :as verification]
+            [resolver-sim.math.constants :as math-constants]
             [resolver-sim.util.thread-quiescence :as quiesce])
   (:import [java.util.concurrent Callable Executors]))
 
@@ -20,11 +21,10 @@
 (def ^:const default-pro-rata-allocation-result-artifact-kind :pro-rata/allocation-result)
 
 ;; Basis point denominator used by generic integer accounting helpers.
-;; Also defined as resolver-sim.yield.exact-math/scaling-factor (same value).
-(def basis-point-denominator 10000)
+(def basis-point-denominator math-constants/basis-point-denominator)
 
 (defn calculate-bps-amount
-  "Return `amount * bps / 10000` using integer division.
+  "Return `amount * bps / basis-point-denominator` using integer division.
    Nil-safe: nil amount or bps is treated as 0."
   [amount bps]
   (quot (* (or amount 0) (or bps 0)) basis-point-denominator))

@@ -13,6 +13,11 @@
 - Canonical concept bundles, mappings, and registry inputs now resolve from the pinned `prf-extensions` package instead of the in-tree concept files.
 
 - Added registered privacy stage-output, policy-resolution, and snapshot-query commands; their output is status-only or caller-relative and does not authorize operations or claim complete storage/deletion evidence.
+
+- Packaged the default Sew slash-distribution policy as a resource of
+  `sew-protocol-model`; the package now includes its `resources` classpath.
+
+- Sew protocol model package consumers can resolve packaged policy resources through the package classpath; clean dependency prefetch was verified from the candidate checkout.
 - Added PRF Dispute Review V0 with per-review canonical identity, pinned subject and policy references, structured nonbinding findings, declared trust classes, and fail-closed verification for changed sources, evidence and reproduction outputs. External authentication and adjudication remain outside this review workflow.
 
 - Benchmark validation now reports framework concept-registry load failures with their validation details instead of misreporting referenced concepts as unknown.

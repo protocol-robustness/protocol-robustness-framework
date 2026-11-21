@@ -3,6 +3,7 @@
    
    All functions are pure: no side effects, deterministic given inputs."
   (:require [resolver-sim.stochastic.rng :as rng]
+            [resolver-sim.math.constants :as math-constants]
             [resolver-sim.time.context :as time-ctx]))
 
 (defn calculate-fee
@@ -12,7 +13,7 @@
    Example:
    (calculate-fee 1000 150) ; 1000 wei escrow, 1.5% = 15 wei"
   [escrow-wei fee-bps]
-  (quot (* escrow-wei fee-bps) 10000))
+  (quot (* escrow-wei fee-bps) math-constants/basis-point-denominator))
 
 (defn calculate-bond
   "Calculate appeal bond based on escrow and bond rate (bps).
@@ -21,7 +22,7 @@
    Example:
    (calculate-bond 1000 700) ; 1000 wei escrow, 7% = 70 wei"
   [escrow-wei bond-bps]
-  (quot (* escrow-wei bond-bps) 10000))
+  (quot (* escrow-wei bond-bps) math-constants/basis-point-denominator))
 
 (defn calculate-slashing-loss
   "Calculate slashing loss if resolver is caught and slashed.
@@ -525,10 +526,11 @@
 (defn calculate-accrued-yield
   "Calculate accrued yield based on principal, annual rate (bps), and duration (seconds).
    
-   yield = (principal * rate-bps * duration) / (10000 * seconds-per-year)"
+   yield = (principal * rate-bps * duration) / (basis-point-denominator * seconds-per-year)"
   [principal-wei rate-bps duration-seconds]
   (let [num (* (bigint principal-wei) (bigint rate-bps) (bigint duration-seconds))
-        den (* 10000 (bigint time-ctx/seconds-per-year))]
+        den (* math-constants/basis-point-denominator
+               (bigint time-ctx/seconds-per-year))]
     (long (quot num den))))
 
 (defn random-aave-rate

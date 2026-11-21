@@ -2,14 +2,15 @@
   "Dispute lifecycle and resolution mechanics."
   (:require [resolver-sim.stochastic.rng :as rng]
             [resolver-sim.stochastic.economics :as econ]
-            [resolver-sim.stochastic.detection :as detection]))
+            [resolver-sim.stochastic.detection :as detection]
+            [resolver-sim.math.constants :as math-constants]))
 
 (defn- distribute-bond-loss
   "Stochastic-model diagnostic split for detected bond loss."
   [amount]
-  {:insurance (quot (* amount 5000) 10000)
-   :protocol  (quot (* amount 3000) 10000)
-   :retained  (quot (* amount 2000) 10000)})
+  {:insurance (quot (* amount 5000) math-constants/basis-point-denominator)
+   :protocol  (quot (* amount 3000) math-constants/basis-point-denominator)
+   :retained  (quot (* amount 2000) math-constants/basis-point-denominator)})
 
 ;; Dispute resolution for a single trial
 ;; Phase D: Track slashing reasons (timeout/reversal/fraud) without RNG changes

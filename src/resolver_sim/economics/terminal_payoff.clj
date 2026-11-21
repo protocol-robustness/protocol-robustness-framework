@@ -11,7 +11,9 @@
 
    Payoff components are returned as integers (wei) where possible and
    qualified with `:type` and `:note` keys to explain their derivation."
-  (:require [resolver-sim.stochastic.economics :as econ]))
+  (:require [resolver-sim.stochastic.economics :as econ]
+            [resolver-sim.math.constants :as math-constants]
+            [resolver-sim.time.context :as time-context]))
 
 ;; ---------------------------------------------------------------------------
 ;; Payoff component helpers
@@ -191,7 +193,7 @@
                      (when include-capital?
                        (capital-cost-component
                         (econ/calculate-fee (* bond-wei (:capital-cost-rate-bps assumptions))
-                                            10000)
+                                            math-constants/basis-point-denominator)
                         locked-duration-seconds))
                      (when include-effort?
                        (effort-cost-component (:effort-cost-wei assumptions)))]
@@ -441,7 +443,8 @@
            appeal-bond-protocol-fee-bps 0}}]
   (let [S (long slash-amount-wei)
         B (long appeal-bond-wei)
-        fee (long (* B (/ (double appeal-bond-protocol-fee-bps) 10000.0)))
+        fee (long (* B (/ (double appeal-bond-protocol-fee-bps)
+                          (double math-constants/basis-point-denominator))))
         ;; P(governance upholds) depends on whether the resolver was correct
         p (double (if resolver-correct? governance-accuracy governance-error-rate))
         q (double (- 1.0 p))
@@ -515,9 +518,10 @@
            governance-accuracy 0.7
            governance-error-rate 0.3
            appeal-bond-protocol-fee-bps 0}}]
-  (let [slash-amount (long (* escrow-amount-wei (/ (or slash-bps 2500) 10000.0)))
-        appeal-bond (long (* escrow-amount-wei (/ (or appeal-bond-bps 700) 10000.0)))
-        fee (long (* appeal-bond (/ appeal-bond-protocol-fee-bps 10000.0)))
+  (let [bps-denominator (double math-constants/basis-point-denominator)
+        slash-amount (long (* escrow-amount-wei (/ (or slash-bps 2500) bps-denominator)))
+        appeal-bond (long (* escrow-amount-wei (/ (or appeal-bond-bps 700) bps-denominator)))
+        fee (long (* appeal-bond (/ appeal-bond-protocol-fee-bps bps-denominator)))
         denominator (- (+ slash-amount appeal-bond) fee)
         breakeven-uphold (if (pos? denominator)
                            (double (/ appeal-bond denominator))
@@ -532,10 +536,11 @@
                                 :appeal-bond-protocol-fee-bps appeal-bond-protocol-fee-bps)
         ;; Breakeven slash bps: solve for slash_bps where appeal_ev = no_appeal_ev
         ;; From breakeven: B/(S+B-fee) = p  →  S = B/p - B + fee
-        ;; slash_bps = S * 10000 / escrow
+        ;; slash_bps = S * basis-point-denominator / escrow
         breakeven-slash-amount (max 0.0 (- (/ appeal-bond breakeven-uphold) appeal-bond (- fee)))
         breakeven-slash-bps (if (pos? escrow-amount-wei)
-                              (long (/ (* breakeven-slash-amount 10000.0) escrow-amount-wei))
+                              (long (/ (* breakeven-slash-amount bps-denominator)
+                                       escrow-amount-wei))
                               0)
         correct-can-appeal? (:should-appeal? correct-result)
         wrong-can-appeal? (:should-appeal? wrong-result)
@@ -625,7 +630,7 @@
    escrow amount beyond the agreed response deadline.  The cost to the parties
    is the imputed opportunity cost of that capital for the stall duration:
 
-     capital-cost = escrow-wei * capital-cost-rate-bps / 10000 * (stall-seconds / seconds-per-year)
+     capital-cost = escrow-wei * capital-cost-rate-bps / basis-point-denominator * (stall-seconds / seconds-per-year)
 
    The `:capital-cost-rate-bps` is the annual opportunity-cost rate in bps
    (default 500 = 5%/yr from `default-assumptions`), and the stall duration is
@@ -651,7 +656,7 @@
   [& {:keys [escrow-wei stall-seconds response-window-seconds
              max-dispute-duration-seconds capital-cost-rate-bps seconds-per-year]
       :or {capital-cost-rate-bps 500
-           seconds-per-year 31536000}}]
+           seconds-per-year time-context/seconds-per-year}}]
   (let [escrow (long (or escrow-wei 0))
         stall  (long (or stall-seconds 0))
         w      (long (or response-window-seconds 0))
@@ -659,7 +664,8 @@
         rate   (double capital-cost-rate-bps)
         spy    (long seconds-per-year)
         capital-cost (if (and (pos? escrow) (pos? stall) (pos? spy))
-                       (long (quot (* escrow rate stall) (* 10000 spy)))
+                       (long (quot (* escrow rate stall)
+                                   (* math-constants/basis-point-denominator spy)))
                        0)
         ;; Incremental cost: capital cost of the delay beyond the response window.
         ;; When the window is disabled (w = 0) there is no agreed deadline, so the
@@ -669,7 +675,8 @@
                         (- stall w)
                         0)
         incremental-cost (if (and (pos? extra-seconds) (pos? escrow) (pos? spy))
-                           (long (quot (* escrow rate extra-seconds) (* 10000 spy)))
+                           (long (quot (* escrow rate extra-seconds)
+                                       (* math-constants/basis-point-denominator spy)))
                            0)
         window-info (if (pos? w)
                       (str "response-window=" w "s")

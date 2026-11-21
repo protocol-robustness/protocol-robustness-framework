@@ -11,7 +11,9 @@
    already-derived allocation input. Do not add world-reading allocation
    wrappers unless/until the projection artifact API is explicitly promoted
    to the primary execution path."
-  (:require [resolver-sim.economics.payoffs :as payoffs]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
+            [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.economics.calculations :as core-econ]
             [resolver-sim.economics.slash-distribution :as sd]
             [resolver-sim.protocols.registry :as registry]))
@@ -97,40 +99,12 @@
 ;; ── Sew default slash distribution policy (Phase 2) ─────────────────────
 
 (def sew-default-slash-distribution-policy
-  "Sew default slash-distribution-policy.v1: 50/30/20 base split,
-   50/50 bounty funding from insurance and protocol, remainder to protocol.
-
-   Canonical artifact: protocols/sew/policies/default-slash-distribution-v1.edn"
-  {:schema-version "slash-distribution-policy.v1"
-   :policy/id      :sew.policy/default-slash-distribution
-   :policy/version 1
-   :allocation
-   {:method       :weighted
-    :scale        10000
-    :weights      {:sew.allocation/insurance 5000
-                   :sew.allocation/protocol  3000
-                   :sew.allocation/retained  2000}
-    :remainder-to :sew.allocation/retained}
-   :awards
-   [{:award/id :sew.award/challenge-bounty
-     :amount
-     {:method        :rate-of-gross
-      :parameter-key :sew.parameter/challenge-bounty-bps
-      :scale         10000
-      :rounding      :floor}
-     :eligibility
-     {:trigger                    :sew.trigger/successful-challenge
-      :beneficiary-role           :sew.participant/challenger
-      :requires-evidence-reference? true}
-     :funding
-     {:method       :weighted-deduction
-      :scale        10000
-      :weights      {:sew.allocation/insurance 5000
-                     :sew.allocation/protocol  5000}
-      :remainder-to :sew.allocation/protocol}
-     :settlement
-     {:allocation-id   :sew.allocation/challenge-bounty
-      :obligation-kind :sew.obligation/challenge-bounty}}]})
+  "Sew's versioned default slash policy, loaded from the model package resource."
+  (let [resource "sew/policies/default-slash-distribution-v1.edn"]
+    (if-let [policy-resource (io/resource resource)]
+      (edn/read-string (slurp policy-resource))
+      (throw (ex-info "Sew default slash policy resource is missing"
+                      {:resource resource})))))
 
 (def sew-default-slash-distribution-policy-hash
   "Precomputed hash of sew-default-slash-distribution-policy."

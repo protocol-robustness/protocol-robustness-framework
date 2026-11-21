@@ -668,10 +668,13 @@
   [reason params {:keys [bond-total resolver-stake slash-mult timeout-detected?]}]
   (case reason
     :reversal (payoffs/calculate-bps-amount resolver-stake (:reversal-slash-bps params (:reversal default-slash-bps)))
-    :l2       (long (* bond-total (/ (:l2-slash-bps params (:l2 default-slash-bps)) 10000.0)))
-    :fraud    (long (* bond-total (/ (:fraud-slash-bps params (:fraud default-slash-bps)) 10000.0)))
+    :l2       (long (* bond-total (/ (:l2-slash-bps params (:l2 default-slash-bps))
+                                     (double payoffs/basis-point-denominator))))
+    :fraud    (long (* bond-total (/ (:fraud-slash-bps params (:fraud default-slash-bps))
+                                     (double payoffs/basis-point-denominator))))
     :timeout  (if timeout-detected?
-                (long (* bond-total (/ (:timeout-slash-bps params (:timeout default-slash-bps)) 10000.0)))
+                (long (* bond-total (/ (:timeout-slash-bps params (:timeout default-slash-bps))
+                                       (double payoffs/basis-point-denominator))))
                 (long (* bond-total slash-mult)))
     :l1       (long (* bond-total slash-mult))
     nil 0))
@@ -701,7 +704,7 @@
   [bond slash-bps]
   (if (zero? slash-bps)
     0
-    (long (Math/ceil (* bond (/ slash-bps 10000.0))))))
+    (long (Math/ceil (* bond (/ slash-bps (double payoffs/basis-point-denominator)))))))
 
 (defn apply-freeze
   [params]

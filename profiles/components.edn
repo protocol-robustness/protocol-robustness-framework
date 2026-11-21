@@ -338,7 +338,10 @@
     resolver-sim.cancellation.sew-escrow-snapshot
     resolver-sim.cancellation.sew-projection]
    :component/material
-   [{:path "packages/sew-protocol-model/test/resolver_sim/protocols/adjudication_test.clj"
+   [{:path "packages/sew-protocol-model/resources/sew/policies/default-slash-distribution-v1.edn"
+     :view-path "resources/sew/policies/default-slash-distribution-v1.edn"
+     :kind :protocol-policy}
+    {:path "packages/sew-protocol-model/test/resolver_sim/protocols/adjudication_test.clj"
      :kind :test-source}
     {:path "packages/sew-protocol-model/test/resolver_sim/protocols/sew/public_api_test.clj"
      :kind :test-source}

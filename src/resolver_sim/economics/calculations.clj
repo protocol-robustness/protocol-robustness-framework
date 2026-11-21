@@ -9,7 +9,7 @@
   (:require [resolver-sim.economics.payoffs :as payoffs]))
 
 (defn calculate-bps-amount
-  "Calculate amount * bps / 10000.
+  "Calculate amount * bps / basis-point-denominator.
    Pure math — no protocol state required."
   [amount bps]
   (payoffs/calculate-bps-amount amount bps))
@@ -48,17 +48,18 @@
    
    Validates:
      - amount >= 0, bounty >= 0
-     - insurance-cut-bps, protocol-retained-bps in [0, 10000]
-     - insurance-cut-bps + protocol-retained-bps <= 10000
+     - insurance-cut-bps, protocol-retained-bps in [0, basis-point-denominator]
+     - insurance-cut-bps + protocol-retained-bps <= basis-point-denominator
    
    Returns {:insurance <int> :protocol <int> :retained <int>}
    Guarantees: insurance + protocol + retained = amount (before bounty redistribution)"
   [amount {:keys [bounty insurance-cut-bps protocol-retained-bps]}]
   {:pre [(and (number? amount) (not (neg? amount)))
          (and (number? bounty) (not (neg? bounty)))
-         (integer? insurance-cut-bps) (<= 0 insurance-cut-bps 10000)
-         (integer? protocol-retained-bps) (<= 0 protocol-retained-bps 10000)
-         (<= (+ insurance-cut-bps protocol-retained-bps) 10000)]}
+         (integer? insurance-cut-bps) (<= 0 insurance-cut-bps payoffs/basis-point-denominator)
+         (integer? protocol-retained-bps) (<= 0 protocol-retained-bps payoffs/basis-point-denominator)
+         (<= (+ insurance-cut-bps protocol-retained-bps)
+             payoffs/basis-point-denominator)]}
   (let [insurance (payoffs/calculate-bps-amount amount insurance-cut-bps)
         protocol  (payoffs/calculate-bps-amount amount protocol-retained-bps)
         retained  (- amount insurance protocol)

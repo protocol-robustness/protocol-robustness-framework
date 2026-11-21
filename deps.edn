@@ -43,8 +43,10 @@
     :paths/scripts       ["scripts"]
     :paths/protocols-src ["protocols_src"]
     :paths/sew-protocol-model ["packages/sew-protocol-model/src"
+                               "packages/sew-protocol-model/resources"
                                "packages/sew-protocol-model/test"]
     :paths/protocols     ["packages/sew-protocol-model/src"
+                          "packages/sew-protocol-model/resources"
                           "extensions/sew-yield-integration/src"
                           "extensions/sew-pro-rata-economics/src"
                           "extensions/sew-pro-rata-test-vectors/src"
@@ -74,6 +76,7 @@
                           "extensions/sew-runner/test"
                           "protocols_src/test"]
     :paths/protocols-runtime ["packages/sew-protocol-model/src"
+                              "packages/sew-protocol-model/resources"
                               "extensions/sew-yield-integration/src"
                               "extensions/sew-pro-rata-economics/src"
                               "extensions/sew-analysis/src"
@@ -124,6 +127,7 @@
                          "extensions/sew-research/test"]
     :paths/sew-research-rt ["extensions/sew-research/src"]
     :paths/all           ["src" "yield_runtime_src" "test" "packages/sew-protocol-model/src"
+                          "packages/sew-protocol-model/resources"
                           "packages/sew-protocol-model/test" "protocols_src" "protocols_src/test"
                           :paths/sew-financial-lifecycle :paths/sew-bounty-route :paths/sew-bounty
                           :paths/sew-pro-rata-application :paths/sew-research-models :paths/sew-research :paths/sew-runner "dev" "scripts"
