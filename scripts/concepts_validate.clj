@@ -414,7 +414,6 @@
   (try
     (let [{:keys [registry]} (concepts-registry/load-registry)
           reg-entries (:concepts registry)
-          reg-by-id (into {} (map (fn [entry] [(:concept/id entry) entry]) reg-entries))
           errors (atom [])
           files-ok (atom 0)
           loaded-concepts (atom [])

@@ -110,9 +110,6 @@
         (throw (ex-info (str "Registered data file not found: " rel-path)
                         {:path rel-path}))))))
 
-(def ^:private mapping-categories
-  #{:concept/roles :concept/entities :concept/actions :concept/outcomes})
-
 (defn- load-mapping-sets
   [registry]
   (into {}

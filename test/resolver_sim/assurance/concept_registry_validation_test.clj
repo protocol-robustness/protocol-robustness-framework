@@ -5,7 +5,7 @@
    referenced by the five generic claims."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-
+            [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.concepts.registry :as concepts-registry]))
 
@@ -67,7 +67,7 @@
       (is (:assumptions c) (str "Claim " (:claim/id c) " must have :assumptions"))
       (is (:falsified-if c) (str "Claim " (:claim/id c) " must have :falsified-if"))
       (is (:validated-by c) (str "Claim " (:claim/id c) " must have :validated-by"))
-      (is (every? #(clojure.string/includes? % "benchmarks/packs/prf-core/")
+      (is (every? #(str/includes? % "benchmarks/packs/prf-core/")
                   (:validated-by c))
           (str "Claim " (:claim/id c) " must reference prf-core path, not sew path"))
       (is (= :trace-bounded (:confidence c))

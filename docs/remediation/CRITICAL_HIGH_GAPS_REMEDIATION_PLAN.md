@@ -332,13 +332,16 @@ from referenced inputs.
 
 ### Expected files
 
+Concept definitions and the registry now live in the `concepts` package of
+`protocol-robustness/prf-extensions`; use these paths within that repository.
+
 - Update `src/resolver_sim/benchmark/review/three_member_certificate.clj`
 - Update `src/resolver_sim/benchmark/researcher_position.clj`
 - Inspect/update review-round and canonical-index validators as needed
 - Update `test/resolver_sim/benchmark/review/three_member_certificate_test.clj`
 - Update `test/resolver_sim/benchmark/researcher_integration_test.clj`
-- Update `data/concepts/framework/review_certificate.edn` only if the schema or
-  documented capability changes
+- Update `prf-extensions/concepts/resources/concepts/definitions/framework/review_certificate.edn`
+  only if the schema or documented capability changes
 
 ### Design decisions
 
@@ -537,10 +540,10 @@ Alternative if the three layers must be explicit:
 
 ### Expected files
 
-- Rename/update `data/concepts/framework/core_protocol_boundary.edn`
-- Update `data/concepts/registry.edn`
-- Update references in `data/concepts/framework/held_custody.edn`
-- Update references in `data/concepts/yield/yield_bearing.edn`
+- Rename/update `prf-extensions/concepts/resources/concepts/definitions/framework/core_protocol_boundary.edn`
+- Update `prf-extensions/concepts/resources/concepts/registry.edn`
+- Update references in `prf-extensions/concepts/resources/concepts/definitions/framework/held_custody.edn`
+- Update references in `prf-extensions/concepts/resources/concepts/definitions/yield/yield_bearing.edn`
 - Update architecture and generated-concept documentation
 
 ### Implementation steps
