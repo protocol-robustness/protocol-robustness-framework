@@ -26,11 +26,24 @@
     :privacy-head-observation/previous-root
     :privacy-head-observation/sequence :privacy-head-observation/observed-at
     :privacy-head-observation/root :signature})
+(def ^:private checkpoint-fields #{:sequence :root :conflicts})
+(def ^:private conflict-fields #{:sequence :known-root :observed-root :observation-root})
 
 (defn trust-policy-root [trust-policy]
-  (when (map? trust-policy)
-    (ref/sha256-ref (hc/domain-hash "prf.stablecoin-privacy-caller-trust-policy.v1"
-                                    trust-policy))))
+  (try
+    (when (map? trust-policy)
+      (ref/sha256-ref (hc/domain-hash "prf.stablecoin-privacy-caller-trust-policy.v1"
+                                      trust-policy)))
+    (catch Exception _ nil)))
+
+(defn- valid-conflict? [conflict]
+  (and (map? conflict)
+       (= conflict-fields (set (keys conflict)))
+       (integer? (:sequence conflict))
+       (<= 0 (:sequence conflict) Long/MAX_VALUE)
+       (every? ref/valid-sha256-ref?
+               [(:known-root conflict) (:observed-root conflict)
+                (:observation-root conflict)])))
 
 (defn binding-root [binding]
   (ref/sha256-ref
@@ -65,7 +78,7 @@
        (or (nil? (:privacy-head-observation/previous-root observation))
            (ref/valid-sha256-ref? (:privacy-head-observation/previous-root observation)))
        (integer? (:privacy-head-observation/sequence observation))
-       (not (neg? (:privacy-head-observation/sequence observation)))
+       (<= 0 (:privacy-head-observation/sequence observation) Long/MAX_VALUE)
        (integer? (:privacy-head-observation/observed-at observation))
        (not (neg? (:privacy-head-observation/observed-at observation)))
        (= (:privacy-head-observation/root observation) (observation-root observation))))
@@ -130,15 +143,19 @@
                     (<= (:privacy-head-observation/observed-at head-observation) now)
                     (<= (- now (:privacy-head-observation/observed-at head-observation))
                         max-observation-age-seconds))
+        checkpoint-conflicts (:conflicts head-checkpoint)
         checkpoint-valid? (and (map? head-checkpoint)
+                               (= checkpoint-fields (set (keys head-checkpoint)))
                                (integer? (:sequence head-checkpoint))
                                (<= 0 (:sequence head-checkpoint) Long/MAX_VALUE)
-                               (ref/valid-sha256-ref? (:root head-checkpoint)))
+                               (ref/valid-sha256-ref? (:root head-checkpoint))
+                               (vector? checkpoint-conflicts)
+                               (every? valid-conflict? checkpoint-conflicts))
         checkpoint-seq (when checkpoint-valid? (:sequence head-checkpoint))
         observed-seq (:privacy-head-observation/sequence head-observation)
         observed-root (:privacy-head-observation/head-root head-observation)
         checkpoint-root (when checkpoint-valid? (:root head-checkpoint))
-        retained-conflicts (when (map? head-checkpoint) (:conflicts head-checkpoint))
+        retained-conflicts (when checkpoint-valid? checkpoint-conflicts)
         head-status (cond
                       (not observation-structure?) :invalid-observation
                       (seq retained-conflicts) :retained-equivocation
@@ -184,7 +201,9 @@
                 {:observation-root (:privacy-head-observation/root head-observation)
                  :observer-key-id (get-in observation-signature [:key-id])
                  :observed-at (:privacy-head-observation/observed-at head-observation)
-                 :trust-status :verified-relative-to-caller-supplied-policy}
+                 :trust-status (if observer-verified?
+                                 :verified-relative-to-caller-supplied-policy
+                                 :unverified)}
                 :privacy-resolution/head-status head-status
                 :privacy-resolution/errors
                 (cond-> []

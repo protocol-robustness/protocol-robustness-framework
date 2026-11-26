@@ -168,11 +168,66 @@
                 (:privacy-resolution/errors result)))))
   (is (:privacy-resolution/valid? (resolve-fixture))))
 
+(deftest historical-policy-version-verification-uses-retained-context
+  (let [historical-input (resolution-input)
+        historical-result (resolution/resolve-policy historical-input)
+        policy-v2 (policy/build-policy
+                   (-> policy-body
+                       (assoc :privacy-policy/version 2
+                              :privacy-policy/valid-from 160
+                              :privacy-policy/valid-until 260)
+                       (dissoc :privacy-policy/root)))
+        binding-v2-body {:privacy-binding/schema resolution/binding-schema
+                         :privacy-binding/issuer "did:fixture:issuer"
+                         :privacy-binding/asset-root (sha "a")
+                         :privacy-binding/jurisdiction "ZZ"
+                         :privacy-binding/operation "publish"
+                         :privacy-binding/policy-root (:privacy-policy/root policy-v2)
+                         :privacy-binding/authority-ref "fixture-authority-reference"}
+        binding-v2-rooted
+        (assoc binding-v2-body :privacy-binding/root
+               (resolution/binding-root binding-v2-body))
+        binding-v2 (signed/sign-envelope
+                    binding-v2-rooted resolution/binding-domain
+                    (:private-key authority) (:key/id authority))
+        request-v2 (policy/build-request
+                    (dissoc (assoc request :request/at 180)
+                            :request/schema :request/root))
+        observation-v2-body
+        {:privacy-head-observation/schema resolution/observation-schema
+         :privacy-head-observation/binding-root (:privacy-binding/root binding-v2)
+         :privacy-head-observation/policy-root (:privacy-policy/root policy-v2)
+         :privacy-head-observation/head-root (sha "f")
+         :privacy-head-observation/previous-root (sha "e")
+         :privacy-head-observation/sequence 6
+         :privacy-head-observation/observed-at 175}
+        observation-v2-rooted
+        (assoc observation-v2-body :privacy-head-observation/root
+               (resolution/observation-root observation-v2-body))
+        observation-v2 (signed/sign-envelope
+                        observation-v2-rooted resolution/observation-domain
+                        (:private-key observer) (:key/id observer))
+        current-input (assoc (resolution-input)
+                             :binding binding-v2 :policy policy-v2
+                             :request request-v2 :head-observation observation-v2
+                             :now 180)
+        current-result (resolution/resolve-policy current-input)]
+    (is (:privacy-resolution/valid? historical-result))
+    (is (:privacy-resolution/valid? current-result))
+    (is (not= (:privacy-resolution/policy-root historical-result)
+              (:privacy-resolution/policy-root current-result)))
+    (is (resolution/verify-resolution historical-result historical-input)
+        "the old receipt verifies against its retained policy and trust context")
+    (is (false? (resolution/verify-resolution historical-result current-input))
+        "the new policy and trust context cannot silently replace the historical context")
+    (is (resolution/verify-resolution current-result current-input))))
+
 (deftest exact-authority-reference-and-explicit-caller-trust-are-required
   (let [substituted (resolve-fixture {:binding (signed-binding "substituted-authority")})
         missing-authority (resolve-fixture
                            {:authority-trust-policy
                             (dissoc authority-trust :authority/ref)})
+        bad-observer (resolve-fixture {:observer-trust-policy authority-trust})
         valid (resolve-fixture)]
     (is (false? (:privacy-resolution/valid? substituted)))
     (is (some #{:authority-reference-mismatch}
@@ -187,7 +242,10 @@
     (is (= (resolution/trust-policy-root authority-trust)
            (:privacy-resolution/authority-trust-policy-root valid)))
     (is (= :verified-relative-to-caller-supplied-policy
-           (get-in valid [:privacy-resolution/observation-provenance :trust-status])))))
+           (get-in valid [:privacy-resolution/observation-provenance :trust-status])))
+    (is (= :unverified (:privacy-resolution/observer-status bad-observer)))
+    (is (= :unverified
+           (get-in bad-observer [:privacy-resolution/observation-provenance :trust-status])))))
 
 (deftest head-history-rejects-equivocation-regression-gaps-and-bad-continuity
   (let [equivocation (resolve-fixture
@@ -204,7 +262,13 @@
                   :head-observation (signed-observation (sha "d") 5 145 (sha "f"))})
         conflict-retained (resolve-fixture
                            {:head-checkpoint {:sequence 5 :root (sha "e")
-                                              :conflicts [{:sequence 5}]}})]
+                                              :conflicts [{:sequence 5
+                                                           :known-root (sha "e")
+                                                           :observed-root (sha "d")
+                                                           :observation-root (sha "a")}]}})
+        malformed-checkpoint (resolve-fixture
+                              {:head-checkpoint {:sequence 5 :root (sha "e")
+                                                 :conflicts 1}})]
     (is (= :equivocation (:privacy-resolution/head-status equivocation)))
     (is (= :stale-sequence (:privacy-resolution/head-status regression)))
     (is (= :sequence-gap (:privacy-resolution/head-status gap)))
@@ -213,6 +277,8 @@
     (is (:privacy-resolution/valid? advance))
     (is (= :retained-equivocation
            (:privacy-resolution/head-status conflict-retained)))
+    (is (= :checkpoint-missing-or-invalid
+           (:privacy-resolution/head-status malformed-checkpoint)))
     (is (not (:privacy-resolution/valid? equivocation)))))
 
 (deftest malformed-freshness-values-return-structured-denials

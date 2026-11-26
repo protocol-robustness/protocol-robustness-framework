@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 
-clojure -Srepro -M:test -e "(require 'clojure.test 'resolver-sim.privacy.policy-test 'resolver-sim.privacy.initialization-test 'resolver-sim.privacy.resolution-test 'resolver-sim.commands.privacy-test) (let [r (clojure.test/run-tests 'resolver-sim.privacy.policy-test 'resolver-sim.privacy.initialization-test 'resolver-sim.privacy.resolution-test 'resolver-sim.commands.privacy-test)] (when (pos? (+ (:fail r) (:error r))) (System/exit 1)))"
+clojure -Srepro -M:test -e "(require 'clojure.test 'resolver-sim.privacy.policy-test 'resolver-sim.privacy.initialization-test 'resolver-sim.privacy.resolution-test 'resolver-sim.privacy.storage-query-test 'resolver-sim.commands.privacy-test) (let [r (clojure.test/run-tests 'resolver-sim.privacy.policy-test 'resolver-sim.privacy.initialization-test 'resolver-sim.privacy.resolution-test 'resolver-sim.privacy.storage-query-test 'resolver-sim.commands.privacy-test)] (when (pos? (+ (:fail r) (:error r))) (System/exit 1)))"
 clojure -Srepro -M:test -e "(require 'resolver-sim.commands.registry-validate) (let [r (resolver-sim.commands.registry-validate/validate {})] (when (pos? (:exit-code r)) (System/exit 1)))"
 clojure -Srepro -M:test scripts/concepts_validate.clj
 
@@ -17,6 +17,7 @@ diff -r "$tmp_dir" "$repeat_dir"
 
 clojure -Srepro -M:cli privacy policy inspect --input "$tmp_dir/policy.edn"
 clojure -Srepro -M:cli privacy evaluate --input "$tmp_dir/allow-evaluate.edn"
+clojure -Srepro -M:cli privacy stage-output --input "$tmp_dir/allow-evaluate.edn"
 clojure -Srepro -M:cli privacy verify --input "$tmp_dir/allow.edn"
 clojure -Srepro -M:cli privacy verify --input "$tmp_dir/deny.edn"
 

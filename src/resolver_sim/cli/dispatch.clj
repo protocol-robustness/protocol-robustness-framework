@@ -92,6 +92,10 @@
    :privacy-policy-inspect 'resolver-sim.commands.privacy/policy-inspect
    :privacy-evaluate 'resolver-sim.commands.privacy/evaluate
    :privacy-verify 'resolver-sim.commands.privacy/verify
+   :privacy-stage-output 'resolver-sim.commands.privacy/stage-output
+   :privacy-policy-resolve 'resolver-sim.commands.privacy/policy-resolve
+   :privacy-query-event 'resolver-sim.commands.privacy/query-event
+   :privacy-query-wallet 'resolver-sim.commands.privacy/query-wallet
    :publish-check 'resolver-sim.commands.publish/run
    :resubmission-issue 'resolver-sim.commands.resubmission-issue/run
    :resubmission-issue-admission-v2 'resolver-sim.commands.resubmission-issue-admission-v2/run

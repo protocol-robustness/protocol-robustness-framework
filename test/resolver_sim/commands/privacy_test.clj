@@ -3,6 +3,7 @@
             [resolver-sim.commands.privacy :as command]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.privacy.policy :as policy]
+            [resolver-sim.privacy.resolution-test :as resolution-fixture]
             [resolver-sim.signed-external-decision :as signed]
             [resolver-sim.support.ed25519 :as fx]))
 
@@ -95,3 +96,51 @@
             tampered (invoke command/verify tampered-input)]
         (is (= 0 (:exit-code (:result valid))))
         (is (= 1 (:exit-code (:result tampered))))))))
+
+(deftest stage-output-is-a-status-only-view-and-suppresses-diagnostics
+  (let [success (invoke command/stage-output eval-input)
+        success-output (:output success)
+        projected (read-string success-output)
+        secret-input (assoc eval-input :private-fixture-value "do-not-print")
+        failed (invoke command/stage-output secret-input)
+        failed-output (:output failed)
+        unavailable-stage-output (read-string failed-output)
+        invalid-request (assoc eval-input
+                               :request (assoc test-request :request/at "150"))
+        invalid-stage-output (read-string
+                              (:output (invoke command/stage-output invalid-request)))]
+    (is (= 0 (:exit-code (:result success))))
+    (is (= :allow (:privacy-stage-output/decision projected)))
+    (is (= "stablecoin-privacy-stage-output.v2"
+           (:privacy-stage-output/schema projected)))
+    (is (= [:request :classification :evidence :privacy-policy :sentinel
+            :authority :currentness :execution]
+           (mapv :stage (:privacy-stage-output/stages projected))))
+    (is (= [:valid :verified :verified :permitted :local-gate-passed
+            :unverified :unknown :not-executed]
+           (mapv :status (:privacy-stage-output/stages projected))))
+    (is (= :available (:privacy-stage-output/status projected)))
+    (is (false? (:privacy-stage-output/receipt-included? projected)))
+    (is (not (contains? projected :privacy-stage-output/receipt-root)))
+    (is (not (.contains success-output "did:fixture:recipient")))
+    (is (= 2 (:exit-code (:result failed))))
+    (is (= :unavailable
+           (:privacy-stage-output/status unavailable-stage-output)))
+    (is (= (vec (repeat 8 :not-run))
+           (mapv :status (:privacy-stage-output/stages unavailable-stage-output))))
+    (is (= [:invalid :not-run :not-run :not-run :not-run :not-run :not-run :not-run]
+           (mapv :status (:privacy-stage-output/stages invalid-stage-output))))
+    (is (not (.contains failed-output "do-not-print")))))
+
+(deftest policy-resolve-reports-a-retention-bound-with-caller-relative-currentness
+  (let [{:keys [output result]}
+        (invoke command/policy-resolve (resolution-fixture/resolution-input))
+        projected (read-string output)]
+    (is (= 0 (:exit-code result)))
+    (is (= :available (:privacy-policy-query/status projected)))
+    (is (true? (:privacy-policy-query/resolution-valid? projected)))
+    (is (= :current-observed (:privacy-policy-query/currentness projected)))
+    (is (= 3600 (:privacy-policy-query/retention-limit-seconds projected)))
+    (is (= :caller-supplied-trust-policies
+           (:privacy-policy-query/trust-provenance projected)))
+    (is (true? (:privacy-policy-query/operation-not-authorized? projected)))))

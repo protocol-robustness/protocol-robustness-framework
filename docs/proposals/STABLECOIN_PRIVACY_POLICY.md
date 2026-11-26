@@ -67,9 +67,37 @@ configuration. No such privacy configuration seam or approved authority input
 is currently available; do not add a parallel governance store or represent a
 fixture signature as approval.
 
-Researcher commands are `privacy policy inspect`, `privacy evaluate`, and
-`privacy verify`. The reproducible synthetic example is documented in
+Researcher commands are `privacy policy inspect`, `privacy policy resolve`,
+`privacy evaluate`, `privacy stage-output`, `privacy verify`,
+`privacy query-event`, and `privacy query-wallet`. The reproducible synthetic example is documented in
 [`examples/use-cases/stablecoin-privacy/README.md`](../../examples/use-cases/stablecoin-privacy/README.md).
+
+`privacy stage-output` is an audience-facing projection, separate from the
+full rooted evaluation receipt. It emits fixed statuses for request validation,
+classification, evidence, privacy policy, Sentinel, authority, currentness, and
+execution. It excludes request contents, stable artifact/report/evidence roots,
+rule identifiers, and detailed reasons. Input that cannot be parsed or evaluated
+produces a fixed unavailable summary with every stage marked not-run and no
+exception text. A structurally invalid request instead reports request invalid
+and every later stage as not-run. For a valid request, execution is reported as
+not-executed because this command does not perform an external operation. This
+projection is not independently verifiable evidence and cannot replace the
+retained receipt. The receiving stage must still classify and authorize its
+exact output view for its sink; omitting fields from this summary does not
+establish that another artifact has been redacted or made safe.
+
+`privacy policy resolve` reports the matching rule's retention limit for one
+exact scope only when its signed binding and head observation verify relative
+to the supplied trust policies. It does not authorize storage or another
+operation. `privacy query-event` and `privacy query-wallet` inspect a fresh
+caller-supplied signed storage inventory after checking a short-lived,
+subject-bound query authorization. They report the inventory's retention
+deadline and observed storage states. `:not-observed-in-covered-sinks` means
+only that no record appeared in the inventory's declared coverage; it is not a
+global absence or deletion claim. These commands do not resolve current policy
+or connect to live storage. See
+[`STABLECOIN_PRIVACY_QUERIES.md`](STABLECOIN_PRIVACY_QUERIES.md) for the evidence
+contract and production integration gaps.
 
 ## Existing machinery to reuse
 

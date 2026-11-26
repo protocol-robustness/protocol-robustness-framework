@@ -573,6 +573,62 @@
     :command/positional-args {:min 0 :max 0}
     :command/description "Recompute the privacy evaluation from supplied inputs and verify that the retained receipt matches; this does not authenticate trust configuration or currentness."}
 
+   {:command/id :privacy-stage-output
+    :command/path ["privacy" "stage-output"]
+    :command/title "Project a privacy evaluation into a safe stage summary"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true :doc "EDN inputs accepted by privacy evaluate"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Emit status-only stage results without diagnostics or receipts; this projection never authorizes an operation."}
+
+   {:command/id :privacy-policy-resolve
+    :command/path ["privacy" "policy" "resolve"]
+    :command/title "Resolve a privacy policy for a scoped request"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true :doc "EDN binding, policy, request, observation and caller trust inputs"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Report the scoped retention bound and caller-relative currentness; the result does not authorize storage or another operation."}
+
+   {:command/id :privacy-query-event
+    :command/path ["privacy" "query-event"]
+    :command/title "Query a privacy storage snapshot for an event"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true :doc "EDN event reference, inventory, authorization and caller trust inputs"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Report whether a trusted-relative snapshot includes the event; the snapshot does not prove global storage completeness."}
+
+   {:command/id :privacy-query-wallet
+    :command/path ["privacy" "query-wallet"]
+    :command/title "Query a privacy storage snapshot for an authorized subject"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true :doc "EDN opaque subject reference, inventory, authorization and caller trust inputs"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Summarize matching entries in an authorized snapshot; this is not a global inventory or deletion guarantee."}
+
    {:command/id :publish-check
     :command/path ["publish" "check"]
     :command/title "Out-of-process artifact publisher authority"

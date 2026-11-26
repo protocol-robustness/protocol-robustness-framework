@@ -1,18 +1,19 @@
 # Luna handoff: stablecoin privacy policy
 
 Design: [Stablecoin privacy policy and sensitivity](STABLECOIN_PRIVACY_POLICY.md).
-Status: partially implemented in a pending, offline candidate. L1 has draft
+Status: partially implemented in an offline candidate on `agent-c-2`. L1 has draft
 concepts and a binding inventory. L2 and L4 include rooted requests, signed
 classification/evidence checks, restrictive multi-policy evaluation, and
 recomputable receipts. L3 has a fixture-input resolver for signed scope
 bindings and fresh signed head observations; authenticated production trust and
 configuration integration remain blocked. L5 adds inspect/evaluate/verify CLI
-commands and a synthetic reproducible example. L6 adds a CAS-fenced
-in-memory-only simulated effect. None of these establishes production policy
+commands, synthetic privacy boundary checks, a stage-output projection, and
+offline policy/storage query adapters. L6 adds a CAS-fenced in-memory-only
+simulated effect. None of these establishes production policy
 authority, live currentness, or operation authorization. Do not treat passing
-tests as policy approval or qualification. Work only in the isolated
-candidate. Use workspace commit identity and JJ workflow. Do not push without
-the user's instruction. Each task can be a separate commit.
+tests as policy approval or qualification. Continue in `agent-c-2` using the
+workspace commit identity and JJ workflow. Do not push without the user's
+instruction. Each task can be a separate commit.
 
 | Task | Current status | Remaining boundary |
 |---|---|---|
@@ -20,8 +21,9 @@ the user's instruction. Each task can be a separate commit.
 | L2 Immutable policy and evaluation contracts | Partial | Rooted policy/request/receipt checks exist; authority approval and full proposed schema/registrations remain. |
 | L3 Trusted policy resolution | Partial | Signed fixture binding/head resolver validates exact authority references, a bounded caller-supplied checkpoint, single-step continuity, and freshness relative to supplied trust policies. External trust anchoring, durable checkpoint history, and production configuration binding remain unqualified. |
 | L4 Privacy evaluator and Sentinel composition | Partial | Exact report/evidence checks, deny-overrides, all-policy permit, and Sentinel composition exist; real authority and actual data-view integration remain. |
-| L5 Offline commands and synthetic stablecoin example | Partial, offline | Inspect/evaluate/verify and aggregate allow/deny fixtures exist. Private-identity export denial and policy-version historical verification are not implemented or demonstrated. |
+| L5 Offline commands and synthetic stablecoin example | Complete, offline checks | Inspect/evaluate/verify and `privacy stage-output` are registered; tests cover private identity export denial and retained version-1 verification after a version-2 policy update. Fixture authority remains synthetic. |
 | L6 Enforcement boundary qualification | Simulated, bounded | In-memory CAS boundary fences one process instance and records equivocation in its local state. Restart, cross-process, and durable replay guarantees are not implemented; no live disclosure, storage, issuer, or token adapter exists. |
+| L7 Researcher policy and storage queries | Partial, offline snapshot verifier | `privacy policy resolve`, `privacy query-event`, and `privacy query-wallet` operate on caller-supplied signed inputs. No authenticated production trust distribution, live storage index, wallet-subject resolver, or comprehensive deletion evidence exists. |
 
 Read the linked design before each task. Fixture keys and policy owners are
 synthetic; do not claim real authority, regulatory compliance, or live currentness.
@@ -133,8 +135,34 @@ issuer operations and retention. Run focused suites and required registry/packag
 checks, record exact commands/results, changed files and remaining external trust
 requirements. No live deployment or fabricated governance approval is included.
 
+## L7 — Researcher policy and storage queries
+
+Dependencies: L3 current-policy resolver, L5 command surface, and an explicit
+storage-inventory contract. The offline command adapters are implemented in
+`resolver-sim.privacy.storage-query`; the integration specification is
+[`STABLECOIN_PRIVACY_QUERIES.md`](STABLECOIN_PRIVACY_QUERIES.md).
+
+`privacy policy resolve` reports a matching policy retention bound for one
+exact scope, relative to caller-supplied authority and observer trust policies.
+`privacy query-event` and `privacy query-wallet` verify short-lived subject
+authorization and signed caller-supplied inventory snapshots. They do not
+connect to live stores, resolve wallet addresses to people, or claim global
+absence from a partial or provider-asserted inventory.
+
+Acceptance for the offline verifier: reject tampered/stale inventory, invalid
+coverage, subject substitution, wrong query scope, expired authorization, and
+missing trust; report storage state only for fresh valid signed observations;
+represent absence as `not-observed-in-covered-sinks`; never return subject data
+without subject-bound authorization. Tests must distinguish actual storage
+observations from policy retention limits and current-policy resolution.
+
+The task remains partial until a governed provider trust policy, authenticated
+subject-reference service, audited store/processor coverage, and deletion
+receipts exist. Do not mark those production claims complete from synthetic
+fixtures.
+
 ## Execution order
 
-L1 → L2 → L3 → L4 → L5 → L6. Finish each task's acceptance checks and report its
+L1 → L2 → L3 → L4 → L5 → L6 → L7. Finish each task's acceptance checks and report its
 limitations before marking it complete. Do not infer policy authority from a
 fixture signature or infer deployment readiness from passing offline tests.

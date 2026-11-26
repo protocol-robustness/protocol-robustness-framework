@@ -60,13 +60,15 @@
     :request/sink :encrypted-bundle :request/retention-seconds 300
     :request/evidence []}))
 
-(defn classification-attestation [req]
-  (signed-decision/sign-envelope
-   {:classification/schema "stablecoin-classification-attestation.v1"
-    :classification/artifact-root (:request/artifact-root req)
-    :classification/report-root (:request/classification-report-root req)
-    :classification/level :sensitivity/public}
-   policy/classification-domain (:private-key classifier-key) (:key/id classifier-key)))
+(defn classification-attestation
+  ([req] (classification-attestation req :sensitivity/public))
+  ([req level]
+   (signed-decision/sign-envelope
+    {:classification/schema "stablecoin-classification-attestation.v1"
+     :classification/artifact-root (:request/artifact-root req)
+     :classification/report-root (:request/classification-report-root req)
+     :classification/level level}
+    policy/classification-domain (:private-key classifier-key) (:key/id classifier-key))))
 
 (defn evidence-attestation [root evidence-type]
   (signed-decision/sign-envelope
@@ -104,6 +106,23 @@
             (:request/root (policy/build-request
                             (dissoc (assoc request :request/recipient-class "internal")
                                     :request/schema :request/root))))))
+
+(deftest epoch-times-are-bounded-and-invalid-request-times-do-not-throw
+  (let [negative-request (assoc request :request/at -1)
+        negative-request (assoc negative-request :request/root
+                                (policy/request-root negative-request))
+        string-request (assoc request :request/at "150")
+        negative-policy (fixture-policy (rule "allow-aggregate" :allow))
+        negative-policy (assoc negative-policy :privacy-policy/valid-from -1)
+        negative-policy (assoc negative-policy :privacy-policy/root
+                               (policy/policy-root negative-policy))
+        result (policy/evaluate negative-policy string-request
+                                (evaluation-options string-request))]
+    (is (false? (:valid? (policy/validate-request negative-request))))
+    (is (some #{:request-time-invalid}
+              (:errors (policy/validate-request negative-request))))
+    (is (false? (:valid? (policy/validate-policy negative-policy))))
+    (is (= :indeterminate (:privacy-evaluation/decision result)))))
 
 (deftest classification-and-evaluation-receipts-bind-the-exact-request
   (let [p (fixture-policy (rule "allow-aggregate" :allow))
@@ -214,3 +233,46 @@
     (is (= :deny (:privacy-evaluation/decision
                   (policy/evaluate p changed-recipient
                                    (evaluation-options changed-recipient)))))))
+
+(deftest private-redemption-identity-export-to-public-chain-is-denied
+  (let [private-report-body (assoc sensitivity-report-body :run-level "private")
+        private-report-hash (hc/hash-with-intent {:hash/intent :evidence-record}
+                                                 private-report-body)
+        private-report (assoc private-report-body :report-hash private-report-hash
+                              :report/semantic-hash private-report-hash
+                              :evaluated-at "fixture-time")
+        private-request (policy/build-request
+                         {:request/id "private-identity-export"
+                          :request/artifact-root artifact-root
+                          :request/classification-report-root
+                          (str "sha256:" private-report-hash)
+                          :request/issuer "did:fixture:issuer"
+                          :request/asset-root asset-root
+                          :request/jurisdiction "ZZ" :request/at 150
+                          :request/data-category "redemption-identity"
+                          :request/operation "export" :request/purpose "redemption"
+                          :request/recipient-id "did:fixture:public-chain"
+                          :request/recipient-class "public"
+                          :request/sink :on-chain-registry
+                          :request/retention-seconds 300 :request/evidence []})
+        permissive-policy
+        (fixture-policy
+         (assoc (rule "allow-identity-export" :allow)
+                :rule/data-categories ["redemption-identity"]
+                :rule/operations ["export"]
+                :rule/purposes ["redemption"]
+                :rule/recipient-ids ["did:fixture:public-chain"]
+                :rule/sinks [:on-chain-registry]
+                :rule/max-sensitivity :sensitivity/critical-private))
+        result (policy/evaluate
+                permissive-policy private-request
+                (assoc (evaluation-options private-request)
+                       :classification-report private-report
+                       :classification-attestation
+                       (classification-attestation private-request
+                                                   :sensitivity/private)))]
+    (is (= :deny (:privacy-evaluation/decision result)))
+    (is (= :denied (:privacy-evaluation/sentinel-status result)))
+    (is (some #{:sentinel-disclosure-denied}
+              (:privacy-evaluation/reasons result)))
+    (is (false? (:privacy-evaluation/usable? result)))))
