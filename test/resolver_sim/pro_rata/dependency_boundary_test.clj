@@ -107,5 +107,6 @@
     (is (str/includes? shared-withdrawal "pro-rata/allocate"))
     (is (not (str/includes? shared-withdrawal "payoffs/allocate-pro-rata")))
     (is (or (str/includes? sew-slash "pro-rata/allocate")
-            (str/includes? sew-slash "pro-rata.allocation/allocate")))
+            (str/includes? sew-slash "pro-rata.allocation/allocate")
+            (str/includes? sew-slash "pro-rata-api/allocate")))
     (is (not (str/includes? sew-slash "payoffs/allocate-pro-rata")))))
