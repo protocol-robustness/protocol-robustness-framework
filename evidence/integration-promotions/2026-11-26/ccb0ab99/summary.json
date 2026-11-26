@@ -1,0 +1,40 @@
+{
+  "authoritative": false,
+  "baseline": {
+    "commit": "84ca777e0fca16030c40f158cf593b2a45184c73",
+    "tree": "68a7cced8dd18b7155cc127d897f47220f8ab12b"
+  },
+  "included_commits": [
+    "caadea05d62f8660d7ec92cffb3a3ea417d1a460",
+    "ccb0ab99c53993b2de8e95ba3740745adb564a57"
+  ],
+  "independent_review": {
+    "artifact_sha256": "67b5348beeb3c2041ca49a4b2af781b3f2b07d253286a6fe288c0a99b69f2980",
+    "status": "PASS"
+  },
+  "integration_promotion": {
+    "jj_operation_id": "671236d673c7fb096ef569742962cfeb5e9f98f8f02aaaf23e2042dd855179268b54e0d19c7037e55fab95fe6c460ad8873aba7857634f908150f3737e222b60",
+    "promotion_record_sha256": "20cebd6d264907a0116272800c387a0a4db7ad619cad7f62a3b74de83f4de93c",
+    "status": "verified"
+  },
+  "issues": [
+    "PRO-197",
+    "PRO-160 (test-only assertion update)"
+  ],
+  "note": "Non-authoritative public receipt summary. The complete raw promotion and publication evidence remains in the access-controlled archive.",
+  "publication_date": "2026-11-26",
+  "publication_record_sha256": "1ba26b37fae2170e4d42d56008882321a4c500ce0594cc6f74f4619efb7a66d3",
+  "published": {
+    "commit": "ccb0ab99c53993b2de8e95ba3740745adb564a57",
+    "tree": "938450ba5d6e9000a051541f0c36248f31c7a6d1"
+  },
+  "qualification": {
+    "full_suite_targets": "10/10",
+    "status": "passed",
+    "test_receipt_sha256": "1e5dc00e4bb731a99702cfa10ea9417eb236451231b6abd714317ce29ce18999"
+  },
+  "remote": "staging-https",
+  "repository": "protocol-robustness/protocol-robustness-framework",
+  "schema": "prf-main-publication-summary.v1",
+  "target": "refs/heads/main"
+}
